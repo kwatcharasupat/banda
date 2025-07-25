@@ -1,0 +1,38 @@
+# @package _group_
+
+_target_: banda.models.separator.Separator
+stems: ["vocals", "bass", "drums", "other"] # Example stems
+fs: 44100
+n_fft: 2048
+win_length: 2048
+hop_length: 512
+window_fn: "hann_window"
+center: True
+normalized: True
+pad_mode: "constant"
+onesided: True
+
+# BandsplitModule parameters
+band_specs: null # Use default (full band) for now, or specify e.g., [[0, 1025]]
+require_no_overlap: False
+require_no_gap: True
+normalize_channel_independently: False
+treat_channel_as_feature: True
+emb_dim: 128
+in_channel: 2
+
+# Time-Frequency Model parameters
+tf_model_type: "rnn" # "rnn", "transformer", or "conv"
+n_tf_modules: 12
+rnn_dim: 256
+bidirectional: True
+rnn_type: "LSTM"
+tf_dropout: 0.0
+
+# Mask Estimation parameters
+mlp_dim: 512
+hidden_activation: "Tanh"
+hidden_activation_kwargs: null
+complex_mask: True
+overlapping_band: False
+use_freq_weights: False

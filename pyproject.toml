@@ -1,0 +1,29 @@
+[project]
+name = "banda"
+version = "0.1.0"
+description = "A source separation ML package using PyTorch Lightning, Hydra, and Ray."
+authors = [
+    { name = "Karn Watcharasupat", email = "kwatcharasupat@ieee.org" },
+]
+dependencies = [
+    "torch",
+    "pytorch-lightning",
+    "hydra-core",
+    "ray",
+    "pydantic",
+    "torchaudio",
+    "numpy",
+    "structlog",
+    "torchmetrics",
+    "soundfile",
+]
+requires-python = ">=3.9"
+readme = "README.md"
+license = { file = "LICENSE" }
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

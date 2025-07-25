@@ -1,0 +1,51 @@
+# @package _global_
+
+# Configuration for MUSDB18 preprocessing script
+
+# Input path to the raw MUSDB18HQ dataset (e.g., where train/test folders are)
+input_path: "${oc.env:DATA_ROOT}/musdb18-sample/canonical"
+
+# Output path for the processed .npz files
+output_path: "${oc.env:DATA_ROOT}/musdb18-sample/intermediates/npz"
+
+# Target sample rate for processed audio
+target_fs: 44100
+
+# Target number of channels for processed audio
+target_channels: 2
+
+# List of stems to process. If empty, defaults to ["mixture", "vocals", "bass", "drums", "other"]
+stems_to_process: [] # Example: ["vocals", "mixture"]
+
+# Number of worker processes for parallel processing
+num_workers: 4
+
+hydra:
+  run:
+    dir: outputs/preprocess/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job_logging:
+    formatters:
+      default:
+        format: "[%(levelname)s] %(message)s"
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: default
+        level: INFO
+        stream: ext://sys.stdout
+    root:
+      handlers: [console]
+      level: INFO
+  hydra_logging:
+    formatters:
+      default:
+        format: "[%(levelname)s] %(message)s"
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: default
+        level: INFO
+        stream: ext://sys.stdout
+    root:
+      handlers: [console]
+      level: INFO

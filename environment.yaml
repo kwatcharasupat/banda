@@ -1,0 +1,21 @@
+name: banda
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pytorch
+  - pytorch-lightning
+  - hydra-core
+  - pydantic
+  - torchaudio
+  - numpy
+  - structlog
+  - torchmetrics
+  - soundfile
+  - stempeg # Added stempeg for .stem.mp4 support
+  - pip
+  - pip:
+    - omegaconf
+    - ray[default]

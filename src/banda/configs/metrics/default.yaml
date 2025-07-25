@@ -1,0 +1,5 @@
+# @package _group_
+
+# Example metric: Scale-Invariant Signal-to-Noise Ratio (SI-SNR)
+# This is a common metric for source separation.
+_target_: torchmetrics.audio.ScaleInvariantSignalNoiseRatio

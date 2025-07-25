@@ -1,0 +1,16 @@
+# @package _group_
+
+defaults:
+  - base
+
+train_dataset_config:
+  config:
+    dataset_connector:
+      config:
+        data_root: "${oc.env:DATA_ROOT}/musdb18-sample/intermediates/npz" # Path relative to DATA_ROOT
+
+val_dataset_config:
+  config:
+    dataset_connector:
+      config:
+        data_root: "${oc.env:DATA_ROOT}/musdb18-sample/intermediates/npz" # Path relative to DATA_ROOT

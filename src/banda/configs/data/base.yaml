@@ -1,0 +1,48 @@
+# @package _group_
+
+_target_: banda.data.datamodule.SourceSeparationDataModule
+batch_size: 4
+num_workers: 4
+pin_memory: True
+
+train_dataset_config:
+  _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+  config:
+    split: "train"
+    dataset_connector:
+      _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+      config:
+        split: "train"
+        # data_root will be overridden by specific configs
+    fs: 44100
+    premix_transform:
+      _target_: banda.data.augmentations.base.ComposePreMixTransforms
+      transforms:
+        - _target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+          config:
+            chunk_size_seconds: 3.0
+            fs: 44100
+            align_sources: True
+    postmix_transform:
+      _target_: banda.data.augmentations.base.ComposePostMixTransforms
+      transforms:
+        - _target_: banda.data.augmentations.time_domain.Gain
+          config:
+            min_gain_db: -6.0
+            max_gain_db: 6.0
+        - _target_: banda.data.augmentations.time_domain.NormalizeAudio
+          config:
+            target_rms_db: -20.0
+
+val_dataset_config:
+  _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+  config:
+    split: "val"
+    dataset_connector:
+      _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+      config:
+        split: "val"
+        # data_root will be overridden by specific configs
+    fs: 44100
+    premix_transform: null # No augmentation for validation
+    postmix_transform: null # No augmentation for validation
