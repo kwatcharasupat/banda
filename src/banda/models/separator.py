@@ -4,11 +4,13 @@
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 #
-#
+
 
 import torch
 import torch.nn as nn
 from typing import Dict, List, Optional, Tuple, Union
+from omegaconf import DictConfig, OmegaConf
+import importlib
 
 from banda.data.batch_types import SeparationBatch, FixedStemSeparationBatch
 from banda.models.spectral import SpectralComponent
@@ -143,9 +145,9 @@ class Separator(SpectralComponent):
                     hidden_activation_kwargs=hidden_activation_kwargs,
                     complex_mask=complex_mask,
                     # Parameters specific to OverlappingMaskEstimationModule
-                    freq_weights=None, # Will be set by a BandSplitSpecification if used
-                    n_freq=n_fft // 2 + 1, # Total frequency bins
-                    use_freq_weights=use_freq_weights,
+                    **({"n_freq": n_fft // 2 + 1} if overlapping_band else {}), # Only pass n_freq if overlapping_band is True
+                    **({"use_freq_weights": use_freq_weights} if overlapping_band else {}),
+                    **({"freq_weights": None} if use_freq_weights else {}),
                 )
                 for stem in stems
             }
@@ -203,3 +205,75 @@ class Separator(SpectralComponent):
             separated_audio[stem] = self.inverse(masked_spec, original_audio_length)
 
         return separated_audio
+
+    @classmethod
+    def from_config(cls, config: DictConfig):
+        """
+        Instantiates a Separator model from a DictConfig.
+        """
+        # Extract parameters from the config
+        stems = config.get("stems", VDBO_STEMS)
+        band_specs = config.get("band_specs", None)
+        fs = config.get("fs", 44100)
+        n_fft = config.get("n_fft", 2048)
+        win_length = config.get("win_length", None)
+        hop_length = config.get("hop_length", 512)
+        window_fn = config.get("window_fn", "hann_window")
+        wkwargs = config.get("wkwargs", None)
+        power = config.get("power", None)
+        center = config.get("center", True)
+        normalized = config.get("normalized", True)
+        pad_mode = config.get("pad_mode", "constant")
+        onesided = config.get("onesided", True)
+        require_no_overlap = config.get("require_no_overlap", False)
+        require_no_gap = config.get("require_no_gap", True)
+        normalize_channel_independently = config.get("normalize_channel_independently", False)
+        treat_channel_as_feature = config.get("treat_channel_as_feature", True)
+        emb_dim = config.get("emb_dim", 128)
+        in_channel = config.get("in_channel", 2)
+        tf_model_type = config.get("tf_model_type", "rnn")
+        n_tf_modules = config.get("n_tf_modules", 12)
+        rnn_dim = config.get("rnn_dim", 256)
+        bidirectional = config.get("bidirectional", True)
+        rnn_type = config.get("rnn_type", "LSTM")
+        tf_dropout = config.get("tf_dropout", 0.0)
+        mlp_dim = config.get("mlp_dim", 512)
+        hidden_activation = config.get("hidden_activation", "Tanh")
+        hidden_activation_kwargs = config.get("hidden_activation_kwargs", None)
+        complex_mask = config.get("complex_mask", True)
+        overlapping_band = config.get("overlapping_band", False)
+        use_freq_weights = config.get("use_freq_weights", False)
+
+        return cls(
+            stems=stems,
+            band_specs=band_specs,
+            fs=fs,
+            n_fft=n_fft,
+            win_length=win_length,
+            hop_length=hop_length,
+            window_fn=window_fn,
+            wkwargs=wkwargs,
+            power=power,
+            center=center,
+            normalized=normalized,
+            pad_mode=pad_mode,
+            onesided=onesided,
+            require_no_overlap=require_no_overlap,
+            require_no_gap=require_no_gap,
+            normalize_channel_independently=normalize_channel_independently,
+            treat_channel_as_feature=treat_channel_as_feature,
+            emb_dim=emb_dim,
+            in_channel=in_channel,
+            tf_model_type=tf_model_type,
+            n_tf_modules=n_tf_modules,
+            rnn_dim=rnn_dim,
+            bidirectional=bidirectional,
+            rnn_type=rnn_type,
+            tf_dropout=tf_dropout,
+            mlp_dim=mlp_dim,
+            hidden_activation=hidden_activation,
+            hidden_activation_kwargs=hidden_activation_kwargs,
+            complex_mask=complex_mask,
+            overlapping_band=overlapping_band,
+            use_freq_weights=use_freq_weights,
+        )

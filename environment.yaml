@@ -14,7 +14,6 @@ dependencies:
   - structlog
   - torchmetrics
   - soundfile
-  - stempeg # Added stempeg for .stem.mp4 support
   - pip
   - pip:
     - omegaconf

@@ -4,17 +4,20 @@
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 #
-#
+
 
 import torch
 import pytorch_lightning as pl
 import torch
 import torchmetrics
 from typing import Dict, Any, Union
+from omegaconf import DictConfig
+import importlib
 
 from banda.models.separator import Separator
 from banda.data.batch_types import SeparationBatch, FixedStemSeparationBatch
 from banda.losses.base import LossHandler
+from banda.losses.multi_resolution_l1_snr import MultiResolutionSTFTLoss
 
 
 class SeparationTask(pl.LightningModule):
@@ -59,7 +62,7 @@ class SeparationTask(pl.LightningModule):
 
         Args:
             batch (SeparationBatch): The input batch containing the mixture and other data.
-
+            
         Returns:
             Dict[str, torch.Tensor]: Dictionary of separated source audio tensors.
                                      Each tensor has shape: (batch_size, channels, samples)
@@ -132,6 +135,50 @@ class SeparationTask(pl.LightningModule):
         """
         Configures the optimizer for training.
         """
-        # Use hydra.utils.instantiate to create the optimizer
-        optimizer = hydra.utils.instantiate(self.optimizer_config, params=self.parameters())
+        optimizer_class_path = self.optimizer_config.target_
+        optimizer_kwargs = {k: v for k, v in self.optimizer_config.items() if k != 'target_'}
+
+        module_name, class_name = optimizer_class_path.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        optimizer_cls = getattr(module, class_name)
+
+        optimizer = optimizer_cls(params=self.parameters(), **optimizer_kwargs)
         return optimizer
+
+    @classmethod
+    def from_config(cls, config: DictConfig):
+        """
+        Instantiates a SeparationTask from a DictConfig.
+        """
+        model = Separator.from_config(config.model)
+        # Corrected: Directly instantiate MultiResolutionSTFTLoss from config.loss.loss_fn
+        loss_handler = MultiResolutionSTFTLoss.from_config(config.loss.loss_fn)
+        optimizer_config = config.optimizer
+        
+        # Instantiate metric_fn
+        metric_config = config.metrics
+        if isinstance(metric_config, DictConfig) and 'target_' in metric_config:
+            class_path = metric_config.target_
+            kwargs = {k: v for k, v in metric_config.items() if k != 'target_'}
+            module_name, class_name = class_path.rsplit(".", 1)
+            module = importlib.import_module(module_name)
+            metric_cls = getattr(module, class_name)
+            metric_fn = metric_cls(**kwargs)
+        elif isinstance(metric_config, DictConfig): # Handle multiple metrics
+            metric_fn = {}
+            for metric_name, sub_config in metric_config.items():
+                class_path = sub_config.target_
+                kwargs = {k: v for k, v in sub_config.items() if k != 'target_'}
+                module_name, class_name = class_path.rsplit(".", 1)
+                module = importlib.import_module(module_name)
+                metric_cls = getattr(module, class_name)
+                metric_fn[metric_name] = metric_cls(**kwargs)
+        else:
+            raise ValueError(f"Unsupported metric configuration type: {type(metric_config)}")
+
+        return cls(
+            model=model,
+            loss_handler=loss_handler,
+            optimizer_config=optimizer_config,
+            metric_fn=metric_fn,
+        )

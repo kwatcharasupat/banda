@@ -1,0 +1,121 @@
+# @package _global_
+
+defaults:
+  - data: default
+  - model: default
+  - trainer: default
+  - loss: default
+  - metrics: default
+  - augmentations: default
+  - override hydra/job_logging: default
+  - override hydra/hydra_logging: default
+  - _self_
+
+# Project root directory
+project_root: ${oc.env:PROJECT_ROOT,.}
+
+# Experiment name
+experiment_name: bandit_musdb18hq_test
+
+# Random seed for reproducibility
+seed: 42
+
+# Hydra configuration
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job:
+    chdir: True
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+
+# Paths
+paths:
+  output_dir: ${hydra.run.dir}
+  log_dir: ${hydra.run.dir}/logs
+  data_dir: ${project_root}/data
+
+# Override specific configurations for this test run
+data:
+  target_: banda.data.datamodule.SourceSeparationDataModule
+  batch_size: 4
+  num_workers: 0 # Changed to 0
+  pin_memory: false
+  train_dataset_config:
+    target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    config:
+      split: train
+      dataset_connector:
+        target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: train
+          data_root: "${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz"
+  val_dataset_config:
+    target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    config:
+      split: val
+      dataset_connector:
+        target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: val
+          data_root: "${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz"
+
+model:
+  target_: banda.models.separator.Separator
+  stems: ["vocals", "bass", "drums", "other"]
+  fs: 44100
+  n_fft: 2048
+  win_length: 2048
+  hop_length: 512
+  window_fn: "hann_window"
+  center: True
+  normalized: True
+  pad_mode: "constant"
+  onesided: True
+  band_specs: null
+  require_no_overlap: False
+  require_no_gap: True
+  normalize_channel_independently: False
+  treat_channel_as_feature: True
+  emb_dim: 128
+  in_channel: 2
+  tf_model_type: "rnn"
+  n_tf_modules: 12
+  rnn_dim: 256
+  bidirectional: True
+  rnn_type: "LSTM"
+  tf_dropout: 0.0
+  mlp_dim: 512
+  hidden_activation: "Tanh"
+  hidden_activation_kwargs: null
+  complex_mask: True
+  overlapping_band: False
+  use_freq_weights: False
+
+trainer:
+  target_: pytorch_lightning.Trainer
+  max_epochs: 5
+  accelerator: "auto"
+  devices: "auto"
+  log_every_n_steps: 50
+
+loss:
+  target_: banda.losses.separation_loss_handler.SeparationLossHandler
+  loss_fn:
+    target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
+    n_ffts: [2048, 512]
+    hop_lengths: [512, 128]
+    win_lengths: [2048, 512]
+    p: 1.0
+    scale_invariant: False
+    take_log: True
+    reduction: "mean"
+    eps: 1e-8
+
+metrics:
+  target_: torchmetrics.audio.ScaleInvariantSignalNoiseRatio
+
+optimizer:
+  target_: torch.optim.Adam
+  lr: 0.001

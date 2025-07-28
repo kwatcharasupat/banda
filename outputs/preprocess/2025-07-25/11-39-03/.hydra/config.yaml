@@ -1,0 +1,6 @@
+input_path: ${oc.env:DATA_ROOT}/musdb18hq/canonical
+output_path: ${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz
+target_fs: 44100
+target_channels: 2
+stems_to_process: []
+num_workers: 4

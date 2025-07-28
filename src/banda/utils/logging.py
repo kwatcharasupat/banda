@@ -9,6 +9,10 @@
 import logging
 import structlog
 from typing import List, Union
+import os
+import hydra
+import os
+import hydra
 
 def configure_logging(
     log_level: Union[int, str] = logging.INFO,
@@ -64,7 +68,11 @@ def configure_logging(
     # Configure standard logging
     handlers = [logging.StreamHandler()]
     if log_file:
-        handlers.append(logging.FileHandler(log_file))
+        # Resolve the log file path and create directories if they don't exist
+        resolved_log_file = hydra.utils.to_absolute_path(log_file)
+        log_dir = os.path.dirname(resolved_log_file)
+        os.makedirs(log_dir, exist_ok=True)
+        handlers.append(logging.FileHandler(resolved_log_file))
 
     logging.basicConfig(
         format="%(message)s",

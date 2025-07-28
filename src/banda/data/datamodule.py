@@ -4,15 +4,19 @@
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 #
-#
+
+import torch
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from typing import Dict, Any
+import os
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
 from banda.data.datasets.musdb18hq import SourceSeparationDataset, DatasetConfig
-from banda.utils.config import ConfigWithTarget
 from banda.data.batch_types import FixedStemSeparationBatch
+from pydantic import BaseModel, Field
 
 
 class SourceSeparationDataModule(pl.LightningDataModule):
@@ -43,17 +47,16 @@ class SourceSeparationDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
-        self.save_hyperparameters(ignore=["train_dataset_config", "val_dataset_config"])
 
     def setup(self, stage: str):
         """
         Loads data for the given stage.
         """
         if stage == "fit":
-            self.train_dataset = SourceSeparationDataset.from_config(self.train_dataset_config.config)
-            self.val_dataset = SourceSeparationDataset.from_config(self.val_dataset_config.config)
+            self.train_dataset = SourceSeparationDataset.from_config(OmegaConf.create(self.train_dataset_config.config))
+            self.val_dataset = SourceSeparationDataset.from_config(OmegaConf.create(self.val_dataset_config.config))
         elif stage == "validate":
-            self.val_dataset = SourceSeparationDataset.from_config(self.val_dataset_config.config)
+            self.val_dataset = SourceSeparationDataset.from_config(OmegaConf.create(self.val_dataset_config.config))
         elif stage == "test":
             # Implement test dataset loading if needed
             raise NotImplementedError("Test dataset not implemented yet.")
@@ -69,7 +72,7 @@ class SourceSeparationDataModule(pl.LightningDataModule):
             self.train_dataset,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
+            pin_memory=False, # Explicitly set to False
             shuffle=True,
             collate_fn=self._collate_fn,
         )
@@ -82,7 +85,7 @@ class SourceSeparationDataModule(pl.LightningDataModule):
             self.val_dataset,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
+            pin_memory=False, # Explicitly set to False
             shuffle=False,
             collate_fn=self._collate_fn,
         )
@@ -126,7 +129,7 @@ class SourceSeparationDataModule(pl.LightningDataModule):
         # Identifiers are typically not stacked as tensors, but kept as a list or processed
         # For simplicity, we'll just take the first identifier's structure and assume batching
         # of identifiers is not directly needed for the Pydantic model.
-        # A more complex collate_fn might return a list of identifiers or a batched identifier model.
+        # A more complex collate_fn might return a list of identifiers or a batched Identifier model.
         
         # For now, we'll just pass the first identifier's structure.
         # This needs to be refined for proper batching of identifiers.
@@ -141,11 +144,29 @@ class SourceSeparationDataModule(pl.LightningDataModule):
             identifier=collated_identifier
         )
 
+    @classmethod
+    def from_config(cls, config: DictConfig):
+        """
+        Instantiates a SourceSeparationDataModule from a DictConfig.
+        """
+        # Extract parameters from the config
+        train_dataset_config = DatasetConfig(**config.train_dataset_config)
+        val_dataset_config = DatasetConfig(**config.val_dataset_config)
+        batch_size = config.batch_size
+        num_workers = config.get("num_workers", 0)
+        pin_memory = config.get("pin_memory", False)
 
-class DataModuleConfig(ConfigWithTarget):
-    _superclass_ = SourceSeparationDataModule
-    """
-    DataModuleConfig is a configuration model for defining parameters used in a DataModule.
-    """
-    _target_: str
-    config: Dict[str, Any]
+        # Instantiate the DataModule
+        return cls(
+            train_dataset_config=train_dataset_config,
+            val_dataset_config=val_dataset_config,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+
+
+class DataModuleConfig(BaseModel): # Inherit directly from BaseModel
+    model_config = {'arbitrary_types_allowed': True}
+    target_: str = Field(...) # Use target_ instead of _target_
+    config: Dict[str, Any] = Field({})

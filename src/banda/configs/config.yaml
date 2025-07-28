@@ -8,8 +8,11 @@ defaults:
   - loss: default
   - metrics: default
   - augmentations: default
+  
   - override hydra/job_logging: default
   - override hydra/hydra_logging: default
+  - _self_
+  
 
 # Project root directory
 project_root: ${oc.env:PROJECT_ROOT,.}

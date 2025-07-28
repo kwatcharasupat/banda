@@ -4,7 +4,6 @@
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 #
-#
 
 import os
 import warnings
@@ -13,13 +12,18 @@ from typing import (
     Generic,
     List,
     Optional,
+    Dict,
+    Any,
 )
 
 import numpy as np
 import structlog
 import torchaudio as ta  # type: ignore
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, Extra, Field # Import Field
 from torch.utils import data
+from omegaconf import DictConfig, OmegaConf
+import importlib
+
 
 from banda.data.augmentations.base import (
     PostMixTransform,
@@ -27,6 +31,7 @@ from banda.data.augmentations.base import (
     IdentityPostMixTransform,
     IdentityPreMixTransform,
     TransformConfig,
+    Transform
 )
 from banda.data.types import (
     GenericIdentifier,
@@ -35,7 +40,6 @@ from banda.data.types import (
     Identifier,
     __VDBO__
 )
-from banda.utils.config import ConfigWithTarget
 
 
 logger = structlog.get_logger(__name__)
@@ -53,8 +57,10 @@ class NonWavFileWarning(Warning):
     """
 
 
-class DatasetConnectorConfig(ConfigWithTarget):
-    pass
+class DatasetConnectorConfig(BaseModel):
+    model_config = {'arbitrary_types_allowed': True}
+    target_: str = Field(...) # Use target_ instead of _target_
+    config: Dict[str, Any] = Field({})
 
 
 class DatasetConnector(ABC, Generic[GenericIdentifier]):
@@ -76,7 +82,7 @@ class DatasetConnector(ABC, Generic[GenericIdentifier]):
         """
         Abstract method to get the identifier for a track.
         """
-        raise NotImplementedError
+        return self.identifiers[index]
 
     @property
     def identifiers(self) -> List[GenericIdentifier]:
@@ -93,11 +99,23 @@ class DatasetConnector(ABC, Generic[GenericIdentifier]):
         raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config: BaseModel):
+    def from_config(cls, config: DictConfig):
         """
         Create a dataset connector instance from a configuration object.
         """
-        return cls(**config.model_dump())
+        class_path = config.target_
+        
+        # Extract actual parameters from the 'config' field if it exists, otherwise use the top-level config
+        if hasattr(config, 'config') and isinstance(config.config, DictConfig):
+            kwargs = {k: v for k, v in config.config.items()}
+        else:
+            kwargs = {k: v for k, v in config.items() if k != 'target_'}
+
+        module_name, class_name = class_path.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        connector_cls = getattr(module, class_name)
+
+        return connector_cls(**kwargs)
 
 
 class _DatasetConfig(BaseModel, extra=Extra.allow):
@@ -168,9 +186,38 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
         self.premix_transform: PreMixTransform = (
             premix_transform or IdentityPreMixTransform()
         )
-        self.postmix_transform: PostMixTransform = (
+        self.post_mix_transform: PostMixTransform = (
             postmix_transform or IdentityPostMixTransform()
         )
+
+    def __len__(self) -> int:
+        """
+        Returns the number of tracks in the dataset.
+        """
+        return self.n_tracks
+
+    def __getitem__(self, index: int) -> Dict[str, Any]:
+        """
+        Retrieves a single data sample from the dataset.
+
+        Args:
+            index (int): Index of the sample to retrieve.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the audio data and identifier.
+        """
+        identifier = self.get_identifier(index)
+        
+        # Define the stems to load. This should ideally come from config or be dynamic.
+        # For now, using a hardcoded list for demonstration.
+        stems_to_load = ["vocals", "bass", "drums", "other"] # Example stems
+
+        audio_dict = self.get_audio_dict(stems=stems_to_load, identifier=identifier)
+
+        return {
+            "audio": audio_dict,
+            "identifier": identifier,
+        }
 
     def get_stem(self, *, stem: str, identifier: GenericIdentifier) -> np.ndarray:
         """
@@ -241,9 +288,6 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
 
         Returns:
             np.ndarray: Resampled audio data.
-
-        Raises:
-            UserWarning: If sampling rates are not checked.
         """
         if not self._warned_npy_sample_rate:
             msg = (
@@ -262,7 +306,6 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
 
         Args:
             path (str): Path to the audio file.
-
         Returns:
             np.ndarray: Resampled audio data.
         """
@@ -325,7 +368,7 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
 
         Args:
             index (int): Index of the track.
-
+            
         Returns:
             Identifier: Track identifier.
         """
@@ -383,7 +426,7 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
         else:
             mixture = None
 
-        return self.postmix_transform(
+        return self.post_mix_transform(
             audio_dict=TorchInputAudioDict.from_numpy(
                 mixture=mixture,
                 sources=sources,
@@ -405,7 +448,7 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     def n_tracks(self) -> int:
         """
         Get the number of tracks in the dataset.
-
+        
         Returns:
             int: Number of tracks.
         """
@@ -414,51 +457,67 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     @classmethod
     def from_config(
         cls,
-        config: _DatasetConfig,
+        config: DictConfig, # Change to DictConfig
     ):
         """
         Create a dataset instance from a configuration object.
 
         Args:
-            config (_DatasetConfig): Configuration object for the dataset.
+            config (DictConfig): Configuration object for the dataset.
 
         Returns:
             SourceSeparationDataset: Instance of the dataset.
         """
 
-        dataset_connector_cls = config.dataset_connector.target_
-        dataset_connector = dataset_connector_cls.from_config(
-            config.dataset_connector.config
-        )
+        dataset_connector = DatasetConnector.from_config(config.dataset_connector)
 
-        other_kwargs = config.model_dump(exclude={"dataset_connector"})
+        # Instantiate premix_transform and postmix_transform
+        premix_transform = None
+        if config.get("premix_transform") is not None:
+            premix_transform = Transform.from_config(config.premix_transform)
+
+        postmix_transform = None
+        if config.get("postmix_transform") is not None:
+            postmix_transform = Transform.from_config(config.postmix_transform)
+
+        # Extract parameters directly from the config
+        split = config.get("split")
+        fs = config.get("fs") # Use .get() for robustness
+        recompute_mixture = config.get("recompute_mixture", True)
+        auto_load_mixture = config.get("auto_load_mixture", True)
+        allowed_extensions = config.get("allowed_extensions", None)
+        allow_resampling = config.get("allow_resampling", False)
+        mixture_stem_key = config.get("mixture_stem_key", None)
 
         logger.info(
-            f"Creating dataset {cls.__name__} with split '{config.split}' and connector {dataset_connector_cls.__name__}",
+            f"Creating dataset {cls.__name__} with split '{split}' and connector {dataset_connector.__class__.__name__}",
         )
+
+        # Create a dictionary of arguments to pass to the constructor
+        kwargs = {
+            "split": split,
+            "dataset_connector": dataset_connector,
+            "fs": fs,
+            "premix_transform": premix_transform,
+            "postmix_transform": postmix_transform,
+            "recompute_mixture": recompute_mixture,
+            "auto_load_mixture": auto_load_mixture,
+            "allowed_extensions": allowed_extensions,
+            "allow_resampling": allow_resampling,
+            "mixture_stem_key": mixture_stem_key,
+        }
 
         logger.debug(
-            f"Dataset configuration: {config.model_dump(exclude={'dataset_connector'})}",
+            f"Dataset configuration: {kwargs}", # Changed to log kwargs directly
         )
 
-        return cls(
-            dataset_connector=dataset_connector,
-            **other_kwargs,
-        )
+        return cls(**kwargs)
 
 
-class DatasetConfig(ConfigWithTarget):
-    _superclass_ = SourceSeparationDataset
-    """
-    DatasetConfig is a configuration model for defining parameters used in a dataset.
-
-    Attributes:
-        _target_ (str): Specifies the target class or function to be used.
-        params (Dict[str, Any]): Parameters for initializing the dataset.
-    """
-
-    _target_: str
-    config: _DatasetConfig
+class DatasetConfig(BaseModel): # Inherit directly from BaseModel
+    model_config = {'arbitrary_types_allowed': True}
+    target_: str = Field(...) # Use target_ instead of _target_
+    config: Dict[str, Any] = Field({})
 
 
 class MUSDB18Identifier(Identifier):

@@ -4,24 +4,27 @@
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 #
-#
 
 from abc import abstractmethod
 from typing import List, Union
+import importlib
 
 from pydantic import BaseModel, Extra
+from omegaconf import DictConfig
+import hydra
 
 from banda.data.types import Identifier, NumPySourceDict, TorchInputAudioDict
-from banda.utils.config import ConfigWithTarget
 
 
 class _TransformConfig(BaseModel, extra=Extra.allow):
+    model_config = {'arbitrary_types_allowed': True}
     pass
 
 
-class TransformConfig(ConfigWithTarget):
-    config: _TransformConfig
-
+class TransformConfig(BaseModel): # Inherit directly from BaseModel
+    model_config = {'arbitrary_types_allowed': True}
+    target_: str # Use target_ instead of _target_
+    config: DictConfig # Use DictConfig for nested config
 
 class Transform:
     """
@@ -29,17 +32,29 @@ class Transform:
     """
 
     @classmethod
-    def from_config(cls, config: _TransformConfig):
+    def from_config(cls, config: DictConfig): # Change to DictConfig
         """
         Create a Transform instance from a configuration.
 
         Args:
-            config (_TransformConfig): Configuration for the transform.
+            config (DictConfig): Configuration for the transform.
 
         Returns:
             Transform: An instance of the Transform class.
         """
-        return cls(**config.model_dump())  # noqa
+        class_path = config.target_
+        kwargs = {k: v for k, v in config.items() if k != 'target_'}
+
+        module_name, class_name = class_path.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        transform_cls = getattr(module, class_name)
+
+        # If the transform class itself has a from_config method, use it
+        if hasattr(transform_cls, 'from_config') and callable(getattr(transform_cls, 'from_config')):
+            return transform_cls.from_config(config)
+        else:
+            # Otherwise, instantiate directly with kwargs
+            return transform_cls(**kwargs)
 
 
 class PreMixTransform(Transform):
@@ -58,7 +73,7 @@ class PreMixTransform(Transform):
             self, *, sources: NumPySourceDict, identifier: Identifier
     ) -> NumPySourceDict:
         """
-        Apply the transformation to the source data.
+        Apply the transformation to the data.
 
         Args:
             sources (NumPySourceDict): Dictionary containing source data.
@@ -78,7 +93,7 @@ class PostMixTransform(Transform):
 
     Methods:
         __call__: Applies the transformation to the audio data.
-
+        
     Raises:
         NotImplementedError: If the `__call__` method is not implemented.
     """
@@ -149,18 +164,16 @@ class ComposePreMixTransforms(PreMixTransform):
     Compose multiple pre-mix transformations into a single transformation.
 
     Args:
-        transforms (List[Union[PreMixTransform, TransformConfig]]): List of pre-mix transformations to compose.
+        transforms (List[Union[PreMixTransform, DictConfig]]): List of pre-mix transformations to compose.
     """
 
-    def __init__(self, transforms: List[Union[PreMixTransform, TransformConfig]]) -> None:
+    def __init__(self, transforms: List[Union[PreMixTransform, DictConfig]]) -> None:
         instantiated_transforms = []
-        for transform in transforms:
-            if isinstance(transform, TransformConfig):
-                transform_cls = transform.target_
-                transform = transform_cls.from_config(
-                    transform.config
-                )
-            instantiated_transforms.append(transform)
+        for transform_cfg in transforms:
+            if isinstance(transform_cfg, DictConfig):
+                instantiated_transforms.append(Transform.from_config(transform_cfg))
+            else:
+                instantiated_transforms.append(transform_cfg)
         self.transforms = instantiated_transforms
 
     def __call__(
@@ -186,18 +199,16 @@ class ComposePostMixTransforms(PostMixTransform):
     Compose multiple post-mix transformations into a single transformation.
 
     Args:
-        transforms (List[Union[PostMixTransform, TransformConfig]]): List of post-mix transformations to compose.
+        transforms (List[Union[PostMixTransform, DictConfig]]): List of post-mix transformations to compose.
     """
 
-    def __init__(self, transforms: List[Union[PostMixTransform, TransformConfig]]) -> None:
+    def __init__(self, transforms: List[Union[PostMixTransform, DictConfig]]) -> None:
         instantiated_transforms = []
-        for transform in transforms:
-            if isinstance(transform, TransformConfig):
-                transform_cls = transform.target_
-                transform = transform_cls.from_config(
-                    transform.config
-                )
-            instantiated_transforms.append(transform)
+        for transform_cfg in transforms:
+            if isinstance(transform_cfg, DictConfig):
+                instantiated_transforms.append(Transform.from_config(transform_cfg))
+            else:
+                instantiated_transforms.append(transform_cfg)
         self.transforms = instantiated_transforms
 
     def __call__(
