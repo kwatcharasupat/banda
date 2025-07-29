@@ -4,7 +4,7 @@
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 #
-#
+
 
 from typing import List, Tuple
 
@@ -13,10 +13,11 @@ from torch import nn
 
 from banda.models.utils import (
     band_widths_from_specs,
-    check_no_gap,
     check_no_overlap,
     check_nonzero_bandwidth,
+    check_all_bins_covered, # Import the new function
 )
+from banda.models.spectral import BandsplitSpecification # Import BandsplitSpecification (now in models folder)
 
 
 class NormFC(nn.Module):
@@ -89,7 +90,7 @@ class BandSplitModule(nn.Module):
     """
     def __init__(
             self,
-            band_specs: List[Tuple[float, float]],
+            band_spec_obj: BandsplitSpecification, # Changed to BandsplitSpecification object
             emb_dim: int,
             in_channel: int,
             require_no_overlap: bool = False,
@@ -99,8 +100,7 @@ class BandSplitModule(nn.Module):
     ) -> None:
         """
         Args:
-            band_specs (List[Tuple[float, float]]): List of frequency band specifications
-                                                     (start_freq_bin, end_freq_bin).
+            band_spec_obj (BandsplitSpecification): The BandsplitSpecification object.
             emb_dim (int): Embedding dimension for each band's output.
             in_channel (int): Number of input channels (e.g., 2 for stereo audio).
             require_no_overlap (bool): If True, raises an error if bands overlap.
@@ -111,13 +111,29 @@ class BandSplitModule(nn.Module):
         """
         super().__init__()
 
+        self.band_spec_obj = band_spec_obj
+        band_specs = self.band_spec_obj.get_band_specs()
+
         check_nonzero_bandwidth(band_specs)
 
         if require_no_gap:
-            check_no_gap(band_specs)
+            # For overlapping bands, we check if all bins are covered.
+            # For non-overlapping bands, we check for strict contiguity.
+            if self.band_spec_obj.is_overlapping:
+                check_all_bins_covered(band_specs, self.band_spec_obj.max_index)
+            else:
+                # This check is for strictly non-overlapping, contiguous bands.
+                # It ensures no gaps and no overlaps.
+                # The original check_no_gap is implicitly handled by check_no_overlap
+                # and the way non-overlapping bands are generated.
+                # For now, we'll keep check_no_overlap for non-overlapping bands.
+                check_no_overlap(band_specs) # This also implies no gaps for non-overlapping.
 
-        if require_no_overlap:
-            check_no_overlap(band_specs)
+        if require_no_overlap and self.band_spec_obj.is_overlapping:
+            raise ValueError("Cannot require no overlap for an overlapping bandsplit specification.")
+        elif require_no_overlap and not self.band_spec_obj.is_overlapping:
+            check_no_overlap(band_specs) # Explicitly check for no overlap for non-overlapping bands.
+
 
         self.band_specs = band_specs
         # list of [fstart, fend) in index.
@@ -150,10 +166,19 @@ class BandSplitModule(nn.Module):
         Returns:
             torch.Tensor: Processed band features. Shape: (batch, n_bands, n_time, emb_dim)
         """
-        batch, in_chan, n_freq, n_time, reim = x.shape
         
-        # Permute to (batch, n_time, in_chan, reim, n_freq)
-        xr = torch.permute(x, (0, 3, 1, 4, 2))
+        batch, doubled_in_chan, n_freq, n_time = x.shape
+        
+        # Assuming doubled_in_chan is original_channels * 2
+        original_in_chan = doubled_in_chan // 2
+        reim = 2 # Real and Imaginary parts
+
+        # Reshape x from (batch, original_channels * 2, n_freq, n_time)
+        # to (batch, original_channels, reim, n_freq, n_time)
+        x_reshaped = x.reshape(batch, original_in_chan, reim, n_freq, n_time)
+        
+        # Permute to (batch, n_time, original_channels, reim, n_freq)
+        xr = torch.permute(x_reshaped, (0, 4, 1, 2, 3))
 
         z = torch.zeros(
             size=(batch, self.n_bands, n_time, self.emb_dim),
@@ -165,7 +190,7 @@ class BandSplitModule(nn.Module):
             fstart, fend = self.band_specs[i]
             xb = xr[..., fstart:fend]
             # (batch, n_time, in_chan, reim, band_width)
-            xb = torch.reshape(xb, (batch, n_time, in_chan, -1))
+            xb = torch.reshape(xb, (batch, n_time, original_in_chan, -1))
             # (batch, n_time, in_chan, reim * band_width)
             z[:, i, :, :] = nfm(xb.contiguous())
 

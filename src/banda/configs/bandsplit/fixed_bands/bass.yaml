@@ -1,0 +1,25 @@
+bands:
+  - name: "below500"
+    start_hz: 0
+    end_hz: 500
+    bandwidth_hz: 50
+  - name: "500_to_1k"
+    start_hz: 500
+    end_hz: 1000
+    bandwidth_hz: 100
+  - name: "1k_to_4k"
+    start_hz: 1000
+    end_hz: 4000
+    bandwidth_hz: 500
+  - name: "4k_to_8k"
+    start_hz: 4000
+    end_hz: 8000
+    bandwidth_hz: 1000
+  - name: "8k_to_16k"
+    start_hz: 8000
+    end_hz: 16000
+    bandwidth_hz: 2000
+  - name: "above16k"
+    start_hz: 16000
+    end_hz: null
+    bandwidth_hz: null

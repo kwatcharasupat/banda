@@ -1,0 +1,7 @@
+# @package _group_
+
+_target_: banda.models.query_models.bandit.Bandit
+input_channels: 2
+output_channels: 2
+hidden_features: 256
+num_sources: 4 # vocals, bass, drums, other

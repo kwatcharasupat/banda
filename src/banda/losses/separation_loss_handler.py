@@ -7,7 +7,6 @@
 #
 
 from typing import Dict
-
 import torch
 import torch.nn as nn
 
@@ -25,12 +24,15 @@ class SeparationLossHandler(LossHandler):
     Handles loss calculation for various source separation tasks based on batch type.
     """
 
-    def __init__(self, loss_fn: nn.Module):
+    def __init__(self, stft_loss_fn: nn.Module, time_loss_fn: nn.Module):
         """
         Args:
-            loss_fn (nn.Module): The base loss function to use (e.g., L1Loss, MSELoss).
+            stft_loss_fn (nn.Module): The STFT-domain loss function.
+            time_loss_fn (nn.Module): The time-domain loss function.
         """
-        super().__init__(loss_fn)
+        super().__init__(stft_loss_fn) # Keep stft_loss_fn as the primary loss_fn for base class
+        self.stft_loss_fn = stft_loss_fn
+        self.time_loss_fn = time_loss_fn
 
     def calculate_loss(
         self,
@@ -47,41 +49,44 @@ class SeparationLossHandler(LossHandler):
         Returns:
             torch.Tensor: The calculated loss.
         """
-        total_loss = torch.tensor(0.0, device=predictions[list(predictions.keys())[0]].device)
+        # Initialize total_loss as a list to collect batch-wise losses
+        losses_per_sample = []
 
         if isinstance(batch, FixedStemSeparationBatch):
             true_sources = batch.audio.sources
             for source_name, sep_audio in predictions.items():
                 if source_name in true_sources:
-                    total_loss += self.loss_fn(sep_audio, true_sources[source_name])
-            return total_loss
+                    # Calculate STFT loss (batch-wise)
+                    stft_loss = self.stft_loss_fn(sep_audio, true_sources[source_name])
+                    # Calculate Time-domain loss (batch-wise)
+                    time_loss = self.time_loss_fn(sep_audio, true_sources[source_name])
+                    losses_per_sample.append(stft_loss + time_loss)
+            
+            # Stack and average the losses across the batch
+            if losses_per_sample:
+                return torch.mean(torch.stack(losses_per_sample))
+            else:
+                return torch.tensor(0.0, device=predictions[list(predictions.keys())[0]].device)
 
         elif isinstance(batch, QueryAudioSeparationBatch):
-            # Example: Loss for query audio separation might involve comparing
-            # the separated source corresponding to the query with the true source.
-            # This is a placeholder and needs specific implementation based on the model's output.
             true_sources = batch.audio.sources
-            # Assuming the model predicts a single source based on the query
-            # Or predicts all sources and we select the relevant one
-            # For now, let's assume 'vocals' is the target for simplicity
             target_source_name = "vocals" # This would come from the query logic
             if target_source_name in predictions and target_source_name in true_sources:
-                total_loss += self.loss_fn(predictions[target_source_name], true_sources[target_source_name])
+                stft_loss = self.stft_loss_fn(predictions[target_source_name], true_sources[target_source_name])
+                time_loss = self.time_loss_fn(predictions[target_source_name], true_sources[target_source_name])
+                return torch.mean(stft_loss + time_loss) # Assuming these are batch-wise
             else:
                 raise NotImplementedError(f"Loss calculation for {type(batch).__name__} with query audio is not fully implemented.")
-            return total_loss
 
         elif isinstance(batch, QueryClassSeparationBatch):
-            # Example: Loss for query class separation might involve comparing
-            # the separated source corresponding to the query class with the true source.
             true_sources = batch.audio.sources
             query_class = batch.query_class
-            # Assuming query_class directly maps to a source name
             if query_class in predictions and query_class in true_sources:
-                total_loss += self.loss_fn(predictions[query_class], true_sources[query_class])
+                stft_loss = self.stft_loss_fn(predictions[query_class], true_sources[query_class])
+                time_loss = self.time_loss_fn(predictions[query_class], true_sources[query_class])
+                return torch.mean(stft_loss + time_loss) # Assuming these are batch-wise
             else:
                 raise NotImplementedError(f"Loss calculation for {type(batch).__name__} with query class is not fully implemented.")
-            return total_loss
 
         else:
             raise TypeError(f"Unsupported batch type for loss calculation: {type(batch)}")

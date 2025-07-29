@@ -108,6 +108,8 @@ This module will provide a flexible and configurable system for data augmentatio
     *   **Before mixing at stem level**: `PreMixTransform`s applied to individual stems before they are mixed.
     *   **After mixing**: `PostMixTransform`s applied to the `TorchInputAudioDict` after the mixture is formed.
 
+### Bandsplit System (`src/banda/utils/spectral.py`)
+The project includes a flexible bandsplit system for defining and managing frequency bands. This system supports both fixed (e.g., vocal, bass, drum) and perceptual (e.g., musical, mel, bark) bandsplit specifications. More details can be found in the [Bandsplit System Documentation](docs/bandsplit.md).
 ### Models (`src/banda/models`)
 The model structure will emphasize modularity and reusability to avoid complexity.
 *   **`src/banda/models/separator.py`**: This will be the main `nn.Module` for the source separation task. It will orchestrate the flow from input mixture to separated sources by composing smaller, well-defined modules.

@@ -1,0 +1,13 @@
+_target_: banda.models.configs.STFTConfig
+
+# STFT Configuration
+n_fft: 2048
+win_length: 2048
+hop_length: 512
+window_fn: "hann_window"
+wkwargs: null
+power: null
+center: True
+normalized: True
+pad_mode: "constant"
+onesided: True

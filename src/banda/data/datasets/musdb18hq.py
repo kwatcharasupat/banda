@@ -19,7 +19,7 @@ from typing import (
 import numpy as np
 import structlog
 import torchaudio as ta  # type: ignore
-from pydantic import BaseModel, Extra, Field # Import Field
+from pydantic import BaseModel, Extra, Field
 from torch.utils import data
 from omegaconf import DictConfig, OmegaConf
 import importlib
@@ -59,7 +59,7 @@ class NonWavFileWarning(Warning):
 
 class DatasetConnectorConfig(BaseModel):
     model_config = {'arbitrary_types_allowed': True}
-    target_: str = Field(...) # Use target_ instead of _target_
+    target_: str = Field(...)
     config: Dict[str, Any] = Field({})
 
 
@@ -118,7 +118,8 @@ class DatasetConnector(ABC, Generic[GenericIdentifier]):
         return connector_cls(**kwargs)
 
 
-class _DatasetConfig(BaseModel, extra=Extra.allow):
+class _DatasetConfig(BaseModel):
+    model_config = {'extra': 'allow'}
     split: str
     dataset_connector: DatasetConnectorConfig
     fs: int
@@ -231,14 +232,15 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
             np.ndarray: Audio data for the stem.
         """
         path = self._get_stem_path(stem=stem, identifier=identifier)
-        return self._get_stem_from_path(path)
+        return self._get_stem_from_path(path, requested_stem=stem)
 
-    def _get_stem_from_path(self, path: str) -> np.ndarray:
+    def _get_stem_from_path(self, path: str, requested_stem: str) -> np.ndarray:
         """
         Load stem audio data from a file.
 
         Args:
             path (str): Path to the stem file.
+            requested_stem (str): The specific stem to extract from the file.
 
         Returns:
             np.ndarray: Loaded audio data.
@@ -248,7 +250,7 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
             raise ValueError(f"Unsupported file extension: {ext}")
 
         if ext == ".npz":
-            return self._load_npz(path)
+            return self._load_npz(path, requested_stem=requested_stem)
         elif ext == ".npy":
             return self._load_npy(path)
         else:
@@ -263,18 +265,18 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
                 self._warned_non_wav = True
             return self._load_audio(path)
 
-    def _load_npz(self, path: str) -> np.ndarray:
+    def _load_npz(self, path: str, requested_stem: str) -> np.ndarray:
         """
         Load audio data from a .npz file.
 
         Args:
             path (str): Path to the .npz file.
-
+            requested_stem (str): The specific stem to extract from the .npz file.
         Returns:
             np.ndarray: Resampled audio data.
         """
         data = np.load(path, mmap_mode="r")
-        audio = data["audio"]
+        audio = data[requested_stem]
         fs = data["fs"]
 
         return self._resample(audio, original_fs=fs)
@@ -352,11 +354,9 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     def _get_stem_path(self, *, stem: str, identifier: GenericIdentifier) -> str:
         """
         Abstract method to get the file path for a stem.
-
         Args:
             stem (str): Stem name.
             identifier (Identifier): Track identifier.
-
         Returns:
             str: Path to the stem file.
         """
@@ -365,7 +365,6 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     def get_identifier(self, index: int) -> GenericIdentifier:
         """
         Abstract method to get the identifier for a track.
-
         Args:
             index (int): Index of the track.
             
@@ -377,10 +376,8 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     def _compute_mixture(self, *, sources: NumPySourceDict) -> np.ndarray:
         """
         Compute the mixture from source stems.
-
         Args:
             sources (NumPySourceDict): Dictionary of source stems.
-
         Returns:
             np.ndarray: Mixture audio data.
         """
@@ -394,11 +391,9 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     ) -> NumPySourceDict:
         """
         Get audio data for multiple stems.
-
         Args:
             stems (List[str]): List of stem names.
             identifier (Identifier): Track identifier.
-
         Returns:
             NumPySourceDict: Dictionary of stem audio data.
         """
@@ -409,16 +404,16 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     ) -> TorchInputAudioDict:
         """
         Get a dictionary containing mixture and source audio data.
-
         Args:
             stems (List[str]): List of stem names.
             identifier (Identifier): Track identifier.
-
         Returns:
             TorchInputAudioDict: Dictionary of mixture and source audio data.
         """
         sources = self.get_stems(stems=stems, identifier=identifier)
+        logger.debug(f"Sources shape before premix_transform: {[s.shape for s in sources.values()]}")
         sources = self.premix_transform(sources=sources, identifier=identifier)
+        logger.debug(f"Sources shape after premix_transform: {[s.shape for s in sources.values()]}")
         if self.recompute_mixture:
             mixture = self._compute_mixture(sources=sources)
         elif self.auto_load_mixture:
@@ -438,7 +433,6 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     def identifiers(self) -> List[GenericIdentifier]:
         """
         Get the list of identifiers for the dataset.
-
         Returns:
             List[Identifier]: List of track identifiers.
         """
@@ -461,10 +455,8 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
     ):
         """
         Create a dataset instance from a configuration object.
-
         Args:
             config (DictConfig): Configuration object for the dataset.
-
         Returns:
             SourceSeparationDataset: Instance of the dataset.
         """
@@ -516,17 +508,18 @@ class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
 
 class DatasetConfig(BaseModel): # Inherit directly from BaseModel
     model_config = {'arbitrary_types_allowed': True}
-    target_: str = Field(...) # Use target_ instead of _target_
+    target_: str = Field(...)
     config: Dict[str, Any] = Field({})
 
 
 class MUSDB18Identifier(Identifier):
+    filename: str # New field to store the full filename
     song_name: Optional[str] = None
     artist_name: Optional[str] = None
 
     @property
     def track_id(self) -> str:
-        return f"{self.artist_name} - {self.song_name}"
+        return self.filename # Return the full filename
 
 
 class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
@@ -553,7 +546,8 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
             data_root (str): The root directory of the dataset.
         """
         super().__init__(split=split, data_root=data_root)
-        self.stem_path = os.path.join(self.data_root, split, "{track_id}", "{stem}.npz")
+        # Simplified stem_path to point directly to the track's .npz file
+        self.stem_path = os.path.join(self.data_root, split, "{track_filename}")
 
         self._identifiers = self._load_identifiers(data_root=data_root, split=split)
 
@@ -562,31 +556,31 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
     ) -> List[MUSDB18Identifier]:
         """
         Load the identifiers for the dataset.
-
         Args:
             data_root (str): The root directory of the dataset.
             split (str): The split to use.
-
         Returns:
             List[MUSDB18Identifier]: The list of identifiers for the dataset.
         """
         # Replace $DATA_ROOT with actual path if it's an environment variable
         data_root = os.path.expandvars(data_root)
 
-        track_ids = os.listdir(os.path.join(data_root, split))
+        # List all .npz files in the split directory
+        track_filenames = [f for f in os.listdir(os.path.join(data_root, split)) if f.endswith(".npz")]
 
         identifiers = []
-        for track_id in track_ids:
-            # Assuming track_id format "artist - song_name"
-            if " - " in track_id:
-                artist, song_name = track_id.split(" - ", 1)
+        for track_filename in track_filenames:
+            # Extract artist and song_name from the base name (without .npz extension)
+            base_name = os.path.splitext(track_filename)[0]
+            if " - " in base_name:
+                artist, song_name = base_name.split(" - ", 1)
             else:
-                # Handle cases where track_id might just be the song name or a single identifier
                 artist = "unknown"
-                song_name = track_id
-                logger.warning(f"Track ID '{track_id}' does not contain ' - '. Assuming artist is 'unknown'.")
+                song_name = base_name
+                logger.warning(f"Track filename '{track_filename}' does not contain ' - '. Assuming artist is 'unknown'.")
 
             identifier = MUSDB18Identifier(
+                filename=track_filename,
                 artist_name=artist,
                 song_name=song_name,
             )
@@ -602,11 +596,9 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
     def _get_stem_path(self, *, stem: str, identifier: MUSDB18Identifier) -> str:
         """
         Get the path to a stem file.
-
         Args:
             stem (str): The stem to get the path for.
             identifier (MUSDB18Identifier): The identifier for the track.
-
         Returns:
             str: The path to the stem file.
         """
@@ -614,9 +606,9 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
         if not isinstance(identifier, MUSDB18Identifier):
             identifier = MUSDB18Identifier(**identifier.model_dump())
 
-        track_id = identifier.track_id
+        track_filename = identifier.filename # Use the full filename
         # Replace $DATA_ROOT with actual path if it's an environment variable
-        stem_path_formatted = os.path.expandvars(self.stem_path.format(track_id=track_id, stem=stem))
+        stem_path_formatted = os.path.expandvars(self.stem_path.format(track_filename=track_filename))
         return stem_path_formatted
 
     @property

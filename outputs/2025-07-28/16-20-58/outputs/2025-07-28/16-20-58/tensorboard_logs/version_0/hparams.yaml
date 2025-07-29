@@ -1,3 +1,0 @@
-optimizer_config:
-  target_: torch.optim.Adam
-  lr: 0.001

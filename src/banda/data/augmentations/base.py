@@ -16,8 +16,8 @@ import hydra
 from banda.data.types import Identifier, NumPySourceDict, TorchInputAudioDict
 
 
-class _TransformConfig(BaseModel, extra=Extra.allow):
-    model_config = {'arbitrary_types_allowed': True}
+class _TransformConfig(BaseModel):
+    model_config = {'arbitrary_types_allowed': True, 'extra': 'allow'}
     pass
 
 
@@ -49,12 +49,8 @@ class Transform:
         module = importlib.import_module(module_name)
         transform_cls = getattr(module, class_name)
 
-        # If the transform class itself has a from_config method, use it
-        if hasattr(transform_cls, 'from_config') and callable(getattr(transform_cls, 'from_config')):
-            return transform_cls.from_config(config)
-        else:
-            # Otherwise, instantiate directly with kwargs
-            return transform_cls(**kwargs)
+        # Always instantiate directly with kwargs
+        return transform_cls(**kwargs)
 
 
 class PreMixTransform(Transform):

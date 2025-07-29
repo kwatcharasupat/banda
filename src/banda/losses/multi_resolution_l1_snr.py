@@ -3,7 +3,6 @@
 #  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
-#
 
 
 import torch
@@ -26,11 +25,8 @@ class MultiResolutionSTFTLoss(nn.Module):
         win_lengths: List[int] = [2048, 512],
         window_fn: str = "hann_window",
         wkwargs: Optional[Dict] = None,
-        p: float = 1.0, # P-norm for the loss (1.0 for L1, 2.0 for L2)
-        scale_invariant: bool = False,
-        take_log: bool = True,
-        reduction: str = "mean",
-        eps: float = 1e-8, # Small epsilon for numerical stability
+        # Removed p, scale_invariant, take_log, eps as they are handled by calculate_l1_snr
+        # Removed reduction as it will be handled by SeparationLossHandler
     ) -> None:
         """
         Args:
@@ -39,16 +35,11 @@ class MultiResolutionSTFTLoss(nn.Module):
             win_lengths (List[int]): List of win_length values for each STFT resolution.
             window_fn (str): Name of the window function to use (e.g., "hann_window").
             wkwargs (Optional[Dict]): Keyword arguments for the window function.
-            p (float): The p-norm to use for calculating error and target energy (1.0 for L1, 2.0 for L2).
-            scale_invariant (bool): If True, apply scale-invariant projection.
-            take_log (bool): If True, apply 10 * log10 to the ratio.
-            reduction (str): Specifies the reduction to apply to the output: 'none' | 'mean' | 'sum'.
-            eps (float): Small epsilon for numerical stability in division.
         """
         super().__init__()
         assert len(n_ffts) == len(hop_lengths) == len(win_lengths), \
             "n_ffts, hop_lengths, and win_lengths must have the same number of elements."
-
+ 
         self.stft_losses = nn.ModuleList()
         for n_fft, hop_length, win_length in zip(n_ffts, hop_lengths, win_lengths):
             self.stft_losses.append(
@@ -58,11 +49,7 @@ class MultiResolutionSTFTLoss(nn.Module):
                     win_length=win_length,
                     window_fn=window_fn,
                     wkwargs=wkwargs,
-                    p=p,
-                    scale_invariant=scale_invariant,
-                    take_log=take_log,
-                    reduction=reduction,
-                    eps=eps,
+                    # Removed p, scale_invariant, take_log, eps, reduction
                 )
             )
 
@@ -94,21 +81,11 @@ class MultiResolutionSTFTLoss(nn.Module):
         win_lengths = config.get("win_lengths", [2048, 512])
         window_fn = config.get("window_fn", "hann_window")
         wkwargs = config.get("wkwargs", None)
-        p = config.get("p", 1.0)
-        scale_invariant = config.get("scale_invariant", False)
-        take_log = config.get("take_log", True)
-        reduction = config.get("reduction", "mean")
-        eps = config.get("eps", 1e-8)
-
+        
         return cls(
             n_ffts=n_ffts,
             hop_lengths=hop_lengths,
             win_lengths=win_lengths,
             window_fn=window_fn,
             wkwargs=wkwargs,
-            p=p,
-            scale_invariant=scale_invariant,
-            take_log=take_log,
-            reduction=reduction,
-            eps=eps,
         )

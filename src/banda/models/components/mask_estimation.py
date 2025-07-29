@@ -4,7 +4,7 @@
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 #
-#
+
 
 import warnings
 from typing import Dict, List, Optional, Tuple, Type
@@ -13,13 +13,17 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.nn.modules import activation
+import structlog
+
 
 from banda.models.utils import (
     band_widths_from_specs,
-    check_no_gap,
+    check_no_gap, # Keep for now, but it's deprecated
     check_no_overlap,
     check_nonzero_bandwidth,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 class BaseNormMLP(nn.Module):
@@ -79,7 +83,6 @@ class NormMLP(BaseNormMLP):
             hidden_activation_kwargs=hidden_activation_kwargs,
             complex_mask=complex_mask,
         )
-
         self.output = nn.Sequential(
             nn.Linear(
                 in_features=mlp_dim,
@@ -230,7 +233,7 @@ class MaskEstimationModuleBase(MaskEstimationModuleSuperBase):
 
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                              Shape: (batch, n_bands, n_time, emb_dim)
+                               Shape: (batch, n_bands, n_time, emb_dim)
 
         Returns:
             List[torch.Tensor]: A list of predicted masks for each band.
@@ -255,7 +258,7 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
     def __init__(
             self,
             band_specs: List[Tuple[float, float]],
-            freq_weights: Optional[List[torch.Tensor]],
+            # freq_weights: Optional[List[torch.Tensor]], # Deprecated
             n_freq: int,
             emb_dim: int,
             mlp_dim: int,
@@ -266,10 +269,11 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
             complex_mask: bool = True,
             norm_mlp_cls: Type[nn.Module] = NormMLP,
             norm_mlp_kwargs: Optional[Dict] = None,
-            use_freq_weights: bool = True,
+            # use_freq_weights: bool = True, # Deprecated
     ) -> None:
         check_nonzero_bandwidth(band_specs)
-        check_no_gap(band_specs) # Overlapping bands can still have no gaps
+        # check_no_gap(band_specs) # Overlapping bands can still have no gaps - this check is now handled by bandsplit module
+        warnings.warn("check_no_gap is deprecated and its functionality for overlapping bands is now handled by BandsplitModule.")
 
         super().__init__(
             band_specs=band_specs,
@@ -287,12 +291,13 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
         self.band_specs = band_specs
         self.in_channel = in_channel
 
-        if freq_weights is not None:
-            for i, fw in enumerate(freq_weights):
-                self.register_buffer(f"freq_weights_{i}", fw) # Use register_buffer for non-trainable tensors
-            self.use_freq_weights = use_freq_weights
-        else:
-            self.use_freq_weights = False
+        # if freq_weights is not None: # Deprecated
+        #     for i, fw in enumerate(freq_weights):
+        #         self.register_buffer(f"freq_weights_{i}", fw) # Use register_buffer for non-trainable tensors
+        #     self.use_freq_weights = use_freq_weights
+        # else:
+        #     self.use_freq_weights = False
+        self.use_freq_weights = False # Explicitly set to False as it's deprecated
 
         self.cond_dim = cond_dim
 
@@ -302,7 +307,7 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
 
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                              Shape: (batch, n_bands, n_time, emb_dim)
+                               Shape: (batch, n_bands, n_time, emb_dim)
             cond (Optional[torch.Tensor]): Conditioning tensor.
 
         Returns:
@@ -320,8 +325,6 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
                 raise ValueError(f"Invalid cond shape: {cond.shape}")
             q = torch.cat([q, cond], dim=-1)
         elif self.cond_dim > 0:
-            # If cond_dim is set but no conditioning tensor is provided,
-            # create a dummy one (e.g., all ones)
             warnings.warn("cond_dim > 0 but no conditioning tensor provided. Using dummy conditioning.")
             cond = torch.ones(
                 (batch, n_bands, n_time, self.cond_dim),
@@ -340,9 +343,9 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
 
         for im, mask in enumerate(mask_list):
             fstart, fend = self.band_specs[im]
-            if self.use_freq_weights and hasattr(self, f"freq_weights_{im}"):
-                fw = getattr(self, f"freq_weights_{im}")[:, None, None] # (bandwidth, 1, 1)
-                mask = mask * fw
+            # if self.use_freq_weights and hasattr(self, f"freq_weights_{im}"): # Deprecated
+            #     fw = getattr(self, f"freq_weights_{im}")[:, None, None] # (bandwidth, 1, 1)
+            #     mask = mask * fw
             masks[:, :, fstart:fend, :] += mask
 
         return masks
@@ -365,11 +368,16 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
             **kwargs, # Catch any extra kwargs from OverlappingMaskEstimationModule
     ) -> None:
         check_nonzero_bandwidth(band_specs)
-        check_no_gap(band_specs)
+        # check_no_gap(band_specs) # Deprecated
         check_no_overlap(band_specs) # Crucial for non-overlapping bands
+        logger.debug(
+            "MaskEstimationModule init",
+            band_specs=band_specs,
+            calculated_n_freq=sum(band_widths_from_specs(band_specs))
+        )
         super().__init__(
             band_specs=band_specs,
-            freq_weights=None, # No frequency weights for non-overlapping
+            # freq_weights=None, # No frequency weights for non-overlapping - Deprecated
             n_freq=sum(band_widths_from_specs(band_specs)), # Total frequency bins
             emb_dim=emb_dim,
             mlp_dim=mlp_dim,
@@ -378,19 +386,17 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
             hidden_activation=hidden_activation,
             hidden_activation_kwargs=hidden_activation_kwargs,
             complex_mask=complex_mask,
-            use_freq_weights=False, # Explicitly set to False
+            # use_freq_weights=False, # Explicitly set to False - Deprecated
             **kwargs,
         )
 
     def forward(self, q: torch.Tensor, cond: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Forward pass of the MaskEstimationModule.
-
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                              Shape: (batch, n_bands, n_time, emb_dim)
+                               Shape: (batch, n_bands, n_time, emb_dim)
             cond (Optional[torch.Tensor]): Conditioning tensor.
-
         Returns:
             torch.Tensor: Predicted full-band mask. Shape: (batch, in_channel, n_freq, n_time)
         """
@@ -417,8 +423,7 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
         mask_list = self.compute_masks(q) # [n_bands * (batch, in_channel, bandwidth, n_time)]
 
         # For non-overlapping bands, we can simply concatenate the masks along the frequency dimension
-        masks = torch.cat(
-            masks,
+        masks = torch.cat(mask_list,
             dim=2 # Concatenate along the frequency dimension
         ) # (batch, in_channel, n_freq, n_time)
 

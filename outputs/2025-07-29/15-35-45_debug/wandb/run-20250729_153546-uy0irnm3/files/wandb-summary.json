@@ -1,0 +1,1 @@
+{"_runtime":30,"_timestamp":1.7538249769965599e+09,"val_default_metric":-16.864830017089844,"test_default_metric":-15.839391708374023,"epoch":1,"_step":3,"trainer/global_step":2,"_wandb":{"runtime":30},"val_loss":4.111110687255859,"test_loss":11.679893493652344,"train_loss":36.5304069519043,"train_snr":-26.182445526123047}

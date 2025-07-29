@@ -1,0 +1,42 @@
+# @package _group_
+
+_target_: banda.data.datamodule.SourceSeparationDataModule
+batch_size: 4
+num_workers: 8
+pin_memory: True
+
+train_dataset_config:
+  _target_: banda.data.datasets.medleydb.MedleyDBDataset
+  split: "train"
+  fs: 44100
+  dataset_connector:
+    _target_: banda.data.datasets.medleydb.MedleyDBConnector
+    split: "train"
+    data_root: "$DATA_ROOT/medleydb/intermediates/npz" # Update with actual path
+  recompute_mixture: True
+  auto_load_mixture: False # Assuming mixture is not pre-computed in MedleyDB npz files
+  allowed_extensions: [".npz"]
+
+val_dataset_config:
+  _target_: banda.data.datasets.medleydb.MedleyDBDataset
+  split: "val"
+  fs: 44100
+  dataset_connector:
+    _target_: banda.data.datasets.medleydb.MedleyDBConnector
+    split: "val"
+    data_root: "$DATA_ROOT/medleydb/intermediates/npz" # Update with actual path
+  recompute_mixture: True
+  auto_load_mixture: False
+  allowed_extensions: [".npz"]
+
+test_dataset_config:
+  _target_: banda.data.datasets.medleydb.MedleyDBDataset
+  split: "test"
+  fs: 44100
+  dataset_connector:
+    _target_: banda.data.datasets.medleydb.MedleyDBConnector
+    split: "test"
+    data_root: "$DATA_ROOT/medleydb/intermediates/npz" # Update with actual path
+  recompute_mixture: True
+  auto_load_mixture: False
+  allowed_extensions: [".npz"]

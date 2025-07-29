@@ -4,10 +4,12 @@
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 #
-#
 
 import numpy as np
 import torch
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 from banda.data.augmentations.base import PreMixTransform
 from banda.data.types import Identifier, NumPySourceDict
@@ -107,6 +109,7 @@ class RandomChunkingTransform(ChunkingTransform):
         """
         # Find the minimum length among all sources
         min_n_samples = min([source.shape[-1] for source in sources.values()])
+        logger.debug(f"min_n_samples: {min_n_samples}, chunk_size_samples: {self.chunk_size_samples}")
         
         # Calculate the maximum possible start sample to ensure a full chunk can be extracted
         max_start_sample = max(0, min_n_samples - self.chunk_size_samples)
@@ -125,6 +128,7 @@ class RandomChunkingTransform(ChunkingTransform):
                     size=(1,),
                 ).item()
             )
+        logger.debug(f"Calculated start sample: {start}")
 
         return {
             key: self.chunk(source=source, start_sample=start)

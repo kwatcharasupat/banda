@@ -1,0 +1,9 @@
+_target_: banda.models.configs.TFModelConfig
+
+# Time-Frequency Model Configuration
+tf_model_type: "rnn"
+n_tf_modules: 12
+rnn_dim: 256
+bidirectional: True
+rnn_type: "GRU" # Set to GRU as requested
+tf_dropout: 0.0

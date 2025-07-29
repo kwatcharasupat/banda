@@ -13,8 +13,10 @@ dependencies:
   - numpy
   - structlog
   - torchmetrics
-  - soundfile
   - pip
   - pip:
     - omegaconf
     - ray[default]
+    - soundfile
+variables:
+  DATA_ROOT: "/Users/kwatcharasupat/personal/data"

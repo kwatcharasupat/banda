@@ -21,6 +21,20 @@ class BaseBatch(BaseModel, ABC):
     """
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    def get_true_sources(self) -> Dict[str, torch.Tensor]:
+        """
+        Returns ground truth sources for metric calculation.
+        Default implementation returns an empty dictionary.
+        """
+        return {}
+
+    def get_inference_query(self) -> Optional[Union[torch.Tensor, int, str]]:
+        """
+        Returns the query for inference, if applicable.
+        Default implementation returns None.
+        """
+        return None
+
 
 class FixedStemSeparationBatch(BaseBatch):
     """
@@ -32,6 +46,22 @@ class FixedStemSeparationBatch(BaseBatch):
     """
     audio: TorchInputAudioDict
     identifier: Identifier
+
+    def to_device(self, device: torch.device) -> 'FixedStemSeparationBatch':
+        """
+        Transfers all torch.Tensor attributes of the batch to the specified device.
+        """
+        if self.audio.mixture is not None:
+            self.audio.mixture = self.audio.mixture.to(device)
+        for stem, audio_tensor in self.audio.sources.items():
+            self.audio.sources[stem] = audio_tensor.to(device)
+        return self
+
+    def get_true_sources(self) -> Dict[str, torch.Tensor]:
+        """
+        Returns ground truth sources for metric calculation for fixed-stem batches.
+        """
+        return self.audio.sources
 
 
 class QueryAudioSeparationBatch(BaseBatch):
@@ -48,6 +78,12 @@ class QueryAudioSeparationBatch(BaseBatch):
     query_audio: torch.Tensor
     identifier: Identifier
 
+    def get_inference_query(self) -> Optional[Union[torch.Tensor, int, str]]:
+        """
+        Returns the query audio for inference.
+        """
+        return self.query_audio.squeeze(0)
+
 
 class QueryClassSeparationBatch(BaseBatch):
     """
@@ -61,6 +97,12 @@ class QueryClassSeparationBatch(BaseBatch):
     audio: TorchInputAudioDict
     query_class: Union[int, str]
     identifier: Identifier
+
+    def get_inference_query(self) -> Optional[Union[torch.Tensor, int, str]]:
+        """
+        Returns the query class for inference.
+        """
+        return self.query_class
 
 
 # Union type for all possible batch types
