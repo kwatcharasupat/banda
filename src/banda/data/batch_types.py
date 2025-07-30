@@ -1,113 +1,163 @@
-#  Copyright (c) 2025 by Karn Watcharasupat and contributors. All rights reserved.
-#  This project is dual-licensed:
-#  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
-#     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
-#  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
-#
-#
+"""
+This module defines Pydantic models for standardizing data batch structures
+used throughout the banda codebase.
+"""
 
-from abc import ABC
-from typing import Dict, Optional, Union
+from typing import Union, Dict, Any, Optional, List, Set
+from pydantic import BaseModel
 import torch
-from pydantic import BaseModel, ConfigDict
-
-from banda.data.types import TorchInputAudioDict, Identifier
 
 
-class BaseBatch(BaseModel, ABC):
+
+class TorchInputAudioDict(BaseModel):
     """
-    Base Pydantic model for a batch of data.
-    All specific batch types should inherit from this.
-    """
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def get_true_sources(self) -> Dict[str, torch.Tensor]:
-        """
-        Returns ground truth sources for metric calculation.
-        Default implementation returns an empty dictionary.
-        """
-        return {}
-
-    def get_inference_query(self) -> Optional[Union[torch.Tensor, int, str]]:
-        """
-        Returns the query for inference, if applicable.
-        Default implementation returns None.
-        """
-        return None
-
-
-class FixedStemSeparationBatch(BaseBatch):
-    """
-    Batch structure for fixed-stem source separation tasks (e.g., vocals, bass, drums, other).
+    Represents a dictionary of audio data (mixture and sources) as PyTorch tensors.
 
     Attributes:
-        audio (TorchInputAudioDict): Contains the mixture and ground truth sources.
-        identifier (Identifier): Identifier for the current track/chunk.
+        mixture (Optional[torch.Tensor]): The mixed audio. Shape: (channels, samples)
+        sources (Dict[str, torch.Tensor]): A dictionary mapping source names to their audio data.
+            Shape of each source: (channels, samples)
     """
-    audio: TorchInputAudioDict
-    identifier: Identifier
+    mixture: Optional[torch.Tensor] = None
+    sources: Dict[str, torch.Tensor]
 
-    def to_device(self, device: torch.device) -> 'FixedStemSeparationBatch':
-        """
-        Transfers all torch.Tensor attributes of the batch to the specified device.
-        """
-        if self.audio.mixture is not None:
-            self.audio.mixture = self.audio.mixture.to(device)
-        for stem, audio_tensor in self.audio.sources.items():
-            self.audio.sources[stem] = audio_tensor.to(device)
-        return self
+    class Config:
 
-    def get_true_sources(self) -> Dict[str, torch.Tensor]:
-        """
-        Returns ground truth sources for metric calculation for fixed-stem batches.
-        """
-        return self.audio.sources
+        """Pydantic configuration for TorchInputAudioDict."""
 
+        arbitrary_types_allowed = True # Allow torch.Tensor
 
-class QueryAudioSeparationBatch(BaseBatch):
+class AudioBatch(BaseModel):
     """
-    Batch structure for query-based source separation tasks where the query is an audio signal.
+    Represents a batch of audio data.
 
     Attributes:
-        audio (TorchInputAudioDict): Contains the mixture and ground truth sources.
-        query_audio (torch.Tensor): The audio signal used as a query.
-                                    Shape: (batch_size, channels, samples)
-        identifier (Identifier): Identifier for the current track/chunk.
+        audio (TorchInputAudioDict): A TorchInputAudioDict containing the mixture and sources.
+        metadata (Dict[str, Any]): A dictionary for arbitrary metadata associated with the batch.
     """
     audio: TorchInputAudioDict
+    metadata: Dict[str, Any]
+
+    class Config:
+        """Pydantic configuration for AudioBatch."""
+        arbitrary_types_allowed = True # Allow torch.Tensor
+
+class FixedStemSeparationBatch(BaseModel):
+    """
+    Represents a batch of data for fixed-stem source separation.
+
+    Attributes:
+        mixture (torch.Tensor): The mixed audio. Shape: (batch_size, channels, samples)
+        sources (Dict[str, torch.Tensor]): A dictionary of source audios.
+            Shape of each source: (batch_size, channels, samples)
+        metadata (Dict[str, Any]): A dictionary for arbitrary metadata associated with the batch.
+    """
+    mixture: torch.Tensor
+    sources: Dict[str, torch.Tensor]
+    metadata: Dict[str, Any]
+
+    class Config:
+        """Pydantic configuration for FixedStemSeparationBatch."""
+        arbitrary_types_allowed = True # Allow torch.Tensor
+
+    def to_device(self, device: torch.device) -> "FixedStemSeparationBatch":
+        """
+        Moves all torch.Tensor attributes of the batch to the specified device.
+        """
+        new_mixture = self.mixture.to(device) if self.mixture is not None else None
+        new_sources = {k: v.to(device) for k, v in self.sources.items()}
+        # Assuming metadata does not contain tensors that need device transfer
+        return FixedStemSeparationBatch(
+            mixture=new_mixture,
+            sources=new_sources,
+            metadata=self.metadata
+        )
+
+class SpectrogramBatch(BaseModel):
+    """
+    Represents a batch of spectrogram data.
+
+    Attributes:
+        spectrogram (torch.Tensor): A torch.Tensor containing the spectrogram data.
+            Shape: (batch_size, channels, frequency_bins, time_frames)
+        metadata (Dict[str, Any]): A dictionary for arbitrary metadata associated with the batch.
+    """
+    spectrogram: torch.Tensor
+    metadata: Dict[str, Any]
+
+    class Config:
+        """Pydantic configuration for SpectrogramBatch."""
+        arbitrary_types_allowed = True # Allow torch.Tensor
+
+class MaskBatch(BaseModel):
+    """
+    Represents a batch of mask data, typically used for source separation.
+
+    Attributes:
+        mask (torch.Tensor): A torch.Tensor containing the mask data.
+            Shape: (batch_size, channels, frequency_bins, time_frames)
+        metadata (Dict[str, Any]): A dictionary for arbitrary metadata associated with the batch.
+    """
+    mask: torch.Tensor
+    metadata: Dict[str, Any]
+
+    class Config:
+        """Pydantic configuration for MaskBatch."""
+        arbitrary_types_allowed = True # Allow torch.Tensor
+
+class QueryBatch(BaseModel):
+    """
+    Represents a batch of query data, e.g., for query-based separation.
+
+    Attributes:
+        query (torch.Tensor): A torch.Tensor containing the query data.
+            Shape: (batch_size, query_features) or (batch_size, channels, samples)
+        metadata (Dict[str, Any]): A dictionary for arbitrary metadata associated with the batch.
+    """
+    query: torch.Tensor
+    metadata: Dict[str, Any]
+
+    class Config:
+        """Pydantic configuration for QueryBatch."""
+        arbitrary_types_allowed = True # Allow torch.Tensor
+
+class QueryAudioSeparationBatch(BaseModel):
+    """
+    Represents a batch of data for query-based source separation with audio queries.
+
+    Attributes:
+        mixture (torch.Tensor): The mixed audio. Shape: (batch_size, channels, samples)
+        query_audio (torch.Tensor): The audio query. Shape: (batch_size, channels, samples)
+        sources (Dict[str, torch.Tensor]): A dictionary of source audios.
+            Shape of each source: (batch_size, channels, samples)
+        metadata (Dict[str, Any]): A dictionary for arbitrary metadata associated with the batch.
+    """
+    mixture: torch.Tensor
     query_audio: torch.Tensor
-    identifier: Identifier
+    sources: Dict[str, torch.Tensor]
+    metadata: Dict[str, Any]
 
-    def get_inference_query(self) -> Optional[Union[torch.Tensor, int, str]]:
-        """
-        Returns the query audio for inference.
-        """
-        return self.query_audio.squeeze(0)
+    class Config:
+        """Pydantic configuration for QueryAudioSeparationBatch."""
+        arbitrary_types_allowed = True # Allow torch.Tensor
 
-
-class QueryClassSeparationBatch(BaseBatch):
+class QueryClassSeparationBatch(BaseModel):
     """
-    Batch structure for query-based source separation tasks where the query is a class label.
+    Represents a batch of data for query-based source separation with class queries.
 
     Attributes:
-        audio (TorchInputAudioDict): Contains the mixture and ground truth sources.
-        query_class (Union[int, str]): The class label used as a query.
-        identifier (Identifier): Identifier for the current track/chunk.
+        mixture (torch.Tensor): The mixed audio. Shape: (batch_size, channels, samples)
+        query_class (torch.Tensor): The class query (e.g., one-hot encoded). Shape: (batch_size, num_classes)
+        sources (Dict[str, torch.Tensor]): A dictionary of source audios.
+            Shape of each source: (batch_size, channels, samples)
+        metadata (Dict[str, Any]): A dictionary for arbitrary metadata associated with the batch.
     """
-    audio: TorchInputAudioDict
-    query_class: Union[int, str]
-    identifier: Identifier
+    mixture: torch.Tensor
+    query_class: torch.Tensor
+    sources: Dict[str, torch.Tensor]
+    metadata: Dict[str, Any]
 
-    def get_inference_query(self) -> Optional[Union[torch.Tensor, int, str]]:
-        """
-        Returns the query class for inference.
-        """
-        return self.query_class
-
-
-# Union type for all possible batch types
-SeparationBatch = Union[
-    FixedStemSeparationBatch,
-    QueryAudioSeparationBatch,
-    QueryClassSeparationBatch,
-]
+    class Config:
+        """Pydantic configuration for QueryClassSeparationBatch."""
+        arbitrary_types_allowed = True # Allow torch.Tensor
+SeparationBatch = Union[FixedStemSeparationBatch, QueryAudioSeparationBatch, QueryClassSeparationBatch]

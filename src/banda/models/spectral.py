@@ -7,7 +7,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio as ta # Added torchaudio import
-# import librosa # Removed librosa import
+
+#  # Removed librosa import
 # import torchaudio.functional as taF # Not used directly, but for reference
 # import bark_fbanks # Not used directly, but for reference
 from omegaconf import DictConfig # Import DictConfig
@@ -396,52 +397,55 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
 
 def musical_filterbank(n_bands, fs, f_min, f_max, n_freqs,
                        scale="constant"):
-
+    # Calculate the effective f_min based on the user's instruction
+    # f_min should be fs/nfft, which is the freq of the first non-DC bin.
+    # treat the DC bin separately.
     nfft = 2 * (n_freqs - 1)
-    df = fs / nfft
-    # init freqs
-    f_max = f_max or fs / 2
-    # Clamp f_min to a small positive value to avoid ZeroDivisionError
-    f_min = max(f_min, fs / nfft) # Ensure f_min is not zero and is at least the lowest non-zero STFT frequency
-    # Removed: f_min = fs / nfft # This line seems to re-assign f_min, potentially overriding the input f_min
+    f_min_effective = fs / nfft
 
-    n_octaves = torch.log2(torch.tensor(f_max / f_min)) # Convert to torch.tensor
-    n_octaves_per_band = n_octaves / n_bands
-    bandwidth_mult = torch.pow(torch.tensor(2.0), torch.tensor(n_octaves_per_band)) # Convert to torch.tensor
+    # All frequency bins from 0 to Nyquist
+    all_freqs = torch.linspace(0, fs / 2, n_freqs)
 
-    low_midi = max(0, hz_to_midi(torch.tensor(f_min)).item()) # Convert f_min to tensor for hz_to_midi
-    high_midi = hz_to_midi(torch.tensor(f_max)).item() # Convert f_max to tensor for hz_to_midi
-    midi_points = torch.linspace(low_midi, high_midi, n_bands) # Use torch.linspace
-    hz_pts = midi_to_hz(midi_points)
+    # Calculate MIDI points for the musical bands
+    # Use f_min_effective for the lower bound of the musical scale
+    low_midi = hz_to_midi(torch.tensor(f_min_effective)).item()
+    high_midi = hz_to_midi(torch.tensor(fs / 2)).item()
+    midi_points = torch.linspace(low_midi, high_midi, n_bands + 2) # Add 2 for triangular filterbank
 
-    low_pts = hz_pts / bandwidth_mult # Corrected calculation
-    high_pts = hz_pts * bandwidth_mult
+    # Convert MIDI points back to Hz
+    hz_points = midi_to_hz(midi_points)
 
-    low_bins = torch.floor(low_pts / df).int() # Use torch.floor and convert to int
-    high_bins = torch.ceil(high_pts / df).int() # Use torch.ceil and convert to int
+    # Create the triangular filterbank
+    fb = _create_triangular_filterbank(all_freqs, hz_points)
 
-    fb = torch.zeros((n_bands, n_freqs)) # Use torch.zeros
+    # Handle the DC bin (frequency bin 0) separately
+    # The DC bin is typically not part of the logarithmic scale.
+    # We'll assign it to the first band.
+    # Ensure the first band covers the DC bin if f_min is 0
+    # Explicitly ensure the first band covers the DC bin (0) and the first non-DC bin (1)
+    # This handles the case where f_min is 0.0 and the musical scale doesn't naturally include these.
+    if f_min == 0.0:
+        fb[0, 0:2] = 1.0 # Cover bins 0 and 1 with the first band
 
-    for i in range(n_bands):
-        # Ensure indices are within bounds
-        start_idx = max(0, low_bins[i].item())
-        end_idx = min(n_freqs, high_bins[i].item() + 1)
-        if start_idx < end_idx:
-            fb[i, start_idx:end_idx] = 1.0
+    # Normalize the filterbank so that each frequency bin sums to 1 across bands
+    # This ensures that the sum of masks for each frequency bin is 1, preventing
+    # amplitude changes due to the bandsplit.
+    # Add a small epsilon to avoid division by zero for bins with no weight
+    epsilon = 1e-10
+    fb = fb / (fb.sum(axis=0, keepdims=True) + epsilon)
 
-    # Original code had these lines, which seem to extend the first and last bands
-    # fb[0, :low_bins[0]] = 1.0 # This might cause issues if low_bins[0] is negative or 0
-    # fb[-1, high_bins[-1]+1:] = 1.0 # This might cause issues if high_bins[-1]+1 is out of bounds
-
-    # Re-evaluate these lines based on desired behavior. For now, commenting out or adjusting.
-    # Assuming the intent is to cover the lowest and highest frequencies if they fall outside the calculated bins.
-    # For the first band, if its lower bound is > 0, extend it to 0.
-    if low_bins[0].item() > 0:
-        fb[0, :low_bins[0].item()] = 1.0
-    # For the last band, if its upper bound is < n_freqs, extend it to n_freqs.
-    if high_bins[-1].item() + 1 < n_freqs:
-        fb[-1, high_bins[-1].item() + 1:] = 1.0
-
+    logger.debug(
+        "musical_filterbank final bands debug info",
+        f_min=f_min,
+        f_max=f_max,
+        n_freqs=n_freqs,
+        f_min_effective=f_min_effective,
+        all_freqs_shape=all_freqs.shape,
+        midi_points=midi_points,
+        hz_points=hz_points,
+        fb_shape=fb.shape,
+        fb_sum_per_bin=fb.sum(axis=0),
+    )
 
     return fb
 

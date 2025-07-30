@@ -8,34 +8,50 @@
 
 import torch
 import torch.nn as nn
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Type
 from omegaconf import DictConfig, OmegaConf
+from banda.utils.registry import MODELS_REGISTRY
 import importlib
 import hydra.utils # Added this import
 
-from banda.data.batch_types import SeparationBatch, FixedStemSeparationBatch
+from banda.data.batch_types import FixedStemSeparationBatch
+from banda.core.interfaces import BaseModel
 from banda.models.spectral import SpectralComponent
 from banda.models.components.bandsplit import BandSplitModule
 from banda.models.components.mask_estimation import MaskEstimationModule, OverlappingMaskEstimationModule
 from banda.models.components.time_frequency_model import SeqBandModellingModule, TransformerTimeFreqModule, ConvolutionalTimeFreqModule
 from banda.models.utils import VDBO_STEMS # Example default stems
 from banda.models.spectral import BandsplitSpecification # Import BandsplitSpecification (now in models folder)
+from banda.models.spectral import get_bandsplit_specs_factory
 from banda.models.configs import SeparatorConfig, STFTConfig, BandsplitModuleConfig, TFModelConfig, MaskEstimationConfig
 
+@MODELS_REGISTRY.register("separator")
 
-class Separator(SpectralComponent):
+class Separator(BaseModel, SpectralComponent):
     """
     A fixed-stem Bandit-like source separation model.
 
     This model takes a mixture audio as input and outputs separated sources
     using a bandsplit approach with a time-frequency model and mask estimation.
+    It inherits from BaseModel for general model interface and SpectralComponent
+    for STFT/ISTFT functionalities.
     """
 
     def __init__(self, config: SeparatorConfig) -> None:
         """
         Initializes the Separator model.
+
+        Args:
+            config (SeparatorConfig): A Pydantic configuration object containing
+                                      all necessary parameters for the model.
+
+        Raises:
+            ValueError: If `band_specs` is not provided in the configuration.
+            ValueError: If an unknown `tf_model_type` is specified in the configuration.
         """
-        super().__init__(
+        BaseModel.__init__(self) # Initialize BaseModel first
+        SpectralComponent.__init__(
+            self,
             n_fft=config.stft_config.n_fft,
             win_length=config.stft_config.win_length,
             hop_length=config.stft_config.hop_length,
@@ -48,17 +64,17 @@ class Separator(SpectralComponent):
             onesided=config.stft_config.onesided,
         )
 
-        self.stems = config.stems
-        self.band_specs = config.bandsplit_config.band_specs
-        self.fs = config.fs
-        self.n_fft = config.stft_config.n_fft # Use n_fft from STFT config
-        self.in_channel = config.in_channel
+        self.stems: List[str] = config.stems
+        self.band_specs: BandsplitSpecification = config.bandsplit_config.band_specs
+        self.fs: int = config.fs
+        self.n_fft: int = config.stft_config.n_fft # Use n_fft from STFT config
+        self.in_channel: int = config.in_channel
 
         # 1. Bandsplit Module
         if self.band_specs is None:
             raise ValueError("band_specs must be provided to Separator.")
 
-        self.band_split = BandSplitModule(
+        self.band_split: BandSplitModule = BandSplitModule(
             band_spec_obj=self.band_specs, # Pass the BandsplitSpecification object
             emb_dim=config.emb_dim,
             in_channel=config.in_channel,
@@ -70,7 +86,7 @@ class Separator(SpectralComponent):
 
         # 2. Time-Frequency Model
         if config.tfmodel_config.tf_model_type == "rnn":
-            self.tf_model = SeqBandModellingModule(
+            self.tf_model: SeqBandModellingModule = SeqBandModellingModule(
                 n_modules=config.tfmodel_config.n_tf_modules,
                 emb_dim=config.emb_dim,
                 rnn_dim=config.tfmodel_config.rnn_dim,
@@ -78,7 +94,7 @@ class Separator(SpectralComponent):
                 rnn_type=config.tfmodel_config.rnn_type,
             )
         elif config.tfmodel_config.tf_model_type == "transformer":
-            self.tf_model = TransformerTimeFreqModule(
+            self.tf_model: TransformerTimeFreqModule = TransformerTimeFreqModule(
                 n_modules=config.tfmodel_config.n_tf_modules,
                 emb_dim=config.emb_dim,
                 rnn_dim=config.tfmodel_config.rnn_dim, # Not used, but for compatibility
@@ -86,7 +102,7 @@ class Separator(SpectralComponent):
                 dropout=config.tfmodel_config.tf_dropout,
             )
         elif config.tfmodel_config.tf_model_type == "conv":
-            self.tf_model = ConvolutionalTimeFreqModule(
+            self.tf_model: ConvolutionalTimeFreqModule = ConvolutionalTimeFreqModule(
                 n_modules=config.tfmodel_config.n_tf_modules,
                 emb_dim=config.emb_dim,
                 rnn_dim=config.tfmodel_config.rnn_dim, # Not used, but for compatibility
@@ -97,8 +113,10 @@ class Separator(SpectralComponent):
             raise ValueError(f"Unknown tf_model_type: {config.tfmodel_config.tf_model_type}")
 
         # 3. Mask Estimation Module
-        mask_estim_cls = OverlappingMaskEstimationModule if self.band_specs.is_overlapping else MaskEstimationModule
-        self.mask_estim = nn.ModuleDict(
+        print(f"Separator: is_overlapping = {self.band_specs.is_overlapping}")
+        print(f"Separator: n_fft // 2 + 1 = {config.stft_config.n_fft // 2 + 1}")
+        mask_estim_cls: Union[Type[MaskEstimationModule], Type[OverlappingMaskEstimationModule]] = OverlappingMaskEstimationModule if self.band_specs.is_overlapping else MaskEstimationModule
+        self.mask_estim: nn.ModuleDict = nn.ModuleDict(
             {
                 stem: mask_estim_cls(
                     band_specs=self.band_specs.get_band_specs(), # Pass the actual band specs
@@ -115,6 +133,7 @@ class Separator(SpectralComponent):
                 for stem in self.stems
             }
         )
+        # 
 
     def forward(self, mixture_audio: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
@@ -122,95 +141,106 @@ class Separator(SpectralComponent):
 
         Args:
             mixture_audio (torch.Tensor): The input mixture audio tensor.
+                Shape: (batch_size, channels, samples)
 
         Returns:
             Dict[str, torch.Tensor]: Dictionary of separated source audio tensors.
                                      Each tensor has shape: (batch_size, channels, samples)
         """
         # Store original audio length for ISTFT
-        original_audio_length = mixture_audio.shape[-1]
+        original_audio_length: int = mixture_audio.shape[-1]
 
         # 1. STFT: Convert audio to complex spectrogram
         # Output shape: (batch_size, channels, freq_bins, time_frames, 2)
-        mixture_spec = self.stft(mixture_audio)
-        
-        
+        mixture_spec: torch.Tensor = self.stft(mixture_audio) # Shape: (batch_size, channels, freq_bins, time_frames, 2)
 
-        # Convert complex spectrogram to real-view for encoder (batch, channels, freq, time, 2) -> (batch, channels, freq, time)
-        # Assuming the encoder expects a real-valued input, e.g., magnitude spectrogram or concatenated real/imag
-        # Let's concatenate real and imaginary parts along the channel dimension
+
+        # Convert complex spectrogram to real-view for bandsplit input
         # (batch, channels, freq_bins, time_frames, 2) -> (batch, channels * 2, freq_bins, time_frames)
-        
-        input_to_bandsplit = torch.cat([mixture_spec.real, mixture_spec.imag], dim=1)
+        input_to_bandsplit: torch.Tensor = torch.cat([mixture_spec.real, mixture_spec.imag], dim=1) # Shape: (batch_size, channels * 2, freq_bins, time_frames)
 
 
         # 2. Bandsplit: Process each frequency band
         # Output shape: (batch, n_bands, n_time, emb_dim)
-        band_features = self.band_split(input_to_bandsplit)
+        band_features: torch.Tensor = self.band_split(input_to_bandsplit) # Shape: (batch_size, n_bands, time_frames, emb_dim)
 
         # 3. Time-Frequency Model: Process band features
         # Output shape: (batch, n_bands, n_time, emb_dim)
-        processed_features = self.tf_model(band_features)
+        processed_features: torch.Tensor = self.tf_model(band_features) # Shape: (batch_size, n_bands, time_frames, emb_dim)
 
         # 4. Mask Estimation: Predict masks for each source
         # Output shape: Dict[stem_name, (batch, in_channel, n_freq, n_time)]
-        masks = {
-            stem: self.mask_estim[stem](processed_features)
+        masks: Dict[str, torch.Tensor] = {
+            stem: self.mask_estim[stem](processed_features) # Shape: (batch_size, in_channel, freq_bins, time_frames)
             for stem in self.stems
         }
 
         # 5. Apply Masks and ISTFT: Reconstruct separated audio
-        separated_audio = {}
+        separated_audio: Dict[str, torch.Tensor] = {}
         for stem, mask in masks.items():
             # Apply mask to the mixture spectrogram
             # Ensure mask and mixture_spec are compatible for element-wise multiplication
             # (batch, in_channel, n_freq, n_time, 2) * (batch, in_channel, n_freq, n_time)
             # Need to expand mask to have the real/imaginary dimension=
-            masked_spec = mixture_spec * mask # Add a dimension for real/imaginary
+            masked_spec: torch.Tensor = mixture_spec * mask # Shape: (batch_size, channels, freq_bins, time_frames, 2)
 
             # ISTFT: Convert masked spectrogram back to audio
-            separated_audio[stem] = self.inverse(masked_spec, original_audio_length)
+            separated_audio[stem] = self.inverse(masked_spec, original_audio_length) # Shape: (batch_size, channels, samples)
 
         return separated_audio
 
     @classmethod
-    def from_config(cls, cfg: DictConfig): # Changed config to cfg
+    def from_config(cls, cfg: DictConfig) -> "Separator":
         """
         Instantiates a Separator model from a DictConfig.
-        """
-        model_cfg = cfg # Access the model subtree
 
-        
+        This class method is responsible for parsing the configuration and
+        constructing a `SeparatorConfig` object, which is then used to
+        initialize the `Separator` model.
+
+        Args:
+            cfg (DictConfig): A DictConfig object containing the model configuration.
+
+        Returns:
+            Separator: An instance of the Separator model.
+        """
+        model_cfg: DictConfig = cfg # Access the model subtree
+
+
         # Extract top-level parameters from model_cfg
-        stems = model_cfg.get("stems", VDBO_STEMS)
-        fs = model_cfg.get("fs", 44100)
-        emb_dim = model_cfg.get("emb_dim", 128)
-        in_channel = model_cfg.get("in_channel", 2)
+        stems: List[str] = model_cfg.get("stems", VDBO_STEMS)
+        fs: int = model_cfg.get("fs", 44100)
+        emb_dim: int = model_cfg.get("emb_dim", 128)
+        in_channel: int = model_cfg.get("in_channel", 2)
 
         # Instantiate sub-configs by first resolving their DictConfig to a plain dict
         # and then instantiating the Pydantic model from that dict.
-        stft_config = hydra.utils.instantiate(OmegaConf.to_container(model_cfg.stft, resolve=True))
-        tfmodel_config = hydra.utils.instantiate(OmegaConf.to_container(model_cfg.tfmodel, resolve=True))
-        mask_estim_config = hydra.utils.instantiate(OmegaConf.to_container(model_cfg.mask_estim, resolve=True))
+        stft_config: STFTConfig = hydra.utils.instantiate(OmegaConf.to_container(model_cfg.stft, resolve=True))
+        tfmodel_config: TFModelConfig = hydra.utils.instantiate(OmegaConf.to_container(model_cfg.tfmodel, resolve=True))
+        mask_estim_config: MaskEstimationConfig = hydra.utils.instantiate(OmegaConf.to_container(model_cfg.mask_estim, resolve=True))
 
         # Instantiate band_specs first, as it requires n_fft and fs
-        band_specs = hydra.utils.instantiate(
-            model_cfg.bandsplit.band_specs,
+        bandsplit_type = model_cfg.bandsplit.band_specs.bandsplit_type
+        n_bands = model_cfg.bandsplit.band_specs.n_bands
+        band_specs: BandsplitSpecification = get_bandsplit_specs_factory(
+            bandsplit_type=bandsplit_type,
             n_fft=stft_config.n_fft,
-            fs=fs
+            fs=fs,
+            n_bands=n_bands
         )
 
+        # Instantiate bandsplit_config using hydra.utils.instantiate
         # Manually create bandsplit_config, passing the instantiated band_specs
-        bandsplit_config = BandsplitModuleConfig(
-            band_specs=band_specs,
-            require_no_overlap=model_cfg.bandsplit.require_no_overlap,
-            require_no_gap=model_cfg.bandsplit.require_no_gap,
-            normalize_channel_independently=model_cfg.bandsplit.normalize_channel_independently,
-            treat_channel_as_feature=model_cfg.bandsplit.treat_channel_as_feature,
+        # Manually create bandsplit_config, passing the instantiated band_specs
+        # Manually create bandsplit_config, passing the instantiated band_specs
+        bandsplit_config: BandsplitModuleConfig = hydra.utils.instantiate(
+            model_cfg.bandsplit,
+            band_specs=band_specs, # Pass the already instantiated band_specs
+            _recursive_=False # Prevent re-instantiation of band_specs
         )
 
         # Create the main SeparatorConfig instance
-        separator_config = SeparatorConfig(
+        separator_config: SeparatorConfig = SeparatorConfig(
             stems=stems,
             fs=fs,
             emb_dim=emb_dim,

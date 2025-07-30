@@ -1,10 +1,10 @@
-_target_: banda.models.configs.BandsplitModuleConfig
+
 
 # Bandsplit Configuration
 band_specs:
-  _target_: banda.models.spectral.get_bandsplit_specs_factory
+  
   bandsplit_type: musical # Changed to string value
-  n_bands: 64 # Removed n_fft and fs here
+  n_bands: 64
 require_no_overlap: False
 require_no_gap: True
 normalize_channel_independently: False

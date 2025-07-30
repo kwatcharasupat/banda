@@ -1,14 +1,11 @@
-#  Copyright (c) 2025 by Karn Watcharasupat and contributors. All rights reserved.
-#  This project is dual-licensed:
-#  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
-#     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
-#  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
-#
-#
-
-from typing import Dict
 import torch
 import torch.nn as nn
+from typing import Dict, List, Union
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+
 
 from banda.data.batch_types import (
     SeparationBatch,
@@ -53,7 +50,7 @@ class SeparationLossHandler(LossHandler):
         losses_per_sample = []
 
         if isinstance(batch, FixedStemSeparationBatch):
-            true_sources = batch.audio.sources
+            true_sources = batch.sources
             for source_name, sep_audio in predictions.items():
                 if source_name in true_sources:
                     # Calculate STFT loss (batch-wise)
@@ -69,7 +66,7 @@ class SeparationLossHandler(LossHandler):
                 return torch.tensor(0.0, device=predictions[list(predictions.keys())[0]].device)
 
         elif isinstance(batch, QueryAudioSeparationBatch):
-            true_sources = batch.audio.sources
+            true_sources = batch.sources
             target_source_name = "vocals" # This would come from the query logic
             if target_source_name in predictions and target_source_name in true_sources:
                 stft_loss = self.stft_loss_fn(predictions[target_source_name], true_sources[target_source_name])
@@ -79,7 +76,7 @@ class SeparationLossHandler(LossHandler):
                 raise NotImplementedError(f"Loss calculation for {type(batch).__name__} with query audio is not fully implemented.")
 
         elif isinstance(batch, QueryClassSeparationBatch):
-            true_sources = batch.audio.sources
+            true_sources = batch.sources
             query_class = batch.query_class
             if query_class in predictions and query_class in true_sources:
                 stft_loss = self.stft_loss_fn(predictions[query_class], true_sources[query_class])
@@ -90,3 +87,14 @@ class SeparationLossHandler(LossHandler):
 
         else:
             raise TypeError(f"Unsupported batch type for loss calculation: {type(batch)}")
+
+    def to(self, device: torch.device) -> None:
+        """
+        Moves all internal loss functions to the specified device.
+
+        Args:
+            device (torch.device): The target device.
+        """
+        logger.debug(f"SeparationLossHandler.to: Moving loss functions to device {device}")
+        self.stft_loss_fn.to(device)
+        self.time_loss_fn.to(device)

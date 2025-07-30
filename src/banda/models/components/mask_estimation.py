@@ -16,6 +16,8 @@ from torch.nn.modules import activation
 import structlog
 
 
+
+
 from banda.models.utils import (
     band_widths_from_specs,
     check_no_gap, # Keep for now, but it's deprecated
@@ -290,6 +292,7 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
         self.n_freq = n_freq
         self.band_specs = band_specs
         self.in_channel = in_channel
+        # 
 
         # if freq_weights is not None: # Deprecated
         #     for i, fw in enumerate(freq_weights):
@@ -334,6 +337,8 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
             q = torch.cat([q, cond], dim=-1)
 
         mask_list = self.compute_masks(q) # [n_bands * (batch, in_channel, bandwidth, n_time)]
+        
+        
 
         masks = torch.zeros(
             (batch, self.in_channel, self.n_freq, n_time),

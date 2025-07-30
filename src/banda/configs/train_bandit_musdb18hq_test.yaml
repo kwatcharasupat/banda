@@ -45,6 +45,7 @@ paths:
 
 # Override specific configurations for this test run
 data:
+  
   target_: banda.data.datamodule.SourceSeparationDataModule
   batch_size: 4
   num_workers: 0 # Changed to 0
@@ -62,7 +63,7 @@ data:
         target_: banda.data.datasets.musdb18hq.MUSDB18Connector
         config:
           split: train
-          data_root: "${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz"
+          data_root: "/Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz" # Hardcoded absolute path
   val_dataset_config:
     target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
     config:
@@ -76,7 +77,7 @@ data:
         target_: banda.data.datasets.musdb18hq.MUSDB18Connector
         config:
           split: val
-          data_root: "${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz"
+          data_root: "/Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz" # Hardcoded absolute path
   test_dataset_config:
     target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
     config:
@@ -90,27 +91,24 @@ data:
         target_: banda.data.datasets.musdb18hq.MUSDB18Connector
         config:
           split: test
-          data_root: "${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz"
+          data_root: "/Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz" # Hardcoded absolute path
 
 trainer:
   target_: pytorch_lightning.Trainer
-  max_epochs: 5
+  max_epochs: 1 # Changed to 1 for quick run
   accelerator: "auto"
   devices: "auto"
   log_every_n_steps: 50
 
 loss:
-  target_: banda.losses.separation_loss_handler.SeparationLossHandler
-  loss_fn:
+  _target_: banda.losses.separation_loss_handler.SeparationLossHandler
+  stft_loss_fn:
     _target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
     n_ffts: [2048, 512]
     hop_lengths: [512, 128]
     win_lengths: [2048, 512]
-    p: 1.0
-    scale_invariant: False
-    take_log: True
-    reduction: "mean"
-    eps: 1e-8
+  time_loss_fn:
+    _target_: banda.losses.time_domain_loss.TimeDomainLoss
 
 metrics:
   _target_: torchmetrics.audio.ScaleInvariantSignalNoiseRatio

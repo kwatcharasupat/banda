@@ -6,529 +6,57 @@
 #
 
 import os
-import warnings
-from abc import ABC
 from typing import (
-    Generic,
     List,
     Optional,
     Dict,
     Any,
 )
 
-import numpy as np
 import structlog
-import torchaudio as ta  # type: ignore
-from pydantic import BaseModel, Extra, Field
-from torch.utils import data
-from omegaconf import DictConfig, OmegaConf
-import importlib
 
-
-from banda.data.augmentations.base import (
-    PostMixTransform,
-    PreMixTransform,
-    IdentityPostMixTransform,
-    IdentityPreMixTransform,
-    TransformConfig,
-    Transform
-)
+from banda.utils.registry import DATASETS_REGISTRY
 from banda.data.types import (
-    GenericIdentifier,
-    NumPySourceDict,
-    TorchInputAudioDict,
     Identifier,
     __VDBO__
 )
-
+from banda.data.datasets.base import SourceSeparationDataset, DatasetConnector
 
 logger = structlog.get_logger(__name__)
 
-
-class ResamplingWarning(Warning):
-    """
-    Warning for resampling operations.
-    """
-
-
-class NonWavFileWarning(Warning):
-    """
-    Warning for non-WAV file extensions.
-    """
-
-
-class DatasetConnectorConfig(BaseModel):
-    model_config = {'arbitrary_types_allowed': True}
-    target_: str = Field(...)
-    config: Dict[str, Any] = Field({})
-
-
-class DatasetConnector(ABC, Generic[GenericIdentifier]):
-    """
-    Abstract base class for dataset connectors.
-    """
-
-    def __init__(self, *, split: str, data_root: str) -> None:
-        self.split = split
-        self.data_root = data_root
-
-    def _get_stem_path(self, *, stem: str, identifier: GenericIdentifier) -> str:
-        """
-        Abstract method to get the file path for a stem.
-        """
-        raise NotImplementedError
-
-    def get_identifier(self, index: int) -> GenericIdentifier:
-        """
-        Abstract method to get the identifier for a track.
-        """
-        return self.identifiers[index]
-
-    @property
-    def identifiers(self) -> List[GenericIdentifier]:
-        """
-        Abstract property to get the list of identifiers for the dataset.
-        """
-        raise NotImplementedError
-
-    @property
-    def n_tracks(self) -> int:
-        """
-        Abstract property to get the number of tracks in the dataset.
-        """
-        raise NotImplementedError
-
-    @classmethod
-    def from_config(cls, config: DictConfig):
-        """
-        Create a dataset connector instance from a configuration object.
-        """
-        class_path = config.target_
-        
-        # Extract actual parameters from the 'config' field if it exists, otherwise use the top-level config
-        if hasattr(config, 'config') and isinstance(config.config, DictConfig):
-            kwargs = {k: v for k, v in config.config.items()}
-        else:
-            kwargs = {k: v for k, v in config.items() if k != 'target_'}
-
-        module_name, class_name = class_path.rsplit(".", 1)
-        module = importlib.import_module(module_name)
-        connector_cls = getattr(module, class_name)
-
-        return connector_cls(**kwargs)
-
-
-class _DatasetConfig(BaseModel):
-    model_config = {'extra': 'allow'}
-    split: str
-    dataset_connector: DatasetConnectorConfig
-    fs: int
-    premix_transform: Optional[TransformConfig] = None
-    postmix_transform: Optional[TransformConfig] = None
-    recompute_mixture: bool = True
-    auto_load_mixture: bool = True
-    allowed_extensions: Optional[List[str]] = None
-    allow_resampling: bool = False
-    mixture_stem_key: Optional[str] = None
-
-
-class SourceSeparationDataset(data.Dataset, ABC, Generic[GenericIdentifier]):
-    """
-    Abstract base class for source separation datasets.
-    """
-
-    __DEFAULT_ALLOWED_EXTENSIONS__ = [".npz", ".wav"]
-    _warned_npy_sample_rate = False
-    _warned_non_wav = False
-    _warned_resampling = False
-    __DEFAULT_MIXTURE_STEM_KEY__ = "mixture"
-
-    def __init__(
-        self,
-        *,
-        split: str,
-        dataset_connector: DatasetConnector[GenericIdentifier],
-        fs: int,
-        premix_transform: Optional[PreMixTransform] = None,
-        postmix_transform: Optional[PostMixTransform] = None,
-        recompute_mixture: bool = True,
-        auto_load_mixture: bool = True,
-        allowed_extensions: Optional[List[str]] = None,
-        allow_resampling: bool = False,
-        mixture_stem_key: Optional[str] = None,
-    ) -> None:
-        """
-        Args:
-            split (str): Dataset split (e.g., "train", "val", "test").
-            dataset_connector (DatasetConnector): Connector for accessing the dataset.
-            fs (int): Target sample rate.
-            premix_transform (Optional[PreMixTransform]): Transform applied before mixing.
-            postmix_transform (Optional[PostMixTransform]): Transform applied after mixing.
-            recompute_mixture (bool): Whether to recompute the mixture.
-            auto_load_mixture (bool): Whether to automatically load the mixture.
-            allowed_extensions (Optional[List[str]]): Allowed file extensions.
-            allow_resampling (bool): Whether to allow resampling.
-            mixture_stem_key (Optional[str]): Key for the mixture stem.
-        """
-
-        super().__init__()
-
-        self.split = split
-        self.dataset_connector = dataset_connector
-        self.fs = fs
-        self.recompute_mixture = recompute_mixture
-        self.allowed_extensions = (
-            allowed_extensions or self.__DEFAULT_ALLOWED_EXTENSIONS__
-        )
-        self.allow_resampling = allow_resampling
-        self.mixture_stem_key = mixture_stem_key or self.__DEFAULT_MIXTURE_STEM_KEY__
-        self.auto_load_mixture = auto_load_mixture
-
-        self.premix_transform: PreMixTransform = (
-            premix_transform or IdentityPreMixTransform()
-        )
-        self.post_mix_transform: PostMixTransform = (
-            postmix_transform or IdentityPostMixTransform()
-        )
-
-    def __len__(self) -> int:
-        """
-        Returns the number of tracks in the dataset.
-        """
-        return self.n_tracks
-
-    def __getitem__(self, index: int) -> Dict[str, Any]:
-        """
-        Retrieves a single data sample from the dataset.
-
-        Args:
-            index (int): Index of the sample to retrieve.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the audio data and identifier.
-        """
-        identifier = self.get_identifier(index)
-        
-        # Define the stems to load. This should ideally come from config or be dynamic.
-        # For now, using a hardcoded list for demonstration.
-        stems_to_load = ["vocals", "bass", "drums", "other"] # Example stems
-
-        audio_dict = self.get_audio_dict(stems=stems_to_load, identifier=identifier)
-
-        return {
-            "audio": audio_dict,
-            "identifier": identifier,
-        }
-
-    def get_stem(self, *, stem: str, identifier: GenericIdentifier) -> np.ndarray:
-        """
-        Get the audio data for a specific stem.
-
-        Args:
-            stem (str): Stem name.
-            identifier (Identifier): Track identifier.
-
-        Returns:
-            np.ndarray: Audio data for the stem.
-        """
-        path = self._get_stem_path(stem=stem, identifier=identifier)
-        return self._get_stem_from_path(path, requested_stem=stem)
-
-    def _get_stem_from_path(self, path: str, requested_stem: str) -> np.ndarray:
-        """
-        Load stem audio data from a file.
-
-        Args:
-            path (str): Path to the stem file.
-            requested_stem (str): The specific stem to extract from the file.
-
-        Returns:
-            np.ndarray: Loaded audio data.
-        """
-        ext = os.path.splitext(path)[-1]
-        if self.allowed_extensions and ext not in self.allowed_extensions:
-            raise ValueError(f"Unsupported file extension: {ext}")
-
-        if ext == ".npz":
-            return self._load_npz(path, requested_stem=requested_stem)
-        elif ext == ".npy":
-            return self._load_npy(path)
-        else:
-            if not self._warned_non_wav:
-                msg = (
-                    f"File {path} has a non-wav extension {ext}. "
-                    "If this is a compressed audio file, the audio loading may be slow. "
-                    "If this is a non-audio file, unexpected behavior may occur. "
-                    "This warning will only be shown once."
-                )
-                warnings.warn(msg, NonWavFileWarning)
-                self._warned_non_wav = True
-            return self._load_audio(path)
-
-    def _load_npz(self, path: str, requested_stem: str) -> np.ndarray:
-        """
-        Load audio data from a .npz file.
-
-        Args:
-            path (str): Path to the .npz file.
-            requested_stem (str): The specific stem to extract from the .npz file.
-        Returns:
-            np.ndarray: Resampled audio data.
-        """
-        data = np.load(path, mmap_mode="r")
-        audio = data[requested_stem]
-        fs = data["fs"]
-
-        return self._resample(audio, original_fs=fs)
-
-    def _load_npy(self, path: str) -> np.ndarray:
-        """
-        Load audio data from a .npy file.
-
-        Args:
-            path (str): Path to the .npy file.
-
-        Returns:
-            np.ndarray: Resampled audio data.
-        """
-        if not self._warned_npy_sample_rate:
-            msg = (
-                "Sampling rates are not checked for .npy files. Use with caution."
-                "This warning will only be shown once."
-            )
-            warnings.warn(msg, UserWarning)
-            self._warned_npy_sample_rate = True
-
-        audio = np.load(path, mmap_mode="r")
-        return self._resample(audio, original_fs=self.fs)
-
-    def _load_audio(self, path: str) -> np.ndarray:
-        """
-        Load audio data from a file.
-
-        Args:
-            path (str): Path to the audio file.
-        Returns:
-            np.ndarray: Resampled audio data.
-        """
-        audio, fs = ta.load(path)
-        return self._resample(audio, original_fs=fs)
-
-    def _resample(self, audio: np.ndarray, *, original_fs: int) -> np.ndarray:
-        """
-        Resample audio data to the target sample rate.
-
-        Args:
-            audio (np.ndarray): Input audio data.
-            original_fs (int): Original sample rate.
-
-        Returns:
-            np.ndarray: Resampled audio data.
-
-        Raises:
-            ValueError: If resampling is not allowed.
-            NotImplementedError: If resampling is not implemented.
-        """
-        if original_fs == self.fs:
-            return audio
-
-        if not self.allow_resampling:
-            raise ValueError(
-                f"Expected sample rate {self.fs}, got {original_fs}. "
-                "Use allow_resampling=True to resample."
-            )
-
-        if not self._warned_resampling:
-            msg = (
-                f"Resampling from {original_fs} to {self.fs}. "
-                "Consider resampling beforehand to avoid performance issues. "
-                "This warning will only be shown once."
-            )
-            warnings.warn(msg, ResamplingWarning)
-            self._warned_resampling = True
-
-        # Placeholder for actual resampling implementation
-        # You would typically use torchaudio.transforms.Resample or similar here
-        raise NotImplementedError("Resampling is not implemented.")
-
-    def _get_stem_path(self, *, stem: str, identifier: GenericIdentifier) -> str:
-        """
-        Abstract method to get the file path for a stem.
-        Args:
-            stem (str): Stem name.
-            identifier (Identifier): Track identifier.
-        Returns:
-            str: Path to the stem file.
-        """
-        return self.dataset_connector._get_stem_path(stem=stem, identifier=identifier)
-
-    def get_identifier(self, index: int) -> GenericIdentifier:
-        """
-        Abstract method to get the identifier for a track.
-        Args:
-            index (int): Index of the track.
-            
-        Returns:
-            Identifier: Track identifier.
-        """
-        return self.dataset_connector.get_identifier(index=index)
-
-    def _compute_mixture(self, *, sources: NumPySourceDict) -> np.ndarray:
-        """
-        Compute the mixture from source stems.
-        Args:
-            sources (NumPySourceDict): Dictionary of source stems.
-        Returns:
-            np.ndarray: Mixture audio data.
-        """
-        # Ensure all sources have the same length before summing
-        min_len = min(source.shape[-1] for source in sources.values())
-        aligned_sources = [source[..., :min_len] for source in sources.values()]
-        return sum(aligned_sources)
-
-    def get_stems(
-        self, *, stems: List[str], identifier: GenericIdentifier
-    ) -> NumPySourceDict:
-        """
-        Get audio data for multiple stems.
-        Args:
-            stems (List[str]): List of stem names.
-            identifier (Identifier): Track identifier.
-        Returns:
-            NumPySourceDict: Dictionary of stem audio data.
-        """
-        return {stem: self.get_stem(stem=stem, identifier=identifier) for stem in stems}
-
-    def get_audio_dict(
-        self, *, stems: List[str], identifier: GenericIdentifier
-    ) -> TorchInputAudioDict:
-        """
-        Get a dictionary containing mixture and source audio data.
-        Args:
-            stems (List[str]): List of stem names.
-            identifier (Identifier): Track identifier.
-        Returns:
-            TorchInputAudioDict: Dictionary of mixture and source audio data.
-        """
-        sources = self.get_stems(stems=stems, identifier=identifier)
-        logger.debug(f"Sources shape before premix_transform: {[s.shape for s in sources.values()]}")
-        sources = self.premix_transform(sources=sources, identifier=identifier)
-        logger.debug(f"Sources shape after premix_transform: {[s.shape for s in sources.values()]}")
-        if self.recompute_mixture:
-            mixture = self._compute_mixture(sources=sources)
-        elif self.auto_load_mixture:
-            mixture = self.get_stem(stem=self.mixture_stem_key, identifier=identifier)
-        else:
-            mixture = None
-
-        return self.post_mix_transform(
-            audio_dict=TorchInputAudioDict.from_numpy(
-                mixture=mixture,
-                sources=sources,
-            ),
-            identifier=identifier,
-        )
-
-    @property
-    def identifiers(self) -> List[GenericIdentifier]:
-        """
-        Get the list of identifiers for the dataset.
-        Returns:
-            List[Identifier]: List of track identifiers.
-        """
-        return self.dataset_connector.identifiers
-
-    @property
-    def n_tracks(self) -> int:
-        """
-        Get the number of tracks in the dataset.
-        
-        Returns:
-            int: Number of tracks.
-        """
-        return self.dataset_connector.n_tracks
-
-    @classmethod
-    def from_config(
-        cls,
-        config: DictConfig, # Change to DictConfig
-    ):
-        """
-        Create a dataset instance from a configuration object.
-        Args:
-            config (DictConfig): Configuration object for the dataset.
-        Returns:
-            SourceSeparationDataset: Instance of the dataset.
-        """
-
-        dataset_connector = DatasetConnector.from_config(config.dataset_connector)
-
-        # Instantiate premix_transform and postmix_transform
-        premix_transform = None
-        if config.get("premix_transform") is not None:
-            premix_transform = Transform.from_config(config.premix_transform)
-
-        postmix_transform = None
-        if config.get("postmix_transform") is not None:
-            postmix_transform = Transform.from_config(config.postmix_transform)
-
-        # Extract parameters directly from the config
-        split = config.get("split")
-        fs = config.get("fs") # Use .get() for robustness
-        recompute_mixture = config.get("recompute_mixture", True)
-        auto_load_mixture = config.get("auto_load_mixture", True)
-        allowed_extensions = config.get("allowed_extensions", None)
-        allow_resampling = config.get("allow_resampling", False)
-        mixture_stem_key = config.get("mixture_stem_key", None)
-
-        logger.info(
-            f"Creating dataset {cls.__name__} with split '{split}' and connector {dataset_connector.__class__.__name__}",
-        )
-
-        # Create a dictionary of arguments to pass to the constructor
-        kwargs = {
-            "split": split,
-            "dataset_connector": dataset_connector,
-            "fs": fs,
-            "premix_transform": premix_transform,
-            "postmix_transform": postmix_transform,
-            "recompute_mixture": recompute_mixture,
-            "auto_load_mixture": auto_load_mixture,
-            "allowed_extensions": allowed_extensions,
-            "allow_resampling": allow_resampling,
-            "mixture_stem_key": mixture_stem_key,
-        }
-
-        logger.debug(
-            f"Dataset configuration: {kwargs}", # Changed to log kwargs directly
-        )
-
-        return cls(**kwargs)
-
-
-class DatasetConfig(BaseModel): # Inherit directly from BaseModel
-    model_config = {'arbitrary_types_allowed': True}
-    target_: str = Field(...)
-    config: Dict[str, Any] = Field({})
-
-
 class MUSDB18Identifier(Identifier):
-    filename: str # New field to store the full filename
+    """
+    Pydantic model for uniquely identifying a track in the MUSDB18HQ dataset.
+
+    Attributes:
+        filename (str): The filename of the track (e.g., "artist - song.npz").
+        song_name (Optional[str]): The name of the song.
+        artist_name (Optional[str]): The name of the artist.
+    """
+    filename: str
     song_name: Optional[str] = None
     artist_name: Optional[str] = None
 
     @property
     def track_id(self) -> str:
-        return self.filename # Return the full filename
+        """
+        Returns a unique identifier for the track.
 
+        Returns:
+            str: The filename of the track, serving as its unique ID.
+        """
+        return self.filename
 
-class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
+class MUSDB18Connector(DatasetConnector[MUSDB18Identifier]):
     """
-    Connector for the MUSDB18 dataset.
+    Connector for the MUSDB18HQ dataset.
+
+    This class handles loading track identifiers and providing paths to stem files
+    for the MUSDB18HQ dataset.
     """
 
-    __ALLOWED_STEMS__ = __VDBO__
-    __EXPECTED_NUM_FILES__ = {
+    __ALLOWED_STEMS__: List[str] = __VDBO__
+    __EXPECTED_NUM_FILES__: Dict[str, int] = {
         "train": 86,
         "val": 14,
         "test": 50,
@@ -541,37 +69,38 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
         data_root: str = "$DATA_ROOT/musdb18hq/intermediates/npz",
     ) -> None:
         """
+        Initializes the MUSDB18Connector.
+
         Args:
-            split (str): The split to use.
-            data_root (str): The root directory of the dataset.
+            split (str): The dataset split (e.g., "train", "test", "val").
+            data_root (str): The root directory where the MUSDB18HQ dataset
+                             (specifically the intermediates/npz folder) is located.
         """
         super().__init__(split=split, data_root=data_root)
-        # Simplified stem_path to point directly to the track's .npz file
-        self.stem_path = os.path.join(self.data_root, split, "{track_filename}")
-
-        self._identifiers = self._load_identifiers(data_root=data_root, split=split)
+        self.stem_path: str = os.path.join(self.data_root, split, "{track_filename}")
+        self._identifiers: List[MUSDB18Identifier] = self._load_identifiers(data_root=data_root, split=split)
 
     def _load_identifiers(
         self, *, data_root: str, split: str
     ) -> List[MUSDB18Identifier]:
         """
-        Load the identifiers for the dataset.
+        Loads track identifiers from the specified data root and split.
+
         Args:
             data_root (str): The root directory of the dataset.
-            split (str): The split to use.
+            split (str): The dataset split.
+
         Returns:
-            List[MUSDB18Identifier]: The list of identifiers for the dataset.
+            List[MUSDB18Identifier]: A list of MUSDB18Identifier objects.
         """
-        # Replace $DATA_ROOT with actual path if it's an environment variable
         data_root = os.path.expandvars(data_root)
+        track_filenames: List[str] = [f for f in os.listdir(os.path.join(data_root, split)) if f.endswith(".npz")]
 
-        # List all .npz files in the split directory
-        track_filenames = [f for f in os.listdir(os.path.join(data_root, split)) if f.endswith(".npz")]
-
-        identifiers = []
+        identifiers: List[MUSDB18Identifier] = []
         for track_filename in track_filenames:
-            # Extract artist and song_name from the base name (without .npz extension)
-            base_name = os.path.splitext(track_filename)[0]
+            base_name: str = os.path.splitext(track_filename)[0]
+            artist: str
+            song_name: str
             if " - " in base_name:
                 artist, song_name = base_name.split(" - ", 1)
             else:
@@ -579,7 +108,7 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
                 song_name = base_name
                 logger.warning(f"Track filename '{track_filename}' does not contain ' - '. Assuming artist is 'unknown'.")
 
-            identifier = MUSDB18Identifier(
+            identifier: MUSDB18Identifier = MUSDB18Identifier(
                 filename=track_filename,
                 artist_name=artist,
                 song_name=song_name,
@@ -595,37 +124,58 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier], ABC):
 
     def _get_stem_path(self, *, stem: str, identifier: MUSDB18Identifier) -> str:
         """
-        Get the path to a stem file.
+        Constructs the file path for a given stem and track identifier.
+
         Args:
-            stem (str): The stem to get the path for.
+            stem (str): The name of the stem (e.g., "vocals", "mixture").
             identifier (MUSDB18Identifier): The identifier for the track.
+
         Returns:
-            str: The path to the stem file.
+            str: The full path to the stem's audio file.
         """
-        # Ensure identifier is a MUSDB18Identifier instance
         if not isinstance(identifier, MUSDB18Identifier):
             identifier = MUSDB18Identifier(**identifier.model_dump())
 
-        track_filename = identifier.filename # Use the full filename
-        # Replace $DATA_ROOT with actual path if it's an environment variable
-        stem_path_formatted = os.path.expandvars(self.stem_path.format(track_filename=track_filename))
+        track_filename: str = identifier.filename
+        stem_path_formatted: str = os.path.expandvars(self.stem_path.format(track_filename=track_filename))
         return stem_path_formatted
 
     @property
     def identifiers(
         self,
     ) -> List[MUSDB18Identifier]:
+        """
+        Returns the list of all track identifiers for the current split.
+
+        Returns:
+            List[MUSDB18Identifier]: A list of MUSDB18Identifier objects.
+        """
         return self._identifiers
 
     @property
     def n_tracks(self) -> int:
+        """
+        Returns the total number of tracks in the current split.
+
+        Returns:
+            int: The number of tracks.
+        """
         return len(self._identifiers)
 
-
+@DATASETS_REGISTRY.register("musdb18hq")
 class MUSDB18HQDataset(SourceSeparationDataset):
     """
     Dataset for the MUSDB18HQ dataset.
+
+    This class extends SourceSeparationDataset to provide specific
+    data loading and processing for the MUSDB18HQ dataset.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        Initializes the MUSDB18HQDataset.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments passed to the
+                      SourceSeparationDataset constructor.
+        """
         super().__init__(**kwargs)
-        # Additional MUSDB18HQ specific initialization if needed

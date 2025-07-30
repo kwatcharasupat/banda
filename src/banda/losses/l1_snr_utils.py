@@ -41,4 +41,4 @@ def calculate_l1_snr(
     else:
         loss = (e_error + eps) / (e_target + eps)
 
-    return loss
+    return torch.mean(loss)

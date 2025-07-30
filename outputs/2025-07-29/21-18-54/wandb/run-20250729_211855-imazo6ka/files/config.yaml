@@ -1,0 +1,84 @@
+_wandb:
+    value:
+        cli_version: 0.21.0
+        e:
+            ongmgz9w6zwkjacpqnf8wtol7m4cwxe5:
+                apple:
+                    ecpuCores: 6
+                    gpuCores: 18
+                    memoryGb: 18
+                    name: Apple M3 Pro
+                    pcpuCores: 6
+                    ramTotalBytes: "19327352832"
+                    swapTotalBytes: "4294967296"
+                args:
+                    - --config-name
+                    - train_bandit_musdb18hq_test.yaml
+                codePath: src/banda/train.py
+                codePathLocal: src/banda/train.py
+                cpu_count: 12
+                cpu_count_logical: 12
+                disk:
+                    /:
+                        total: "994662584320"
+                        used: "953923457024"
+                email: kwatcharasupat@gatech.edu
+                executable: /Users/kwatcharasupat/miniforge3/bin/python
+                git:
+                    commit: 6c37f16efedda8cd72eb054573200aa12049275b
+                    remote: https://github.com/kwatcharasupat/banda.git
+                host: kwatcharasupat-2.local
+                memory:
+                    total: "19327352832"
+                os: macOS-15.5-arm64-arm-64bit
+                program: /Users/kwatcharasupat/personal/banda/src/banda/train.py
+                python: CPython 3.12.5
+                root: outputs/2025-07-29/21-18-54
+                startedAt: "2025-07-30T03:18:55.849949Z"
+                writerId: ongmgz9w6zwkjacpqnf8wtol7m4cwxe5
+        m:
+            - "1": trainer/global_step
+              "6":
+                - 3
+              "7": []
+            - "2": '*'
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.12.5
+        t:
+            "1":
+                - 1
+                - 5
+                - 9
+                - 11
+                - 41
+                - 49
+                - 50
+                - 53
+                - 71
+                - 103
+                - 105
+            "2":
+                - 1
+                - 5
+                - 9
+                - 11
+                - 41
+                - 49
+                - 50
+                - 53
+                - 71
+                - 103
+                - 105
+            "3":
+                - 7
+                - 66
+            "4": 3.12.5
+            "5": 0.21.0
+            "6": 4.52.4
+            "12": 0.21.0
+            "13": darwin-arm64
+optimizer_config:
+    value: '{''_target_'': ''torch.optim.Adam'', ''lr'': 0.001}'

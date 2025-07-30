@@ -14,30 +14,40 @@ import hydra.utils
 
 from banda.utils.logging import configure_logging
 from pytorch_lightning.loggers import WandbLogger
+from banda.tasks.separation import SeparationTask
+from banda.models.separator import Separator
+from banda.data.datamodule import SourceSeparationDataModule
 import wandb
 from hydra.core.hydra_config import HydraConfig
 import os
 
-from banda.tasks.separation import SeparationTask
-from banda.data.datamodule import SourceSeparationDataModule
-from banda.models.separator import Separator
-from banda.losses.multi_resolution_l1_snr import MultiResolutionSTFTLoss
+from banda.utils.registry import MODELS_REGISTRY, LOSSES_REGISTRY, DATASETS_REGISTRY, TASKS_REGISTRY
+from banda.metrics.metric_handler import MetricHandler # Import MetricHandler
 
 
 @hydra.main(config_path="configs", config_name="config", version_base="1.3")
 def train(cfg: DictConfig) -> None:
     """
-    Main training function.
+    Main training function for the banda project.
+
+    This function orchestrates the entire training process:
+    1. Configures logging and sets up the output directory.
+    2. Sets the random seed for reproducibility.
+    3. Instantiates the DataModule, Model, Loss Function, and Lightning Task
+       based on the provided Hydra configuration.
+    4. Sets up the PyTorch Lightning Trainer with callbacks and logger.
+    5. Initiates model training and testing.
 
     Args:
-        cfg (DictConfig): Hydra configuration object.
+        cfg (DictConfig): The Hydra configuration object containing all
+                          parameters for data, model, loss, metrics, and trainer.
     """
     # Configure logging
     # Ensure the output directory exists before configuring logging
-    output_dir = HydraConfig.get().run.dir
+    output_dir: str = HydraConfig.get().run.dir
     os.makedirs(output_dir, exist_ok=True)
 
-    logger = hydra.utils.log # Use Hydra's logger for consistency
+    logger = hydra.utils.log
     configure_logging(
         log_level=cfg.get("log_level", "INFO"),
         log_format=cfg.get("log_format", "console"),
@@ -50,24 +60,33 @@ def train(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.seed)
 
     # 1. Instantiate DataModule
-    datamodule = SourceSeparationDataModule.from_config(cfg.data)
+    datamodule: pl.LightningDataModule = SourceSeparationDataModule.from_config(cfg.data)
     
     # 2. Instantiate Model
-    model = hydra.utils.instantiate(cfg.model) # Pass the entire config
+    model: pl.LightningModule = Separator.from_config(cfg.model)
 
     # 3. Instantiate Loss Function
-    loss_fn = MultiResolutionSTFTLoss.from_config(cfg.loss)
+    loss_handler: torch.nn.Module = hydra.utils.instantiate(cfg.loss)
 
-    # 4. Instantiate Metrics (handled within SeparationTask.from_config)
+    # 4. Instantiate Metrics
+    # Instantiate the actual metric (e.g., ScaleInvariantSignalNoiseRatio)
+    raw_metric = hydra.utils.instantiate(cfg.metrics)
+    # Wrap it in MetricHandler
+    metric_handler: MetricHandler = MetricHandler(metric_fn=raw_metric)
 
     # 5. Instantiate Lightning Task
-    task = SeparationTask.from_config(cfg) # Reverted to original call
+    task: pl.LightningModule = SeparationTask(
+        model=model,
+        loss_handler=loss_handler,
+        metric_handler=metric_handler,
+        optimizer=cfg.optimizer # Pass the optimizer config directly
+    )
 
     # 6. Instantiate Trainer
-    trainer_config = cfg.trainer
-    trainer_kwargs = {k: v for k, v in trainer_config.items() if k != 'target_'}
-    wandb_logger = WandbLogger(project="banda", log_model="all", save_dir=output_dir)
-    trainer = pl.Trainer(
+    trainer_config: DictConfig = cfg.trainer
+    trainer_kwargs: Dict[str, Any] = {k: v for k, v in trainer_config.items() if k != 'target_'}
+    wandb_logger: WandbLogger = WandbLogger(project="banda", log_model="all", save_dir=output_dir)
+    trainer: pl.Trainer = pl.Trainer(
         logger=wandb_logger,
         callbacks=[
             pl.callbacks.ModelCheckpoint(
@@ -83,8 +102,6 @@ def train(cfg: DictConfig) -> None:
     )
 
     # Move task to the correct device before training
-    # This is crucial for ensuring all model components and buffers (like STFT window)
-    # are on the correct device before the sanity check and training begins.
     if trainer.accelerator == "mps":
         task.to(trainer.device)
 
@@ -96,7 +113,6 @@ def train(cfg: DictConfig) -> None:
         logger.info("Model training completed.")
     except Exception as e:
         logger.error(f"An error occurred during training: {e}")
-        # Optionally, re-raise the exception if you want the script to fail
         raise e
 
     # 8. Test the model
