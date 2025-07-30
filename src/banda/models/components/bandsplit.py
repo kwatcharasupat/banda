@@ -3,14 +3,21 @@
 #  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
-#
+
 
 from banda.utils.registry import MODELS_REGISTRY
 
 from typing import List, Tuple
+import structlog
+import logging
+
+logger = structlog.get_logger(__name__)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 import torch
 from torch import nn
+from torch.nn import functional as F
+from torch.nn.utils import weight_norm
 
 from banda.models.utils import (
     band_widths_from_specs,
@@ -58,7 +65,7 @@ class NormFC(nn.Module):
 
         reim: int = 2 # Real and Imaginary parts of complex numbers
 
-        self.norm: nn.LayerNorm = nn.LayerNorm(in_channel * bandwidth * reim)
+        self.norm: nn.LayerNorm = nn.LayerNorm(in_channel * bandwidth * reim, eps=1e-1)
 
         fc_in: int = bandwidth * reim
 
@@ -68,7 +75,7 @@ class NormFC(nn.Module):
             assert emb_dim % in_channel == 0, "Embedding dimension must be divisible by input channels if not treating channel as feature."
             emb_dim = emb_dim // in_channel
 
-        self.fc: nn.Linear = nn.Linear(fc_in, emb_dim)
+        self.fc: nn.Linear = weight_norm(nn.Linear(fc_in, emb_dim))
 
     def forward(self, xb: torch.Tensor) -> torch.Tensor:
         """
@@ -87,13 +94,31 @@ class NormFC(nn.Module):
         in_chan: int
         ribw: int
         batch, n_time, in_chan, ribw = xb.shape
-        xb_reshaped: torch.Tensor = xb.reshape(batch, n_time, in_chan * ribw) # Shape: (batch, n_time, in_chan * reim * band_width)
+        xb_reshaped: torch.Tensor = xb.reshape(batch, n_time, in_chan * ribw)
+        logger.debug(f"NormFC: xb_reshaped shape: {xb_reshaped.shape}, min: {xb_reshaped.min().item()}, max: {xb_reshaped.max().item()}, mean: {xb_reshaped.mean().item()}")
+        if torch.isnan(xb_reshaped).any():
+            logger.error("NormFC: NaN detected in xb_reshaped", mean_val=xb_reshaped.mean().item())
+            raise ValueError("NaN in xb_reshaped in NormFC")
+        # If the standard deviation is very small, add a small amount of noise to prevent NaNs
+        std_dev = xb_reshaped.std(dim=-1, keepdim=True)
+        if (std_dev < 1e-6).any(): # Check for very small standard deviation
+            logger.warning(f"NormFC: Very small standard deviation detected in xb_reshaped before normalization. Adding noise.")
+            xb_reshaped = xb_reshaped + torch.randn_like(xb_reshaped) * 1e-6
+        
         xb_normalized: torch.Tensor = self.norm(xb_reshaped)
+        logger.debug(f"NormFC: xb_normalized shape: {xb_normalized.shape}, min: {xb_normalized.min().item()}, max: {xb_normalized.max().item()}, mean: {xb_normalized.mean().item()}")
+        if torch.isnan(xb_normalized).any():
+            logger.error("NormFC: NaN detected in xb_normalized", mean_val=xb_normalized.mean().item())
+            raise ValueError("NaN in xb_normalized in NormFC")
 
         if not self.treat_channel_as_feature:
             xb_normalized = xb_normalized.reshape(batch, n_time, in_chan, ribw) # Shape: (batch, n_time, in_chan, reim * band_width)
 
         zb: torch.Tensor = self.fc(xb_normalized)
+        logger.debug(f"NormFC: zb shape after fc layer: {zb.shape}, min: {zb.min().item()}, max: {zb.max().item()}, mean: {zb.mean().item()}")
+        if torch.isnan(zb).any():
+            logger.error("NormFC: NaN detected in zb after fc layer", mean_val=zb.mean().item())
+            raise ValueError("NaN in zb after fc layer")
         # Shape: (batch, n_time, emb_dim)
         # OR (if not treat_channel_as_feature): (batch, n_time, in_chan, emb_dim_per_chan)
 
@@ -152,7 +177,7 @@ class BandSplitModule(nn.Module):
             # For overlapping bands, we check if all bins are covered.
             # For non-overlapping bands, we check for strict contiguity.
             if self.band_spec_obj.is_overlapping:
-                check_all_bins_covered(band_specs, self.band_spec_obj.max_index)
+                check_all_bins_covered(band_specs, self.band_spec_obj.max_index, self.band_spec_obj.drop_dc_band)
             else:
                 # This check is for strictly non-overlapping, contiguous bands.
                 # It ensures no gaps and no overlaps.
@@ -215,9 +240,17 @@ class BandSplitModule(nn.Module):
         # Reshape x from (batch, original_channels * 2, n_freq, n_time)
         # to (batch, original_channels, reim, n_freq, n_time)
         x_reshaped: torch.Tensor = x.reshape(batch, original_in_chan, reim, n_freq, n_time)
+        logger.debug(f"BandSplitModule: x_reshaped shape: {x_reshaped.shape}, min: {x_reshaped.min().item()}, max: {x_reshaped.max().item()}, mean: {x_reshaped.mean().item()}")
+        if torch.isnan(x_reshaped).any():
+            logger.error("BandSplitModule: NaN detected in x_reshaped", mean_val=x_reshaped.mean().item())
+            raise ValueError("NaN in x_reshaped in BandSplitModule")
         
         # Permute to (batch, n_time, original_channels, reim, n_freq)
         xr: torch.Tensor = torch.permute(x_reshaped, (0, 4, 1, 2, 3))
+        logger.debug(f"BandSplitModule: xr shape after permute: {xr.shape}, min: {xr.min().item()}, max: {xr.max().item()}, mean: {xr.mean().item()}")
+        if torch.isnan(xr).any():
+            logger.error("BandSplitModule: NaN detected in xr after permute", mean_val=xr.mean().item())
+            raise ValueError("NaN in xr in BandSplitModule")
 
         z: torch.Tensor = torch.zeros(
             size=(batch, self.n_bands, n_time, self.emb_dim),
@@ -230,7 +263,12 @@ class BandSplitModule(nn.Module):
             fend: int
             fstart, fend = self.band_specs[i]
             xb: torch.Tensor = xr[..., fstart:fend] # Shape: (batch, n_time, in_chan, reim, band_width)
+            logger.debug(f"BandSplitModule: xb shape before reshape for band {i}: {xb.shape}, min: {xb.min().item()}, max: {xb.max().item()}, mean: {xb.mean().item()}")
             xb = torch.reshape(xb, (batch, n_time, original_in_chan, -1)) # Shape: (batch, n_time, in_chan, reim * band_width)
+            logger.debug(f"BandSplitModule: xb shape after reshape for band {i}: {xb.shape}, min: {xb.min().item()}, max: {xb.max().item()}, mean: {xb.mean().item()}")
             z[:, i, :, :] = nfm(xb.contiguous())
+            if torch.isnan(z[:, i, :, :]).any():
+                logger.error(f"BandSplitModule: NaN detected in z after NormFC for band {i}", mean_val=z[:, i, :, :].mean().item())
+                raise ValueError(f"NaN in z for band {i} in BandSplitModule")
 
         return z

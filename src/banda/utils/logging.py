@@ -3,7 +3,7 @@
 #  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
-#
+
 
 import logging
 import structlog
@@ -61,9 +61,7 @@ def configure_logging(
         processors=processors,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
-        
         cache_logger_on_first_use=True,
-        
     )
 
     # Configure standard logging
@@ -77,10 +75,11 @@ def configure_logging(
 
     logging.basicConfig(
         format="%(message)s",
-        level=logging.DEBUG,
+        level=logging.DEBUG, # This sets the root logger level for standard logging
         handlers=handlers,
     )
 
     # Set up a default logger for direct use
     logger = structlog.get_logger(__name__)
+    logger.setLevel(log_level) # Explicitly set the level for the structlog logger
     logger.info("Logging configured successfully.", log_level=logging.DEBUG, log_format=log_format, log_file=log_file)

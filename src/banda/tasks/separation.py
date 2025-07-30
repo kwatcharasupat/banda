@@ -84,7 +84,10 @@ class SeparationTask(pl.LightningModule):
         """
         mix_audio = batch.mixture # Changed from batch.mix_audio
         predictions = self.forward(mix_audio)
-        loss = self.loss_handler.calculate_loss(predictions, batch) # Removed "train" argument
+        loss = self.loss_handler.calculate_loss(predictions, batch)
+        if torch.isnan(loss):
+            logger.error("Detected NaN in training loss. Terminating training.")
+            raise ValueError("NaN detected in training loss.")
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.metric_handler.update_step_metrics(self, predictions, batch, "train") # Re-enabled
         return loss
@@ -99,7 +102,10 @@ class SeparationTask(pl.LightningModule):
         """
         mix_audio = batch.mixture # Changed from batch.mix_audio
         predictions = self.forward(mix_audio)
-        loss = self.loss_handler.calculate_loss(predictions, batch) # Removed "val" argument
+        loss = self.loss_handler.calculate_loss(predictions, batch)
+        if torch.isnan(loss):
+            logger.error("Detected NaN in validation loss. Terminating training.")
+            raise ValueError("NaN detected in validation loss.")
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         self.metric_handler.update_step_metrics(self, predictions, batch, "val") # Re-enabled
 
@@ -120,7 +126,10 @@ class SeparationTask(pl.LightningModule):
         """
         mix_audio = batch.mixture # Changed from batch.mix_audio
         predictions = self.forward(mix_audio)
-        loss = self.loss_handler.calculate_loss(predictions, batch) # Removed "test" argument
+        loss = self.loss_handler.calculate_loss(predictions, batch)
+        if torch.isnan(loss):
+            logger.error("Detected NaN in test loss. Terminating training.")
+            raise ValueError("NaN detected in test loss.")
         self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         self.metric_handler.update_step_metrics(self, predictions, batch, "test") # Re-enabled
 

@@ -16,6 +16,13 @@ import structlog # Import structlog
 
 logger = structlog.get_logger(__name__) # Get logger instance
 
+# Add these helper functions if not already defined
+def hz_to_bark(hz: float) -> float:
+    return 6 * torch.as_tensor(hz / 600).atanh()
+
+def hz_to_erb(hz: float) -> float:
+    return 21.4 * torch.log10(1 + 0.00437 * hz)
+
 class SpectralComponent(nn.Module):
     """
     A module for performing Short-Time Fourier Transform (STFT) and Inverse STFT (ISTFT).
@@ -77,7 +84,7 @@ class SpectralComponent(nn.Module):
             x (torch.Tensor): Input audio waveform. Shape: (batch_size, channels, samples)
 
         Returns:
-            torch.Tensor: Complex spectrogram. Shape: (batch_size, channels, freq_bins, time_frames, 2)
+            torch.Tensor: Complex spectrogram. Shape: (batch_size, channels, freq_bins, time_frames)
         """
         # torchaudio.Spectrogram expects (..., time)
         # Our input is (batch, channels, samples)
@@ -85,10 +92,10 @@ class SpectralComponent(nn.Module):
         batch_size, num_channels, num_samples = x.shape
         x = x.view(batch_size * num_channels, num_samples)
         
-        spec = self.stft(x) # (batch * channels, freq_bins, time_frames, 2)
+        spec = self.stft(x) # (batch * channels, freq_bins, time_frames) - complex tensor
         
-        # Reshape back to (batch, channels, freq_bins, time_frames, 2)
-        spec = spec.view(batch_size, num_channels, spec.shape[-3], spec.shape[-2], spec.shape[-1])
+        # Reshape back to (batch, channels, freq_bins, time_frames)
+        spec = spec.view(batch_size, num_channels, spec.shape[-2], spec.shape[-1])
         return spec
 
     def inverse(self, spec: torch.Tensor, length: int) -> torch.Tensor:
@@ -97,6 +104,7 @@ class SpectralComponent(nn.Module):
 
         Args:
             spec (torch.Tensor): Complex spectrogram. Shape: (batch_size, channels, freq_bins, time_frames)
+            length (int): Original audio length for ISTFT.
 
         Returns:
             torch.Tensor: Reconstructed audio waveform. Shape: (batch_size, channels, samples)
@@ -162,22 +170,36 @@ def _create_triangular_filterbank(all_freqs: torch.Tensor, f_pts: torch.Tensor) 
 
 
 class BandsplitSpecification(ABC):
-    def __init__(self, nfft: int, fs: int) -> None:
+    def __init__(self, nfft: int, fs: int, drop_dc_band: bool = False) -> None:
         self.fs = fs
         self.nfft = nfft
         self.nyquist = fs / 2
-        self.max_index = nfft // 2 + 1
+        self.drop_dc_band = drop_dc_band
+        # max_index is the number of frequency bins relevant for bandsplit
+        # If DC band is dropped, we have one less bin
+        self.max_index = (nfft // 2 + 1) - (1 if drop_dc_band else 0)
 
     def index_to_hertz(self, index: int):
-        return index * self.fs / self.nfft
+        # If DC band is dropped, index 0 now corresponds to original index 1
+        adjusted_index = index + (1 if self.drop_dc_band else 0)
+        return adjusted_index * self.fs / self.nfft
 
     def hertz_to_index(self, hz: float, round: bool = True):
-        index = hz * self.nfft / self.fs
+        # Calculate original index
+        original_index = hz * self.nfft / self.fs
 
         if round:
-            index = int(torch.round(torch.tensor(index)).item())
-
-        return index
+            original_index = int(torch.round(torch.tensor(original_index)).item())
+        
+        # If DC band is dropped, and the original index is not 0 (DC), then subtract 1
+        if self.drop_dc_band and original_index > 0:
+            return original_index - 1
+        elif self.drop_dc_band and original_index == 0:
+            # If the frequency is 0 Hz (DC), and we are dropping the DC band,
+            # this frequency should not be mapped to an index in the processed spectrum.
+            # This case should ideally be avoided by ensuring f_min is not 0 when drop_dc_band is True.
+            raise ValueError("Attempted to convert DC frequency to index when DC band is dropped.")
+        return original_index
 
     def get_band_specs_with_bandwidth(
             self,
@@ -227,8 +249,8 @@ class BandsplitSpecification(ABC):
 
 
 class FixedBandsplitSpecs(BandsplitSpecification):
-    def __init__(self, nfft: int, fs: int, config: DictConfig) -> None:
-        super().__init__(nfft=nfft, fs=fs)
+    def __init__(self, nfft: int, fs: int, config: DictConfig, drop_dc_band: bool = False) -> None:
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
         self.config = config
         self.bands_config = config.bands # Expecting a list of band definitions
 
@@ -270,8 +292,8 @@ class FixedBandsplitSpecs(BandsplitSpecification):
 
 
 class VocalBandsplitSpecification(FixedBandsplitSpecs):
-    def __init__(self, nfft: int, fs: int, config: DictConfig, version: str = "7") -> None:
-        super().__init__(nfft=nfft, fs=fs, config=config)
+    def __init__(self, nfft: int, fs: int, config: DictConfig, version: str = "7", drop_dc_band: bool = False) -> None:
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
         self.version = version
         # The config for Vocal will contain different versions, e.g., config.version7.bands
 
@@ -294,8 +316,8 @@ class VocalBandsplitSpecification(FixedBandsplitSpecs):
 
 
 class OtherBandsplitSpecification(FixedBandsplitSpecs):
-    def __init__(self, nfft: int, fs: int, config: DictConfig) -> None:
-        super().__init__(nfft=nfft, fs=fs, config=config)
+    def __init__(self, nfft: int, fs: int, config: DictConfig, drop_dc_band: bool = False) -> None:
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
 
     def get_band_specs(self) -> List[Tuple[int, int]]:
         # Other bandsplit will directly use the bands defined in its config
@@ -304,8 +326,8 @@ class OtherBandsplitSpecification(FixedBandsplitSpecs):
 
 
 class BassBandsplitSpecification(FixedBandsplitSpecs):
-    def __init__(self, nfft: int, fs: int, config: DictConfig) -> None:
-        super().__init__(nfft=nfft, fs=fs, config=config)
+    def __init__(self, nfft: int, fs: int, config: DictConfig, drop_dc_band: bool = False) -> None:
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
 
     def get_band_specs(self) -> List[Tuple[int, int]]:
         # Bass bandsplit will directly use the bands defined in its config
@@ -314,8 +336,8 @@ class BassBandsplitSpecification(FixedBandsplitSpecs):
 
 
 class DrumBandsplitSpecification(FixedBandsplitSpecs):
-    def __init__(self, nfft: int, fs: int, config: DictConfig) -> None:
-        super().__init__(nfft=nfft, fs=fs, config=config)
+    def __init__(self, nfft: int, fs: int, config: DictConfig, drop_dc_band: bool = False) -> None:
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
 
     def get_band_specs(self) -> List[Tuple[int, int]]:
         # Drum bandsplit will directly use the bands defined in its config
@@ -328,22 +350,40 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
             self,
             nfft: int,
             fs: int,
-            fbank_fn: Callable[[int, int, float, float, int], torch.Tensor],
+            fbank_fn: Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor], # Modified signature
             n_bands: int,
             f_min: float = 0.0,
-            f_max: float = None
+            f_max: float = None,
+            drop_dc_band: bool = False
     ) -> None:
-        super().__init__(nfft=nfft, fs=fs)
+        super().__init__(nfft=nfft, fs=fs, drop_dc_band=drop_dc_band)
         self.n_bands = n_bands
         if f_max is None:
             f_max = fs / 2
 
-        # n_freqs is the number of frequency bins, which is nfft // 2 + 1
-        n_freqs = self.max_index
+        # Construct all_freqs for the filterbank based on the new spectrum
+        # This will be nfft // 2 if drop_dc_band is True, otherwise nfft // 2 + 1
+        n_freqs_for_fbank = self.max_index 
+        all_freqs_for_fbank = torch.linspace(self.index_to_hertz(0), self.index_to_hertz(n_freqs_for_fbank - 1), n_freqs_for_fbank)
+
+        # Calculate MIDI points for the musical bands based on the full frequency range
+        low_midi = hz_to_midi(torch.tensor(f_min)).item()
+        high_midi = hz_to_midi(torch.tensor(f_max)).item()
+        midi_points = torch.linspace(low_midi, high_midi, n_bands + 2) # Add 2 for triangular filterbank
+
+        # Convert MIDI points back to Hz
+        hz_points = midi_to_hz(midi_points)
 
         self.filterbank = fbank_fn(
-                n_bands, fs, f_min, f_max, n_freqs
+                all_freqs_for_fbank, hz_points, n_bands
         )
+
+        # Explicitly ensure the first band covers the first frequency bin if DC band is dropped
+        if self.drop_dc_band:
+            # Ensure the first band starts at index 0 (which is original bin 1)
+            # and has some weight at that bin.
+            if self.filterbank.shape[1] > 0: # Check if there are frequency bins
+                self.filterbank[0, 0] = 1.0 # Force the first band to cover the first bin
 
         weight_per_bin = torch.sum(
             self.filterbank,
@@ -351,7 +391,8 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
             keepdim=True
             )  # (1, n_freqs)
         # Handle division by zero for bins with no weight
-        normalized_mel_fb = torch.where(weight_per_bin > 0, self.filterbank / weight_per_bin, torch.zeros_like(self.filterbank)) # (n_mels, n_freqs)
+        epsilon = 1e-10 # Define epsilon here
+        normalized_mel_fb = torch.where(weight_per_bin > 0, self.filterbank / (weight_per_bin + epsilon), torch.zeros_like(self.filterbank)) # (n_mels, n_freqs)
 
         freq_weights = []
         band_specs = []
@@ -383,6 +424,10 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
         return self.freq_weights
 
     def _validate_band_specs(self, band_specs: List[Tuple[int, int]]) -> None:
+        """
+        Validates the generated band specifications, including checking for
+        bands with only one or two bins between much larger bands.
+        """
         # Implement the safeguard logic here for perceptual bands
         # This can be more complex as perceptual bands might naturally have varying sizes.
         # For now, a basic check, can be refined later.
@@ -395,37 +440,9 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
                     logger.warning(f"Potential problematic band size detected between {band_specs[i]} and {band_specs[i+1]}")
 
 
-def musical_filterbank(n_bands, fs, f_min, f_max, n_freqs,
-                       scale="constant"):
-    # Calculate the effective f_min based on the user's instruction
-    # f_min should be fs/nfft, which is the freq of the first non-DC bin.
-    # treat the DC bin separately.
-    nfft = 2 * (n_freqs - 1)
-    f_min_effective = fs / nfft
-
-    # All frequency bins from 0 to Nyquist
-    all_freqs = torch.linspace(0, fs / 2, n_freqs)
-
-    # Calculate MIDI points for the musical bands
-    # Use f_min_effective for the lower bound of the musical scale
-    low_midi = hz_to_midi(torch.tensor(f_min_effective)).item()
-    high_midi = hz_to_midi(torch.tensor(fs / 2)).item()
-    midi_points = torch.linspace(low_midi, high_midi, n_bands + 2) # Add 2 for triangular filterbank
-
-    # Convert MIDI points back to Hz
-    hz_points = midi_to_hz(midi_points)
-
+def musical_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int, scale="constant"): # Modified signature
     # Create the triangular filterbank
     fb = _create_triangular_filterbank(all_freqs, hz_points)
-
-    # Handle the DC bin (frequency bin 0) separately
-    # The DC bin is typically not part of the logarithmic scale.
-    # We'll assign it to the first band.
-    # Ensure the first band covers the DC bin if f_min is 0
-    # Explicitly ensure the first band covers the DC bin (0) and the first non-DC bin (1)
-    # This handles the case where f_min is 0.0 and the musical scale doesn't naturally include these.
-    if f_min == 0.0:
-        fb[0, 0:2] = 1.0 # Cover bins 0 and 1 with the first band
 
     # Normalize the filterbank so that each frequency bin sums to 1 across bands
     # This ensures that the sum of masks for each frequency bin is 1, preventing
@@ -436,12 +453,7 @@ def musical_filterbank(n_bands, fs, f_min, f_max, n_freqs,
 
     logger.debug(
         "musical_filterbank final bands debug info",
-        f_min=f_min,
-        f_max=f_max,
-        n_freqs=n_freqs,
-        f_min_effective=f_min_effective,
         all_freqs_shape=all_freqs.shape,
-        midi_points=midi_points,
         hz_points=hz_points,
         fb_shape=fb.shape,
         fb_sum_per_bin=fb.sum(axis=0),
@@ -457,12 +469,13 @@ class MusicalBandsplitSpecification(PerceptualBandsplitSpecification):
             fs: int,
             n_bands: int,
             f_min: float = 0.0,
-            f_max: float = None
+            f_max: float = None,
+            drop_dc_band: bool = False
     ) -> None:
-        super().__init__(fbank_fn=musical_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max)
+        super().__init__(fbank_fn=musical_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
 
 
-def mel_filterbank(n_bands, fs, f_min, f_max, n_freqs):
+def mel_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int): # Modified signature
     # Re-implement melscale_fbanks if torchaudio.functional is not available or desired
     # For now, keeping the original as it's commented out anyway.
     # If this becomes an issue, a custom implementation will be needed.
@@ -487,14 +500,13 @@ class MelBandsplitSpecification(PerceptualBandsplitSpecification):
             fs: int,
             n_bands: int,
             f_min: float = 0.0,
-            f_max: float = None
+            f_max: float = None,
+            drop_dc_band: bool = False
     ) -> None:
-        super().__init__(fbank_fn=mel_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max)
+        super().__init__(fbank_fn=mel_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
 
 
-def bark_filterbank(
-    n_bands, fs, f_min, f_max, n_freqs
-):
+def bark_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int): # Modified signature
     # Re-implement bark_filter_banks if bark_fbanks is not available or desired
     # For now, keeping the original as it's commented out anyway.
     # If this becomes an issue, a custom implementation will be needed.
@@ -519,20 +531,17 @@ class BarkBandsplitSpecification(PerceptualBandsplitSpecification):
             fs: int,
             n_bands: int,
             f_min: float = 0.0,
-            f_max: float = None
+            f_max: float = None,
+            drop_dc_band: bool = False
     ) -> None:
-        super().__init__(fbank_fn=bark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max)
+        super().__init__(fbank_fn=bark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
 
 
-def triangular_bark_filterbank(
-    n_bands, fs, f_min, f_max, n_freqs
-):
-
-    all_freqs = torch.linspace(0, fs // 2, n_freqs)
+def triangular_bark_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int): # Modified signature
 
     # calculate mel freq bins
-    m_min = hz_to_bark(f_min)
-    m_max = hz_to_bark(f_max)
+    m_min = hz_to_bark(all_freqs.min()).item()
+    m_max = hz_to_bark(all_freqs.max()).item()
 
     m_pts = torch.linspace(m_min, m_max, n_bands + 2)
     f_pts = 600 * torch.sinh(m_pts / 6)
@@ -541,6 +550,7 @@ def triangular_bark_filterbank(
     fb = _create_triangular_filterbank(all_freqs, f_pts)
 
     fb = fb.T
+
 
     first_active_band = torch.nonzero(torch.sum(fb, dim=-1))[0, 0]
     first_active_bin = torch.nonzero(fb[first_active_band, :])[0, 0]
@@ -557,20 +567,17 @@ class TriangularBarkBandsplitSpecification(PerceptualBandsplitSpecification):
             fs: int,
             n_bands: int,
             f_min: float = 0.0,
-            f_max: float = None
+            f_max: float = None,
+            drop_dc_band: bool = False
     ) -> None:
-        super().__init__(fbank_fn=triangular_bark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max)
+        super().__init__(fbank_fn=triangular_bark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
 
 
-def minibark_filterbank(
-    n_bands, fs, f_min, f_max, n_freqs
-):
+def minibark_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int): # Modified signature
     fb = bark_filterbank(
-            n_bands,
-            fs,
-            f_min,
-            f_max,
-            n_freqs
+            all_freqs,
+            hz_points,
+            n_bands
     )
 
     fb[fb < torch.sqrt(torch.tensor(0.5))] = 0.0 # Convert to torch.sqrt and torch.tensor
@@ -585,25 +592,19 @@ class MiniBarkBandsplitSpecification(PerceptualBandsplitSpecification):
             fs: int,
             n_bands: int,
             f_min: float = 0.0,
-            f_max: float = None
+            f_max: float = None,
+            drop_dc_band: bool = False
     ) -> None:
-        super().__init__(fbank_fn=minibark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max)
+        super().__init__(fbank_fn=minibark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
 
 
-def erb_filterbank(
-    n_bands: int,
-    fs: int,
-    f_min: float,
-    f_max: float,
-    n_freqs: int,
-) -> torch.Tensor:
+def erb_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int) -> torch.Tensor: # Modified signature
     # freq bins
     A = (1000 * torch.log(torch.tensor(10))) / (24.7 * 4.37) # Convert to torch.log and torch.tensor
-    all_freqs = torch.linspace(0, fs // 2, n_freqs)
 
     # calculate mel freq bins
-    m_min = hz_to_erb(f_min)
-    m_max = hz_to_erb(f_max)
+    m_min = hz_to_erb(all_freqs.min()).item()
+    m_max = hz_to_erb(all_freqs.max()).item()
 
     m_pts = torch.linspace(m_min, m_max, n_bands + 2)
     f_pts = (torch.pow(torch.tensor(10), (m_pts / A)) - 1)/ 0.00437 # Convert to torch.pow and torch.tensor
@@ -629,9 +630,10 @@ class EquivalentRectangularBandsplitSpecification(PerceptualBandsplitSpecificati
             fs: int,
             n_bands: int,
             f_min: float = 0.0,
-            f_max: float = None
+            f_max: float = None,
+            drop_dc_band: bool = False
     ) -> None:
-        super().__init__(fbank_fn=erb_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max)
+        super().__init__(fbank_fn=erb_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
 
 
 class BandsplitType(StrEnum): # Inherit from StrEnum
@@ -654,7 +656,8 @@ def get_bandsplit_specs_factory(
     fs: int,
     n_bands: Optional[int] = None,
     version: Optional[str] = None,
-    fixed_bands_config: Optional[DictConfig] = None
+    fixed_bands_config: Optional[DictConfig] = None,
+    drop_dc_band: bool = False # New parameter
 ) -> BandsplitSpecification: # Return type is now BandsplitSpecification
     """
     Factory function to create and return band specifications based on type.
@@ -681,13 +684,13 @@ def get_bandsplit_specs_factory(
         if fixed_bands_config is None:
             raise ValueError(f"fixed_bands_config must be provided for {bandsplit_type.value} bandsplit_type")
         if bandsplit_type == BandsplitType.VOCAL:
-            specs = bandsplit_class(nfft=n_fft, fs=fs, config=fixed_bands_config, version=version)
+            specs = bandsplit_class(nfft=n_fft, fs=fs, config=fixed_bands_config, version=version, drop_dc_band=drop_dc_band)
         else:
-            specs = bandsplit_class(nfft=n_fft, fs=fs, config=fixed_bands_config)
+            specs = bandsplit_class(nfft=n_fft, fs=fs, config=fixed_bands_config, drop_dc_band=drop_dc_band)
     elif bandsplit_type in [BandsplitType.MUSICAL, BandsplitType.MEL, BandsplitType.BARK, BandsplitType.TRIBARK, BandsplitType.ERB, BandsplitType.MINIBARK]:
         if n_bands is None:
             raise ValueError(f"n_bands must be provided for {bandsplit_type.value} bandsplit_type")
-        specs = bandsplit_class(nfft=n_fft, fs=fs, n_bands=n_bands)
+        specs = bandsplit_class(nfft=n_fft, fs=fs, n_bands=n_bands, drop_dc_band=drop_dc_band)
     else:
         # This case should ideally not be reached due to the initial check
         raise ValueError(f"Unhandled bandsplit_type: {bandsplit_type.value}")

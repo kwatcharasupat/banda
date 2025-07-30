@@ -3,7 +3,6 @@
 #  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
-#
 
 
 import warnings
@@ -13,9 +12,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.nn.modules import activation
+from torch.nn.utils import weight_norm
 import structlog
-
-
+import logging
 
 
 from banda.models.utils import (
@@ -26,6 +25,7 @@ from banda.models.utils import (
 )
 
 logger = structlog.get_logger(__name__)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 
 class BaseNormMLP(nn.Module):
@@ -48,7 +48,7 @@ class BaseNormMLP(nn.Module):
         self.hidden_activation_kwargs = hidden_activation_kwargs
         self.norm = nn.LayerNorm(emb_dim)
         self.hidden = nn.Sequential(
-            nn.Linear(in_features=emb_dim, out_features=mlp_dim),
+            weight_norm(nn.Linear(in_features=emb_dim, out_features=mlp_dim)),
             activation.__dict__[hidden_activation](
                 **self.hidden_activation_kwargs
             ),
@@ -85,13 +85,11 @@ class NormMLP(BaseNormMLP):
             hidden_activation_kwargs=hidden_activation_kwargs,
             complex_mask=complex_mask,
         )
-        self.output = nn.Sequential(
-            nn.Linear(
-                in_features=mlp_dim,
-                out_features=bandwidth * in_channel * self.reim * self.glu_mult,
-            ),
-            nn.GLU(dim=-1),
-        )
+        self.output_linear = weight_norm(nn.Linear(
+            in_features=mlp_dim,
+            out_features=bandwidth * in_channel * self.reim * self.glu_mult,
+        ))
+        self.output_glu = nn.GLU(dim=-1)
 
     def reshape_output(self, mb: torch.Tensor) -> torch.Tensor:
         """
@@ -122,15 +120,46 @@ class NormMLP(BaseNormMLP):
 
         Args:
             qb (torch.Tensor): Input tensor from the time-frequency model.
-                               Shape: (batch, n_time, emb_dim)
+                                Shape: (batch, n_time, emb_dim)
 
         Returns:
             torch.Tensor: Predicted mask. Shape: (batch, in_channel, bandwidth, n_time)
         """
+        logger.debug("NormMLP: qb before normalization", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
         qb = self.norm(qb)
+        if torch.isnan(qb).any():
+            logger.error("NormMLP: NaN detected in qb after normalization", mean_val=qb.mean().item())
+            raise ValueError("NaN in qb after normalization")
+        logger.debug("NormMLP: qb after normalization", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
         qb = self.hidden(qb)
-        mb = self.output(qb)
+        if torch.isnan(qb).any():
+            logger.error("NormMLP: NaN detected in qb after hidden layer", mean_val=qb.mean().item())
+            raise ValueError("NaN in qb after hidden layer")
+        logger.debug("NormMLP: qb after hidden layer", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
+        
+        # If the standard deviation is very small, add a small amount of noise to prevent NaNs
+        std_dev = qb.std(dim=-1, keepdim=True)
+        if (std_dev < 1e-6).any(): # Check for very small standard deviation
+            logger.warning(f"NormMLP: Very small standard deviation detected in qb before output_linear. Adding noise.")
+            qb = qb + torch.randn_like(qb) * 1e-6
+        logger.debug("NormMLP: qb before output_linear", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
+        linear_out = self.output_linear(qb)
+        if torch.isnan(linear_out).any():
+            logger.error("NormMLP: NaN detected in linear_out after output_linear", mean_val=linear_out.mean().item())
+            raise ValueError("NaN in linear_out after output_linear")
+        logger.debug("NormMLP: linear_out after output_linear", mean_val=linear_out.mean().item(), min_val=linear_out.min().item(), max_val=linear_out.max().item())
+
+        logger.debug("NormMLP: linear_out before output_glu", mean_val=linear_out.mean().item(), min_val=linear_out.min().item(), max_val=linear_out.max().item())
+        mb = self.output_glu(linear_out)
+        if torch.isnan(mb).any():
+            logger.error("NormMLP: NaN detected in mb after output_glu", mean_val=mb.mean().item())
+            raise ValueError("NaN in mb after output_glu")
+        logger.debug("NormMLP: mb after output_glu", mean_val=mb.mean().item(), min_val=mb.min().item(), max_val=mb.max().item())
+        
         mb = self.reshape_output(mb)
+        if torch.isnan(mb).any():
+            logger.error("NormMLP: NaN detected in mb after reshape_output", mean_val=mb.mean().item())
+            raise ValueError("NaN in mb after reshape_output")
         return mb
 
 
@@ -150,13 +179,11 @@ class MultAddNormMLP(NormMLP):
     ) -> None:
         super().__init__(emb_dim, mlp_dim, bandwidth, in_channel, hidden_activation, hidden_activation_kwargs, complex_mask)
 
-        self.output2 = nn.Sequential(
-            nn.Linear(
-                in_features=mlp_dim,
-                out_features=bandwidth * in_channel * self.reim * self.glu_mult,
-            ),
-            nn.GLU(dim=-1),
-        )
+        self.output2_linear = weight_norm(nn.Linear(
+            in_features=mlp_dim,
+            out_features=bandwidth * in_channel * self.reim * self.glu_mult,
+        ))
+        self.output2_glu = nn.GLU(dim=-1)
 
     def forward(self, qb: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -164,18 +191,62 @@ class MultAddNormMLP(NormMLP):
 
         Args:
             qb (torch.Tensor): Input tensor from the time-frequency model.
-                               Shape: (batch, n_time, emb_dim)
+                                Shape: (batch, n_time, emb_dim)
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Predicted multiplicative and additive masks.
                                                Each tensor has shape: (batch, in_channel, bandwidth, n_time)
         """
+        logger.debug("MultAddNormMLP: qb before normalization", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
         qb = self.norm(qb)
+        if torch.isnan(qb).any():
+            logger.error("MultAddNormMLP: NaN detected in qb after normalization", mean_val=qb.mean().item())
+            raise ValueError("NaN in qb after normalization")
+        logger.debug("MultAddNormMLP: qb after normalization", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
         qb = self.hidden(qb)
-        mmb = self.output(qb)
+        if torch.isnan(qb).any():
+            logger.error("MultAddNormMLP: NaN detected in qb after hidden layer", mean_val=qb.mean().item())
+            raise ValueError("NaN in qb after hidden layer")
+        logger.debug("MultAddNormMLP: qb after hidden layer", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
+        
+        logger.debug("MultAddNormMLP: qb before output_linear", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
+        linear_out_mmb = self.output_linear(qb)
+        if torch.isnan(linear_out_mmb).any():
+            logger.error("MultAddNormMLP: NaN detected in linear_out_mmb after output_linear", mean_val=linear_out_mmb.mean().item())
+            raise ValueError("NaN in linear_out_mmb after output_linear")
+        logger.debug("MultAddNormMLP: linear_out_mmb after output_linear", mean_val=linear_out_mmb.mean().item(), min_val=linear_out_mmb.min().item(), max_val=linear_out_mmb.max().item())
+
+        logger.debug("MultAddNormMLP: linear_out_mmb before output_glu", mean_val=linear_out_mmb.mean().item(), min_val=linear_out_mmb.min().item(), max_val=linear_out_mmb.max().item())
+        mmb = self.output_glu(linear_out_mmb)
+        if torch.isnan(mmb).any():
+            logger.error("MultAddNormMLP: NaN detected in mmb after output_glu", mean_val=mmb.mean().item())
+            raise ValueError("NaN in mmb after output_glu")
+        logger.debug("MultAddNormMLP: mmb after output_glu", mean_val=mmb.mean().item(), min_val=mmb.min().item(), max_val=mmb.max().item())
+        
         mmb = self.reshape_output(mmb)
-        amb = self.output2(qb)
+        if torch.isnan(mmb).any():
+            logger.error("MultAddNormMLP: NaN detected in mmb after reshape_output", mean_val=mmb.mean().item())
+            raise ValueError("NaN in mmb after reshape_output")
+
+        logger.debug("MultAddNormMLP: qb before output2_linear", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
+        linear_out_amb = self.output2_linear(qb)
+        if torch.isnan(linear_out_amb).any():
+            logger.error("MultAddNormMLP: NaN detected in linear_out_amb after output2_linear", mean_val=linear_out_amb.mean().item())
+            raise ValueError("NaN in linear_out_amb after output2_linear")
+        logger.debug("MultAddNormMLP: linear_out_amb after output2_linear", mean_val=linear_out_amb.mean().item(), min_val=linear_out_amb.min().item(), max_val=linear_out_amb.max().item())
+
+        logger.debug("MultAddNormMLP: linear_out_amb before output2_glu", mean_val=linear_out_amb.mean().item(), min_val=linear_out_amb.min().item(), max_val=linear_out_amb.max().item())
+        amb = self.output2_glu(linear_out_amb)
+        if torch.isnan(amb).any():
+            logger.error("MultAddNormMLP: NaN detected in amb after output2_glu", mean_val=amb.mean().item())
+            raise ValueError("NaN in amb after output2_glu")
+        logger.debug("MultAddNormMLP: amb after output2_glu", mean_val=amb.mean().item(), min_val=amb.min().item(), max_val=amb.max().item())
+
         amb = self.reshape_output(amb)
+        if torch.isnan(amb).any():
+            logger.error("MultAddNormMLP: NaN detected in amb after reshape_output", mean_val=amb.mean().item())
+            raise ValueError("NaN in amb after reshape_output")
+
         return mmb, amb
 
 
@@ -235,7 +306,7 @@ class MaskEstimationModuleBase(MaskEstimationModuleSuperBase):
 
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                               Shape: (batch, n_bands, n_time, emb_dim)
+                                Shape: (batch, n_bands, n_time, emb_dim)
 
         Returns:
             List[torch.Tensor]: A list of predicted masks for each band.
@@ -296,7 +367,7 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
 
         # if freq_weights is not None: # Deprecated
         #     for i, fw in enumerate(freq_weights):
-        #         self.register_buffer(f"freq_weights_{i}", fw) # Use register_buffer for non-trainable tensors
+        #         self.register_buffer(f"freq_weights_{im}", fw) # Use register_buffer for non-trainable tensors
         #     self.use_freq_weights = use_freq_weights
         # else:
         #     self.use_freq_weights = False
@@ -310,7 +381,7 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
 
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                               Shape: (batch, n_bands, n_time, emb_dim)
+                                Shape: (batch, n_bands, n_time, emb_dim)
             cond (Optional[torch.Tensor]): Conditioning tensor.
 
         Returns:
@@ -340,6 +411,9 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
         
         
 
+        if any(torch.isnan(m).any() for m in mask_list):
+            logger.error("OverlappingMaskEstimationModule: NaN detected in mask_list before combining", mean_vals=[m.mean().item() for m in mask_list])
+            raise ValueError("NaN in mask_list in OverlappingMaskEstimationModule")
         masks = torch.zeros(
             (batch, self.in_channel, self.n_freq, n_time),
             device=q.device,
@@ -400,7 +474,7 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
         Forward pass of the MaskEstimationModule.
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                               Shape: (batch, n_bands, n_time, emb_dim)
+                                Shape: (batch, n_bands, n_time, emb_dim)
             cond (Optional[torch.Tensor]): Conditioning tensor.
         Returns:
             torch.Tensor: Predicted full-band mask. Shape: (batch, in_channel, n_freq, n_time)
@@ -428,6 +502,9 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
         mask_list = self.compute_masks(q) # [n_bands * (batch, in_channel, bandwidth, n_time)]
 
         # For non-overlapping bands, we can simply concatenate the masks along the frequency dimension
+        if any(torch.isnan(m).any() for m in mask_list):
+            logger.error("MaskEstimationModule: NaN detected in mask_list before concatenating", mean_vals=[m.mean().item() for m in mask_list])
+            raise ValueError("NaN in mask_list in MaskEstimationModule")
         masks = torch.cat(mask_list,
             dim=2 # Concatenate along the frequency dimension
         ) # (batch, in_channel, n_freq, n_time)

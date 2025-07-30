@@ -3,7 +3,6 @@
 #  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
-#
 
 
 import torch
@@ -61,14 +60,18 @@ def check_nonzero_bandwidth(band_specs: List[Tuple[float, float]]) -> None:
         if fend - fstart <= 0:
             raise ValueError(f"Band {i} has non-positive bandwidth: [{fstart}, {fend})")
 
-def check_all_bins_covered(band_specs: List[Tuple[float, float]], n_freq: int) -> None:
+def check_all_bins_covered(band_specs: List[Tuple[float, float]], n_freq: int, drop_dc_band: bool = False) -> None:
     """
     Checks if all frequency bins from 0 to n_freq are covered by at least one band.
+    If drop_dc_band is True, it means the DC band (original bin 0) is not expected to be covered.
 
     Args:
         band_specs (List[Tuple[float, float]]): A list of tuples, where each tuple
                                                  represents a frequency band [fstart, fend).
-        n_freq (int): The total number of frequency bins (e.g., n_fft // 2 + 1).
+        n_freq (int): The total number of frequency bins expected to be covered.
+                      If drop_dc_band is True, this is n_fft // 2.
+                      If drop_dc_band is False, this is n_fft // 2 + 1.
+        drop_dc_band (bool): If True, indicates that the DC band (original bin 0) is excluded.
 
     Raises:
         ValueError: If any frequency bin is not covered by any band.
@@ -77,10 +80,17 @@ def check_all_bins_covered(band_specs: List[Tuple[float, float]], n_freq: int) -
     for fstart, fend in band_specs:
         start_idx = int(fstart)
         end_idx = int(fend)
+        # Ensure indices are within the bounds of covered_bins
+        start_idx = max(0, start_idx)
+        end_idx = min(n_freq, end_idx)
         covered_bins[start_idx:end_idx] = True
     
     if not torch.all(covered_bins):
         uncovered_indices = torch.nonzero(~covered_bins).squeeze().tolist()
+        # If only bin 0 is uncovered and drop_dc_band is True, it's fine.
+        # However, the n_freq passed to this function should already reflect the dropped DC band.
+        # So, if drop_dc_band is True, n_freq should be n_fft // 2, and the bins should be 0 to n_freq-1.
+        # If bin 0 is still uncovered here, it means the first *non-DC* bin is not covered.
         raise ValueError(f"Not all frequency bins are covered. Uncovered bins: {uncovered_indices}")
 
 # Common stem definitions

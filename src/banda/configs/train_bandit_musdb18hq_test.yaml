@@ -99,6 +99,8 @@ trainer:
   accelerator: "auto"
   devices: "auto"
   log_every_n_steps: 50
+  gradient_clip_val: 5.0
+  gradient_clip_algorithm: "norm"
 
 loss:
   _target_: banda.losses.separation_loss_handler.SeparationLossHandler
