@@ -12,7 +12,7 @@ logger = structlog.get_logger(__name__)
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set, List
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -181,7 +181,6 @@ class SourceSeparationDataModule(pl.LightningDataModule):
     
     
     
-    
 
     def _collate_fn(self, batch_list: list) -> FixedStemSeparationBatch:
         """
@@ -221,32 +220,18 @@ class SourceSeparationDataModule(pl.LightningDataModule):
 
         collated_identifier: Any = batch_list[0].metadata['identifier']
         
-        # Collect sources for each stem
-        all_source_names: Set[str] = set()
-        for item in batch_list:
-            if item.audio.sources:
-                all_source_names.update(item.audio.sources.keys())
-
-        collated_sources: Dict[str, List[torch.Tensor]] = {name: [] for name in all_source_names}
-        for item in batch_list:
-            for name in all_source_names:
-                if item.audio.sources and name in item.audio.sources:
-                    collated_sources[name].append(item.audio.sources[name])
-                else:
-                    # If a source is missing for a particular item, handle it (e.g., by padding or skipping)
-                    # For now, we assume all sources are present or handled by the dataset.
-                    pass
-
-        # Stack mixtures and sources
-        collated_mixture: Optional[torch.Tensor] = torch.stack(mixtures) if mixtures else None # Shape: (batch_size, channels, samples)
-        collated_sources_stacked: Dict[str, torch.Tensor] = {name: torch.stack(tensors) for name, tensors in collated_sources.items() if tensors} # Shape: Dict[source_name, (batch_size, channels, samples)]
-
-        collated_identifier: Any = batch_list[0].metadata['identifier']
+        # Generate a dummy query for Banquet model
+        # Assuming query_features is 128 as per train_bandit_musdb18hq_test.yaml
+        # And batch_size is available from collated_mixture.shape[0]
+        query_features = 128 # This should ideally come from model config
+        batch_size = collated_mixture.shape[0] if collated_mixture is not None else 1 # Fallback if no mixture
+        dummy_query = torch.ones(batch_size, query_features) # Example: tensor of ones
 
         return FixedStemSeparationBatch(
             mixture=collated_mixture,
             sources=collated_sources_stacked,
-            metadata={"identifier": collated_identifier}
+            metadata={"identifier": collated_identifier},
+            query=dummy_query # Add dummy query
         )
 
     @classmethod

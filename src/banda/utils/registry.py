@@ -57,7 +57,7 @@ class Registry:
 
         Args:
             name: The name of the component to retrieve.
-
+            
         Returns:
             The registered component (class or function).
 
@@ -95,3 +95,4 @@ OPTIMIZERS_REGISTRY = Registry("Optimizers")
 QUERY_MODELS_REGISTRY = Registry("Query Models")
 COLLATE_FUNCTIONS_REGISTRY = Registry("Collate Functions")
 TASKS_REGISTRY = Registry("Tasks")
+QUERY_PROCESSORS_REGISTRY = Registry("Query Processors") # New registry for query processors

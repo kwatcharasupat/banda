@@ -51,10 +51,13 @@ class FixedStemSeparationBatch(BaseModel):
         sources (Dict[str, torch.Tensor]): A dictionary of source audios.
             Shape of each source: (batch_size, channels, samples)
         metadata (Dict[str, Any]): A dictionary for arbitrary metadata associated with the batch.
+        query (Optional[torch.Tensor]): An optional query tensor for query-based models.
+            Shape: (batch_size, query_features)
     """
     mixture: torch.Tensor
     sources: Dict[str, torch.Tensor]
     metadata: Dict[str, Any]
+    query: Optional[torch.Tensor] = None # Added query field
 
     class Config:
         """Pydantic configuration for FixedStemSeparationBatch."""
@@ -66,11 +69,13 @@ class FixedStemSeparationBatch(BaseModel):
         """
         new_mixture = self.mixture.to(device) if self.mixture is not None else None
         new_sources = {k: v.to(device) for k, v in self.sources.items()}
+        new_query = self.query.to(device) if self.query is not None else None # Move query to device
         # Assuming metadata does not contain tensors that need device transfer
         return FixedStemSeparationBatch(
             mixture=new_mixture,
             sources=new_sources,
-            metadata=self.metadata
+            metadata=self.metadata,
+            query=new_query # Pass query to new batch
         )
 
 class SpectrogramBatch(BaseModel):

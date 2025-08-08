@@ -1,0 +1,41 @@
+{
+  "os":  "macOS-15.5-arm64-arm-64bit",
+  "python":  "CPython 3.12.11",
+  "startedAt":  "2025-07-30T23:53:26.167802Z",
+  "args":  [
+    "-cn",
+    "train_bandit_musdb18hq_test"
+  ],
+  "program":  "/Users/kwatcharasupat/personal/banda/src/banda/train.py",
+  "codePath":  "src/banda/train.py",
+  "codePathLocal":  "src/banda/train.py",
+  "git":  {
+    "remote":  "https://github.com/kwatcharasupat/banda.git",
+    "commit":  "491256602c6c95fe378231dfddd4e83f7c6f4f4e"
+  },
+  "email":  "kwatcharasupat@gatech.edu",
+  "root":  "outputs/2025-07-30/17-53-25",
+  "host":  "kwatcharasupat-2.local",
+  "executable":  "/Users/kwatcharasupat/miniforge3/envs/banda/bin/python",
+  "cpu_count":  12,
+  "cpu_count_logical":  12,
+  "disk":  {
+    "/":  {
+      "total":  "994662584320",
+      "used":  "987890675712"
+    }
+  },
+  "memory":  {
+    "total":  "19327352832"
+  },
+  "apple":  {
+    "name":  "Apple M3 Pro",
+    "ecpuCores":  6,
+    "pcpuCores":  6,
+    "gpuCores":  18,
+    "memoryGb":  18,
+    "swapTotalBytes":  "35433480192",
+    "ramTotalBytes":  "19327352832"
+  },
+  "writerId":  "p3gnx4193z2mcqzir272xeqlsnntbs4w"
+}

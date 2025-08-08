@@ -1,4 +1,4 @@
-_target_: banda.models.configs.MaskEstimationConfig
+_target_: banda.models.common_components.configs.common_configs.MaskEstimationConfig
 
 # Mask Estimation Configuration
 mlp_dim: 512
@@ -6,3 +6,4 @@ hidden_activation: "Tanh"
 hidden_activation_kwargs: null
 complex_mask: True
 use_freq_weights: False
+in_channel: ${model.in_channel} # Added in_channel

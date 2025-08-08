@@ -11,11 +11,12 @@ import pytorch_lightning as pl
 import pytorch_lightning.callbacks as pl_callbacks
 import torch
 import hydra.utils
+from typing import Dict, Any, List, Tuple
 
 from banda.utils.logging import configure_logging
 from pytorch_lightning.loggers import WandbLogger
 from banda.tasks.separation import SeparationTask
-from banda.models.separator import Separator
+from banda.models.core_models.banquet_separator import Banquet
 from banda.data.datamodule import SourceSeparationDataModule
 import wandb
 from hydra.core.hydra_config import HydraConfig
@@ -36,7 +37,7 @@ def train(cfg: DictConfig) -> None:
     3. Instantiates the DataModule, Model, Loss Function, and Lightning Task
        based on the provided Hydra configuration.
     4. Sets up the PyTorch Lightning Trainer with callbacks and logger.
-    5. Initiates model training and testing.
+     5. Initiates model training and testing.
 
     Args:
         cfg (DictConfig): The Hydra configuration object containing all
@@ -46,6 +47,27 @@ def train(cfg: DictConfig) -> None:
     # Ensure the output directory exists before configuring logging
     output_dir: str = HydraConfig.get().run.dir
     os.makedirs(output_dir, exist_ok=True)
+
+    # Create a simplified config for wandb to avoid OmegaConf resolution issues
+    wandb_config_dict = {
+        "model": OmegaConf.to_container(cfg.model, resolve=True),
+        "data": OmegaConf.to_container(cfg.data, resolve=True),
+        "loss": OmegaConf.to_container(cfg.loss, resolve=True),
+        "metrics": OmegaConf.to_container(cfg.metrics, resolve=True),
+        "optimizer": OmegaConf.to_container(cfg.optimizer, resolve=True),
+        "trainer": OmegaConf.to_container(cfg.trainer, resolve=True),
+        "seed": cfg.seed,
+        "log_level": cfg.log_level,
+        "experiment_name": cfg.experiment_name,
+        "paths": {
+            "output_dir": output_dir,
+            "log_dir": os.path.join(output_dir, "logs"),
+            "data_dir": cfg.paths.data_dir # Directly assign, it's already resolved by Hydra
+        }
+    }
+
+    # Initialize wandb
+    wandb.init(project="banda", config=wandb_config_dict, dir=output_dir)
 
     logger = hydra.utils.log
     configure_logging(
@@ -63,7 +85,7 @@ def train(cfg: DictConfig) -> None:
     datamodule: pl.LightningDataModule = SourceSeparationDataModule.from_config(cfg.data)
     
     # 2. Instantiate Model
-    model: pl.LightningModule = Separator.from_config(cfg.model)
+    model: pl.LightningModule = Banquet.from_config(cfg.model)
 
     # 3. Instantiate Loss Function
     loss_handler: torch.nn.Module = hydra.utils.instantiate(cfg.loss)
@@ -114,6 +136,8 @@ def train(cfg: DictConfig) -> None:
     except Exception as e:
         logger.error(f"An error occurred during training: {e}")
         raise e
+    finally:
+        wandb.finish()
 
     # 8. Test the model
     logger.info("Starting model testing...")
@@ -123,9 +147,6 @@ def train(cfg: DictConfig) -> None:
     except Exception as e:
         logger.error(f"An error occurred during testing: {e}")
         raise e
-
-
-wandb.finish()
 
 
 if __name__ == "__main__":

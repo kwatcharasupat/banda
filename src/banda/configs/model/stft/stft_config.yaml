@@ -1,4 +1,4 @@
-_target_: banda.models.configs.STFTConfig
+_target_: banda.models.common_components.configs.common_configs.STFTConfig
 
 # STFT Configuration
 n_fft: 2048

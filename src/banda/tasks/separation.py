@@ -1,7 +1,7 @@
 import torch
 import pytorch_lightning as pl
 from typing import Any, Dict, Union
-from banda.models.separator import Separator
+from banda.models.core_models.banquet_separator import Banquet
 from banda.losses.separation_loss_handler import SeparationLossHandler
 from banda.metrics.metric_handler import MetricHandler
 from banda.utils.registry import TASKS_REGISTRY
@@ -24,7 +24,7 @@ class SeparationTask(pl.LightningModule):
 
     def __init__(
         self,
-        model: Separator,
+        model: Banquet,
         loss_handler: SeparationLossHandler,
         metric_handler: MetricHandler,
         optimizer: Dict[str, Any],
@@ -59,17 +59,18 @@ class SeparationTask(pl.LightningModule):
             # Removed explicit metric.to(self.device) calls as well.
 
 
-    def forward(self, audio: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def forward(self, audio: torch.Tensor, query: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
         Forward pass through the model.
 
         Args:
             audio (torch.Tensor): Input audio tensor.
+            query (torch.Tensor): Input query tensor.
 
         Returns:
             Dict[str, torch.Tensor]: Dictionary of separated audio tensors.
         """
-        return self.model(audio)
+        return self.model(audio, query)
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
         """
@@ -83,7 +84,8 @@ class SeparationTask(pl.LightningModule):
             torch.Tensor: The calculated loss for the current step.
         """
         mix_audio = batch.mixture # Changed from batch.mix_audio
-        predictions = self.forward(mix_audio)
+        query = batch.query # Extract query from batch
+        predictions = self.forward(mix_audio, query) # Pass query to forward
         loss = self.loss_handler.calculate_loss(predictions, batch)
         if torch.isnan(loss):
             logger.error("Detected NaN in training loss. Terminating training.")
@@ -101,7 +103,8 @@ class SeparationTask(pl.LightningModule):
             batch_idx (int): The index of the current batch.
         """
         mix_audio = batch.mixture # Changed from batch.mix_audio
-        predictions = self.forward(mix_audio)
+        query = batch.query # Extract query from batch
+        predictions = self.forward(mix_audio, query) # Pass query to forward
         loss = self.loss_handler.calculate_loss(predictions, batch)
         if torch.isnan(loss):
             logger.error("Detected NaN in validation loss. Terminating training.")
@@ -125,7 +128,8 @@ class SeparationTask(pl.LightningModule):
             batch_idx (int): The index of the current batch.
         """
         mix_audio = batch.mixture # Changed from batch.mix_audio
-        predictions = self.forward(mix_audio)
+        query = batch.query # Extract query from batch
+        predictions = self.forward(mix_audio, query) # Pass query to forward
         loss = self.loss_handler.calculate_loss(predictions, batch)
         if torch.isnan(loss):
             logger.error("Detected NaN in test loss. Terminating training.")

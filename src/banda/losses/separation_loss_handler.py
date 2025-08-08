@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from typing import Dict, List, Union
 import structlog
+import hydra.utils
 
 logger = structlog.get_logger(__name__)
 
@@ -14,6 +15,7 @@ from banda.data.batch_types import (
     QueryClassSeparationBatch,
 )
 from banda.losses.base import LossHandler
+from banda.losses.loss_configs import LossCollectionConfig
 
 
 class SeparationLossHandler(LossHandler):
@@ -21,15 +23,22 @@ class SeparationLossHandler(LossHandler):
     Handles loss calculation for various source separation tasks based on batch type.
     """
 
-    def __init__(self, stft_loss_fn: nn.Module, time_loss_fn: nn.Module):
+    def __init__(self, loss_config: LossCollectionConfig):
         """
         Args:
-            stft_loss_fn (nn.Module): The STFT-domain loss function.
-            time_loss_fn (nn.Module): The time-domain loss function.
+            loss_config (LossCollectionConfig): A Pydantic configuration object containing
+                                                all necessary parameters for the loss functions.
         """
-        super().__init__(stft_loss_fn) # Keep stft_loss_fn as the primary loss_fn for base class
-        self.stft_loss_fn = stft_loss_fn
-        self.time_loss_fn = time_loss_fn
+        # The base LossHandler expects a single primary loss_fn. We'll use the first one provided.
+        first_loss_name = next(iter(loss_config.losses))
+        super().__init__(hydra.utils.instantiate(loss_config.losses[first_loss_name].fn))
+        
+        self.loss_fns = nn.ModuleDict()
+        self.loss_weights = {}
+        for name, config in loss_config.losses.items():
+            self.loss_fns[name] = hydra.utils.instantiate(config.fn)
+            self.loss_weights[name] = config.weight
+
 
     def calculate_loss(
         self,
@@ -46,44 +55,50 @@ class SeparationLossHandler(LossHandler):
         Returns:
             torch.Tensor: The calculated loss.
         """
-        # Initialize total_loss as a list to collect batch-wise losses
-        losses_per_sample = []
+        total_loss = torch.tensor(0.0, device=predictions[list(predictions.keys())[0]].device) if predictions else torch.tensor(0.0)
 
         if isinstance(batch, FixedStemSeparationBatch):
             true_sources = batch.sources
+            num_sources_with_predictions = 0
             for source_name, sep_audio in predictions.items():
                 if source_name in true_sources:
-                    # Calculate STFT loss (batch-wise)
-                    stft_loss = self.stft_loss_fn(sep_audio, true_sources[source_name])
-                    # Calculate Time-domain loss (batch-wise)
-                    time_loss = self.time_loss_fn(sep_audio, true_sources[source_name])
-                    losses_per_sample.append(stft_loss + time_loss)
+                    num_sources_with_predictions += 1
+                    for loss_name, loss_fn in self.loss_fns.items():
+                        weight = self.loss_weights.get(loss_name, 1.0)
+                        loss = loss_fn(sep_audio, true_sources[source_name])
+                        total_loss += loss * weight
             
-            # Stack and average the losses across the batch
-            if losses_per_sample:
-                return torch.mean(torch.stack(losses_per_sample))
+            if num_sources_with_predictions > 0:
+                return total_loss / num_sources_with_predictions
             else:
-                return torch.tensor(0.0, device=predictions[list(predictions.keys())[0]].device)
+                return torch.tensor(0.0, device=predictions[list(predictions.keys())[0]].device) if predictions else torch.tensor(0.0)
 
         elif isinstance(batch, QueryAudioSeparationBatch):
             true_sources = batch.sources
-            target_source_name = "vocals" # This would come from the query logic
-            if target_source_name in predictions and target_source_name in true_sources:
-                stft_loss = self.stft_loss_fn(predictions[target_source_name], true_sources[target_source_name])
-                time_loss = self.time_loss_fn(predictions[target_source_name], true_sources[target_source_name])
-                return torch.mean(stft_loss + time_loss) # Assuming these are batch-wise
+            if predictions:
+                target_source_name = next(iter(predictions))
+                if target_source_name in true_sources:
+                    for loss_name, loss_fn in self.loss_fns.items():
+                        weight = self.loss_weights.get(loss_name, 1.0)
+                        loss = loss_fn(predictions[target_source_name], true_sources[target_source_name])
+                        total_loss += loss * weight
+                    return total_loss
+                else:
+                    raise ValueError(f"Target source '{target_source_name}' not found in true sources for QueryAudioSeparationBatch.")
             else:
-                raise NotImplementedError(f"Loss calculation for {type(batch).__name__} with query audio is not fully implemented.")
+                return torch.tensor(0.0, device=predictions[list(predictions.keys())[0]].device) if predictions else torch.tensor(0.0)
 
         elif isinstance(batch, QueryClassSeparationBatch):
             true_sources = batch.sources
             query_class = batch.query_class
             if query_class in predictions and query_class in true_sources:
-                stft_loss = self.stft_loss_fn(predictions[query_class], true_sources[query_class])
-                time_loss = self.time_loss_fn(predictions[query_class], true_sources[query_class])
-                return torch.mean(stft_loss + time_loss) # Assuming these are batch-wise
+                for loss_name, loss_fn in self.loss_fns.items():
+                    weight = self.loss_weights.get(loss_name, 1.0)
+                    loss = loss_fn(predictions[query_class], true_sources[query_class])
+                    total_loss += loss * weight
+                return total_loss
             else:
-                raise NotImplementedError(f"Loss calculation for {type(batch).__name__} with query class is not fully implemented.")
+                raise ValueError(f"Query class '{query_class}' not found in predictions or true sources for QueryClassSeparationBatch.")
 
         else:
             raise TypeError(f"Unsupported batch type for loss calculation: {type(batch)}")
@@ -96,5 +111,5 @@ class SeparationLossHandler(LossHandler):
             device (torch.device): The target device.
         """
         logger.debug(f"SeparationLossHandler.to: Moving loss functions to device {device}")
-        self.stft_loss_fn.to(device)
-        self.time_loss_fn.to(device)
+        for loss_fn in self.loss_fns.values():
+            loss_fn.to(device)

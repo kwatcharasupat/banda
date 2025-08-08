@@ -1,0 +1,139 @@
+model:
+  _target_: banda.models.core_models.banquet_separator.Banquet
+  query_features: 128
+  stems:
+  - vocals
+  - bass
+  - drums
+  - other
+  fs: 44100
+  emb_dim: 128
+  in_channel: 2
+  stft:
+    _target_: banda.models.common_components.configs.common_configs.STFTConfig
+    n_fft: 2048
+    win_length: 2048
+    hop_length: 512
+    window_fn: hann_window
+    wkwargs: null
+    power: null
+    center: true
+    normalized: true
+    pad_mode: constant
+    onesided: true
+  bandsplit:
+    band_specs:
+      bandsplit_type: musical
+      n_bands: 64
+    require_no_overlap: false
+    require_no_gap: true
+    normalize_channel_independently: false
+    treat_channel_as_feature: true
+  tfmodel:
+    _target_: banda.models.common_components.time_frequency_models.tf_models.SeqBandModellingModule
+    n_modules: 12
+    emb_dim: 128
+    rnn_dim: 256
+    bidirectional: true
+    rnn_type: GRU
+    tf_dropout: 0.0
+  mask_estim:
+    _target_: banda.models.common_components.configs.common_configs.MaskEstimationConfig
+    mlp_dim: 512
+    hidden_activation: Tanh
+    hidden_activation_kwargs: null
+    complex_mask: true
+    use_freq_weights: false
+    in_channel: ${model.in_channel}
+project_root: ${oc.env:PROJECT_ROOT,.}
+experiment_name: bandit_musdb18hq_test
+seed: 42
+log_level: INFO
+paths:
+  output_dir: ${hydra.run.dir}
+  log_dir: ${hydra.run.dir}/logs
+  data_dir: ${project_root}/data
+data:
+  target_: banda.data.datamodule.SourceSeparationDataModule
+  batch_size: 4
+  num_workers: 0
+  pin_memory: false
+  train_dataset_config:
+    target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    config:
+      split: train
+      fs: 44100
+      premix_transform:
+        target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+        chunk_size_seconds: 3.0
+        fs: 44100
+      dataset_connector:
+        target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: train
+          data_root: /Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz
+  val_dataset_config:
+    target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    config:
+      split: val
+      fs: 44100
+      premix_transform:
+        target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+        chunk_size_seconds: 3.0
+        fs: 44100
+      dataset_connector:
+        target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: val
+          data_root: /Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz
+  test_dataset_config:
+    target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    config:
+      split: test
+      fs: 44100
+      premix_transform:
+        target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+        chunk_size_seconds: 3.0
+        fs: 44100
+      dataset_connector:
+        target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: test
+          data_root: /Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz
+trainer:
+  target_: pytorch_lightning.Trainer
+  max_epochs: 1
+  accelerator: auto
+  devices: auto
+  log_every_n_steps: 1
+  limit_train_batches: 5
+  limit_val_batches: 5
+  gradient_clip_val: 5.0
+  gradient_clip_algorithm: norm
+loss:
+  _target_: banda.losses.separation_loss_handler.SeparationLossHandler
+  stft_loss_fn:
+    _target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
+    n_ffts:
+    - 2048
+    - 512
+    hop_lengths:
+    - 512
+    - 128
+    win_lengths:
+    - 2048
+    - 512
+  time_loss_fn:
+    _target_: banda.losses.time_domain_loss.TimeDomainLoss
+metrics:
+  _target_: torchmetrics.audio.ScaleInvariantSignalNoiseRatio
+inference:
+  chunk_size_seconds: 6.0
+  hop_size_seconds: 3.0
+  fs: 44100
+  batch_size: 4
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.001
+mask_estim:
+  in_channel: ${model.in_channel}

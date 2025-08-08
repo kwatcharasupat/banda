@@ -8,6 +8,8 @@ import torch
 from typing import Any
 import torch.nn as nn
 from torchmetrics import Metric
+from omegaconf import DictConfig
+import hydra.utils
 
 class BaseModel(ABC, nn.Module):
     """
@@ -154,7 +156,9 @@ class BaseQueryModel(ABC, nn.Module):
         """
         Initializes the BaseQueryModel.
         """
-        super().__init__()
+        # Removed super().__init__() to prevent multiple nn.Module.__init__ calls
+        # when used in multiple inheritance with BaseModel.
+        pass
 
     @abstractmethod
     def forward(self, *args: Any, **kwargs: Any) -> Any:
@@ -287,3 +291,21 @@ class BaseTimeFrequencyModel(ABC, nn.Module):
             The output of the time-frequency model's forward pass.
         """
         pass
+
+    @classmethod
+    def from_config(cls, cfg: Any) -> "BaseTimeFrequencyModel":
+        """
+        Instantiates a TimeFrequencyModel from a DictConfig or Pydantic model.
+
+        Args:
+            cfg (Any): A DictConfig object or Pydantic model containing the model configuration.
+
+        Returns:
+            BaseTimeFrequencyModel: An instance of the TimeFrequencyModel.
+        """
+        # If cfg is a Pydantic model, convert it to a dictionary for hydra.utils.instantiate
+        if hasattr(cfg, 'model_dump'):
+            cfg_dict = cfg.model_dump()
+        else:
+            cfg_dict = cfg
+        return hydra.utils.instantiate(cfg_dict)

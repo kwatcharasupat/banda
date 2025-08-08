@@ -4,11 +4,12 @@ defaults:
   - _self_
   - model/stft: stft_config
   - model/bandsplit: bandsplit_musical_64
-  - model/tfmodel: tfmodel_rnn_gru
+  - model/tfmodel: tfmodel_rnn_gru # Default to RNN, can be overridden with tfmodel_mamba
   - model/mask_estim: mask_estim_default
 
 model:
-  _target_: banda.models.separator.Separator
+  _target_: banda.models.core_models.banquet_separator.Banquet
+  query_features: 128
   stems: ["vocals", "bass", "drums", "other"]
   fs: 44100
   emb_dim: 128
@@ -24,8 +25,8 @@ experiment_name: bandit_musdb18hq_test
 # Random seed for reproducibility
 seed: 42
 
-# Set logging level to DEBUG
-log_level: DEBUG
+# Set logging level to INFO
+log_level: INFO
 
 # Hydra configuration
 hydra:
@@ -57,7 +58,7 @@ data:
       fs: 44100 # Added fs here
       premix_transform:
         target_: banda.data.samplers.random_chunk.RandomChunkingTransform
-        chunk_size_seconds: 3.0
+        chunk_size_seconds: 0.5 # Changed from 3.0 to 0.5
         fs: 44100
       dataset_connector:
         target_: banda.data.datasets.musdb18hq.MUSDB18Connector
@@ -71,7 +72,7 @@ data:
       fs: 44100 # Added fs here
       premix_transform:
         target_: banda.data.samplers.random_chunk.RandomChunkingTransform
-        chunk_size_seconds: 3.0
+        chunk_size_seconds: 0.5 # Changed from 3.0 to 0.5
         fs: 44100
       dataset_connector:
         target_: banda.data.datasets.musdb18hq.MUSDB18Connector
@@ -94,32 +95,51 @@ data:
           data_root: "/Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz" # Hardcoded absolute path
 
 trainer:
-  target_: pytorch_lightning.Trainer
+  _target_: pytorch_lightning.Trainer
   max_epochs: 1 # Changed to 1 for quick run
   accelerator: "auto"
   devices: "auto"
-  log_every_n_steps: 50
+  log_every_n_steps: 1 # Changed to 1 for quick run
+  limit_train_batches: 5 # Limit training to 5 batches
+  limit_val_batches: 5 # Limit validation to 5 batches
   gradient_clip_val: 5.0
   gradient_clip_algorithm: "norm"
 
 loss:
   _target_: banda.losses.separation_loss_handler.SeparationLossHandler
-  stft_loss_fn:
-    _target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
-    n_ffts: [2048, 512]
-    hop_lengths: [512, 128]
-    win_lengths: [2048, 512]
-  time_loss_fn:
-    _target_: banda.losses.time_domain_loss.TimeDomainLoss
+  loss_config:
+    _target_: banda.losses.loss_configs.LossCollectionConfig
+    losses:
+      stft_loss:
+        fn:
+          _target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
+          n_ffts:
+          - 2048
+          - 512
+          hop_lengths:
+          - 512
+          - 128
+          win_lengths:
+          - 2048
+          - 512
+        weight: 1.0
+      time_loss:
+        fn:
+          _target_: banda.losses.time_domain_loss.TimeDomainLoss
+        weight: 0.5
 
 metrics:
   _target_: torchmetrics.audio.ScaleInvariantSignalNoiseRatio
 inference:
   chunk_size_seconds: 6.0
   hop_size_seconds: 3.0
-  fs: 44100 # Assuming fs is consistent across model and data
+  fs: 44100
   batch_size: 4
 
 optimizer:
   _target_: torch.optim.Adam
   lr: 0.001
+
+# Add in_channel to mask_estim
+mask_estim:
+  in_channel: ${model.in_channel}
