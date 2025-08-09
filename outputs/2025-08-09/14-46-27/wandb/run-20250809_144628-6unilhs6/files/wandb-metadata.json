@@ -1,0 +1,20 @@
+{
+  "os":  "macOS-15.5-arm64-arm-64bit",
+  "python":  "CPython 3.12.5",
+  "startedAt":  "2025-08-09T20:46:28.182167Z",
+  "args":  [
+    "experiment=test_run_2_bandit_music64_rnn.yaml"
+  ],
+  "program":  "/Users/kwatcharasupat/personal/banda/src/banda/train.py",
+  "codePath":  "src/banda/train.py",
+  "codePathLocal":  "src/banda/train.py",
+  "git":  {
+    "remote":  "https://github.com/kwatcharasupat/banda.git",
+    "commit":  "944134f31481a8079a4225c2e7853b96af50019e"
+  },
+  "email":  "kwatcharasupat@gatech.edu",
+  "root":  "outputs/2025-08-09/14-46-27",
+  "host":  "kwatcharasupat-2.local",
+  "executable":  "/Users/kwatcharasupat/miniforge3/bin/python",
+  "writerId":  "sd6fpmck9f8vasu0qte6vm2b5cgnh4wu"
+}

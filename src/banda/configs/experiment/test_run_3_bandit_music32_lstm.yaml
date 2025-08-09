@@ -23,6 +23,7 @@ model:
     normalized: True
     pad_mode: "constant"
     onesided: True
+  mask_estim: mask_estim_default # Added mask_estim configuration
 
 data:
   _target_: banda.data.datamodules.musdb18hq_datamodule.MUSDB18HQDataModule
@@ -106,6 +107,8 @@ bandsplit_music_32:
   _target_: banda.models.common_components.configs.bandsplit_configs.MusicalBandsplitSpecsConfig
   bandsplit_type: musical
   n_bands: 32
+  # min_freq: 0.0 # Removed min_freq
+  # max_freq: null # Removed max_freq
 
 bandsplit_module_config: # New bandsplit module config
   _target_: banda.models.common_components.configs.common_configs.BandsplitModuleConfig
@@ -127,3 +130,10 @@ tfmodel_rnn_lstm:
 
 experiment:
   name: "test_run_3_bandit_music32_lstm"
+
+mask_estim_default: # Added mask_estim_default configuration
+  _target_: banda.models.common_components.configs.mask_estimation_configs.OverlappingMaskEstimationSpecsConfig
+  mask_estimation_type: overlapping
+  mlp_dim: 512
+  in_channel: ${model.input_channels}
+  norm_mlp_cls: banda.models.common_components.mask_estimation.mask_estimation_modules.NormMLP

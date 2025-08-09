@@ -139,16 +139,16 @@ class Bandit(BaseSeparator): # Inherit from BaseSeparator
         stft_config = hydra.utils.instantiate(model_cfg.stft, _recursive_=False)
         
         # Instantiate bandsplit module config directly from model_cfg.bandsplit
-        bandsplit_module_config = hydra.utils.instantiate(cfg[str(model_cfg.bandsplit)], _recursive_=False)
+        bandsplit_module_config = hydra.utils.instantiate(model_cfg.bandsplit, _recursive_=False)
 
         # Get the raw tfmodel config (DictConfig)
-        tfmodel_raw_config = cfg[str(model_cfg.tfmodel)]
+        tfmodel_raw_config = model_cfg.tfmodel
         # Instantiate tfmodel config (Pydantic object) to get resolved values like emb_dim
         tfmodel_config_resolved = hydra.utils.instantiate(tfmodel_raw_config, _recursive_=False)
         
         # Instantiate mask_estim config directly from model_cfg.mask_estim
         # Add n_freq to mask_estim_config
-        mask_estim_config_data = OmegaConf.to_container(cfg[str(model_cfg.mask_estim)], resolve=True)
+        mask_estim_config_data = OmegaConf.to_container(model_cfg.mask_estim, resolve=True)
         mask_estim_config_data["n_freq"] = stft_config.n_fft // 2 + 1
         mask_estim_config = hydra.utils.instantiate(OmegaConf.create(mask_estim_config_data), _recursive_=False)
 

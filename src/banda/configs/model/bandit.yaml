@@ -1,8 +1,4 @@
 # @package _group_
-defaults:
-  - tfmodel: tfmodel_rnn_gru
-  - bandsplit: bandsplit_music_32
-
 _target_: banda.models.core_models.bandit_separator.Bandit
 input_channels: 2
 output_channels: 2

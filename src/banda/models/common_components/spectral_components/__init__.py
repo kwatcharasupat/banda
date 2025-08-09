@@ -1,0 +1,5 @@
+from banda.models.common_components.spectral_components.fixed_bandsplit_specs import register_fixed_bandsplit_specs
+from banda.models.common_components.spectral_components.perceptual_bandsplit_specs import register_perceptual_bandsplit_specs
+
+register_fixed_bandsplit_specs()
+register_perceptual_bandsplit_specs()

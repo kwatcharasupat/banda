@@ -1,5 +1,6 @@
 from typing import List, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
+from enum import StrEnum
 
 class BandDefinitionConfig(BaseModel):
     start_hz: float
@@ -9,30 +10,21 @@ class BandDefinitionConfig(BaseModel):
 class FixedBandsplitSpecsConfig(BaseModel):
     bands: List[BandDefinitionConfig]
 
-class VocalBandsplitSpecsConfig(BaseModel): # Changed to inherit directly from BaseModel
-    version: str = "7" # Default version
-
-# Add other fixed bandsplit configs if they have specific parameters
-# For now, they can just use FixedBandsplitSpecsConfig
+class VocalBandsplitSpecsConfig(BaseModel):
+    version: str = "7"
 
 class PerceptualBandsplitSpecsConfig(BaseModel):
     n_bands: int
-    f_min: float = 0.0
+    f_min: Optional[float] = None # Changed to Optional and default to None
     f_max: Optional[float] = None
 
 class MusicalBandsplitSpecsConfig(PerceptualBandsplitSpecsConfig):
-    pass # No additional fields
+    pass
 
 class MelBandsplitSpecsConfig(PerceptualBandsplitSpecsConfig):
     pass
 
-class BarkBandsplitSpecsConfig(PerceptualBandsplitSpecsConfig):
-    pass
-
 class TriangularBarkBandsplitSpecsConfig(PerceptualBandsplitSpecsConfig):
-    pass
-
-class MiniBarkBandsplitSpecsConfig(PerceptualBandsplitSpecsConfig):
     pass
 
 class EquivalentRectangularBandsplitSpecsConfig(PerceptualBandsplitSpecsConfig):
@@ -45,38 +37,33 @@ BandsplitConfig = Union[
     PerceptualBandsplitSpecsConfig,
     MusicalBandsplitSpecsConfig,
     MelBandsplitSpecsConfig,
-    BarkBandsplitSpecsConfig,
     TriangularBarkBandsplitSpecsConfig,
-    MiniBarkBandsplitSpecsConfig,
     EquivalentRectangularBandsplitSpecsConfig,
 ]
-from enum import StrEnum
 
 class BandsplitType(StrEnum):
+    FIXED = "fixed" # Added FIXED to BandsplitType
     VOCAL = "vocal"
-    VOCAL_V7 = "vocal_v7" # Added VOCAL_V7
+    VOCAL_V7 = "vocal_v7"
     BASS = "bass"
     DRUM = "drum"
     OTHER = "other"
     MUSICAL = "musical"
     MUSIC = "music"
     MEL = "mel"
-    BARK = "bark"
     TRIBARK = "tribark"
     ERB = "erb"
-    MINIBARK = "minibark"
 
 BANDSPLIT_CONFIG_MAP = {
+    BandsplitType.FIXED: FixedBandsplitSpecsConfig, # Added this line
     BandsplitType.VOCAL: VocalBandsplitSpecsConfig,
-    BandsplitType.VOCAL_V7: VocalBandsplitSpecsConfig, # Added VOCAL_V7
+    BandsplitType.VOCAL_V7: VocalBandsplitSpecsConfig,
     BandsplitType.BASS: FixedBandsplitSpecsConfig,
     BandsplitType.DRUM: FixedBandsplitSpecsConfig,
     BandsplitType.OTHER: FixedBandsplitSpecsConfig,
     BandsplitType.MUSICAL: MusicalBandsplitSpecsConfig,
     BandsplitType.MUSIC: MusicalBandsplitSpecsConfig,
     BandsplitType.MEL: MelBandsplitSpecsConfig,
-    BandsplitType.BARK: BarkBandsplitSpecsConfig,
     BandsplitType.TRIBARK: TriangularBarkBandsplitSpecsConfig,
     BandsplitType.ERB: EquivalentRectangularBandsplitSpecsConfig,
-    BandsplitType.MINIBARK: MiniBarkBandsplitSpecsConfig,
 }

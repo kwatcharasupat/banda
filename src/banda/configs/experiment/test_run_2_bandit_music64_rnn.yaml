@@ -9,8 +9,40 @@ model:
   output_channels: 2
   hidden_features: 256
   num_sources: 4
-  bandsplit: bandsplit_music_64
-  tfmodel: tfmodel_rnn_gru
+  bandsplit: bandsplit_music_64_config # Reference the top-level config
+  tfmodel: tfmodel_rnn_gru_config # Reference the top-level config
+  stft:
+    _target_: banda.models.common_components.spectral_components.spectral_base.SpectralComponent
+    n_fft: 2048
+    hop_length: 512
+    win_length: 2048
+    window: hann
+    return_complex: true
+
+bandsplit_music_64_config:
+  _target_: banda.models.common_components.spectral_components.bandsplit.BandsplitModule
+  config: # Pass a BandsplitModuleConfig object
+    _target_: banda.models.common_components.configs.common_configs.BandsplitModuleConfig
+    band_specs:
+      _target_: banda.models.common_components.configs.bandsplit_configs.MusicalBandsplitSpecsConfig
+      n_bands: 64
+      # min_freq: 21.53 # Reverted min_freq to allow default calculation
+      # max_freq: 20000 # Reverted max_freq to allow default calculation
+      band_scale: linear
+      drop_dc_band: true
+    n_fft: ${model.stft.n_fft} # Reference n_fft from the stft config
+    fs: ${data.samplerate} # Reference fs from the data config
+    drop_dc_band: true # Default value
+    require_no_overlap: false # Default value
+
+tfmodel_rnn_gru_config:
+  _target_: banda.models.common_components.time_frequency_models.tf_models.RNNTFModel
+  rnn_type: gru
+  n_modules: 2
+  hidden_features: 512
+  dropout: 0.1
+  bidirectional: true
+  emb_dim: 64 # Assuming emb_dim should match n_bands for this test
 
 data:
   _target_: banda.data.datamodules.musdb18hq_datamodule.MUSDB18HQDataModule

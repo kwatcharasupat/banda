@@ -1,10 +1,10 @@
 defaults:
   - _self_
-  - model: bandit
   - loss: default
   - metrics: default
   - optimizer: default
   - trainer: default
+  - data: default # Added data default
   - experiment: test_run_4_bandit_erb32_gru # Default experiment for quick testing
 
 project_root: ${oc.env:PROJECT_ROOT,.}

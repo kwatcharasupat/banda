@@ -13,8 +13,8 @@ from omegaconf import DictConfig, OmegaConf
 import hydra.utils
 
 from banda.data.batch_types import AudioSignal
-from banda.models.common_components.spectral_components.stft import STFT
-from banda.models.common_components.spectral_components.bandsplit import BandsplitModule
+from banda.models.common_components.spectral_components.spectral_base import SpectralComponent
+from banda.models.common_components.spectral_components.bandsplit import BandsplitModule # Corrected import
 from banda.models.common_components.mask_estimation.mask_estimation_modules import MaskEstimationModule
 from banda.models.common_components.time_frequency_models.tf_models import BaseTimeFrequencyModel
 from banda.models.common_components.configs.common_configs import BaseSeparatorConfig, STFTConfig, BandsplitModuleConfig, BaseTFModelConfig, MaskEstimationConfig
@@ -52,7 +52,13 @@ class BaseSeparator(nn.Module, ABC):
 
         # Initialize Bandsplit module
         if isinstance(config.bandsplit, BandsplitModuleConfig):
-            self.bandsplit_module = hydra.utils.instantiate(config.bandsplit)
+            # Explicitly pass the BandsplitModuleConfig object as the 'config' argument
+            self.bandsplit_module = hydra.utils.instantiate(
+                {
+                    "_target_": "banda.models.common_components.spectral_components.bandsplit.BandsplitModule",
+                    "config": config.bandsplit
+                }
+            )
         else:
             # Assume it's already an instantiated BandsplitModule if not a config
             self.bandsplit_module = config.bandsplit
