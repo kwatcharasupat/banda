@@ -11,7 +11,8 @@ import torch
 from typing import Optional
 
 from banda.data.augmentations.base import PreMixTransform, PostMixTransform
-from banda.data.types import Identifier, NumPySourceDict, TorchInputAudioDict
+from banda.data.batch_types import TorchInputAudioDict
+from banda.data.types import Identifier, NumPySourceDict
 
 
 class Gain(PreMixTransform):

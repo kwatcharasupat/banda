@@ -21,49 +21,6 @@ NumPySourceDict = Dict[str, np.ndarray]
 """Dictionary mapping source names to NumPy arrays."""
 
 
-class TorchInputAudioDict(BaseModel):
-    """
-    Data structure for input audio in PyTorch format.
-
-    Attributes:
-        mixture (torch.Tensor): Mixture audio tensor of shape (channels, samples).
-        sources (TorchSourceDict): Dictionary of source audio tensors.
-    """
-
-    mixture: Optional[torch.Tensor]
-    sources: TorchSourceDict
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @classmethod
-    def from_numpy(
-            cls,
-            *,
-            mixture: Optional[np.ndarray],
-            sources: NumPySourceDict,
-            float_dtype: torch.dtype = torch.float32,
-    ) -> "TorchInputAudioDict":
-        """
-        Create a TorchInputAudioDict from NumPy arrays.
-
-        Args:
-            mixture (np.ndarray): Mixture audio array of shape (channels, samples).
-            sources (NumPySourceDict): Dictionary of source audio arrays.
-
-        Returns:
-            TorchInputAudioDict: Instance with tensors converted from NumPy arrays.
-        """
-        return cls(
-            mixture=torch.from_numpy(mixture).to(dtype=float_dtype)
-            if mixture is not None
-            else None,
-            sources={
-                key: torch.from_numpy(value).to(dtype=float_dtype)
-                for key, value in sources.items()
-            },
-        )
-
-
 class NumPyInputAudioDict(BaseModel):
     """
     Data structure for input audio in NumPy format.

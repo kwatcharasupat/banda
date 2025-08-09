@@ -1,152 +1,178 @@
-# Banda: Source Separation ML Package
+# Banda: Advanced Source Separation Framework
 
-This project aims to develop a robust and scalable machine learning package for source separation, leveraging PyTorch with PyTorch Lightning, Hydra for configuration, Ray for distributed computing, and Pydantic for strict data typing. The design emphasizes modularity, decoupling of components, and adherence to industry best practices, drawing inspiration from projects like Hugging Face while avoiding their audio-specific pitfalls.
+Banda is a cutting-edge source separation framework designed for both fixed-stem and query-based audio separation tasks. It leverages advanced deep learning models, including Transformer and Mamba architectures, combined with sophisticated spectral processing techniques. Banda is built with a strong emphasis on modularity, configurability, and extensibility, making it a versatile tool for audio research and development.
 
-## Dual Licensing
+## Description
 
-This project is dual-licensed. It is available under the following licenses:
+Banda provides a comprehensive solution for separating individual audio sources from a mixed audio signal. Its core features include:
 
-GNU Affero General Public License v3.0 for Academic & Non-Commercial Research Use.
-Commercial License for commercial use. Contact Karn Watcharasupat (kwatcharasupat@ieee.org) to obtain a commercial license.
+-   **Flexible Model Architectures**: Supports both fixed-stem separation (e.g., separating vocals, drums, bass, other) and query-based separation, where a query (audio, embedding, or class label) guides the separation process.
+-   **Modular Design**: Built with a highly modular structure, allowing for easy interchangeability of components such as STFT configurations, bandsplit specifications, time-frequency models, and mask estimation modules.
+-   **Advanced Time-Frequency Models**: Integrates state-of-the-art Transformer and Mamba models for processing time-frequency representations, enabling powerful feature extraction and context modeling.
+-   **Configurable Spectral Processing**: Features a robust bandsplit mechanism that allows for various frequency band definitions (fixed, perceptual) and flexible handling of DC bands and channel configurations.
+-   **Hydra-based Configuration**: Utilizes Hydra for a clean and efficient configuration management system, enabling dynamic instantiation of models, datasets, and losses directly from YAML files.
+-   **Pydantic for Type Safety**: Employs Pydantic models for configuration schemas, ensuring type safety and validation across all configurable components.
+-   **Comprehensive Loss Functions**: Includes a variety of loss functions, including multi-resolution STFT losses, time-domain losses, and specialized losses like L1SNR and dBRMS regularization, managed by an extensible `SeparationLossHandler`.
+-   **Weights & Biases Integration**: Seamlessly integrates with Weights & Biases (wandb) for experiment tracking, visualization, and reproducibility.
+
+## Features
+
+-   **Fixed-Stem Separation**: Separate predefined sources (e.g., vocals, drums, bass, other) from a mixture.
+-   **Query-Based Separation**: Condition the separation on an input query (audio, embedding, or class label).
+-   **STFT/ISTFT Module**: Efficient and configurable Short-Time Fourier Transform and Inverse STFT operations.
+-   **Bandsplit Module**: Divides the spectrogram into multiple frequency bands for specialized processing.
+    -   Supports fixed bands (e.g., vocal, bass, drums, other).
+    -   Supports perceptual bands (e.g., Musical, Mel, Bark, ERB, Triangular Bark, Mini Bark).
+-   **Time-Frequency (TF) Models**:
+    -   **Transformer**: Attention-based models for capturing long-range dependencies.
+    -   **Mamba**: State-space models for efficient sequence modeling.
+    -   **RNN/GRU**: Recurrent neural networks for sequential processing.
+-   **Mask Estimation**: Predicts masks for each source in each frequency band.
+    -   Supports both overlapping and non-overlapping band mask estimation.
+-   **Loss Handler**: Manages and applies multiple loss functions for training.
+-   **Data Modules**: Standardized data loading and batching using PyTorch Lightning DataModules.
+-   **Logging**: Structured logging with `structlog` for better debugging and monitoring.
+
+## Installation
+
+To set up Banda, follow these steps:
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/your-username/banda.git
+    cd banda
+    ```
+
+2.  **Create and activate a Conda environment (recommended)**:
+    ```bash
+    conda create -n banda python=3.9
+    conda activate banda
+    ```
+
+3.  **Install PyTorch**:
+    Follow the instructions on the official PyTorch website to install the correct version for your system and CUDA/MPS setup. For example, for CUDA 11.8:
+    ```bash
+    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+    ```
+    For Apple Silicon (MPS):
+    ```bash
+    pip install torch torchvision torchaudio
+    ```
+
+4.  **Install `mambapy` (if using Mamba models)**:
+    ```bash
+    pip install mambapy
+    ```
+
+5.  **Install other dependencies**:
+    ```bash
+    pip install -e .
+    ```
+
+## Usage
+
+### Training a Model
+
+Banda uses Hydra for configuration. You can train a model using the `train.py` script and specify configurations via command-line arguments.
+
+Example training command for a Bandit model on MUSDB18HQ:
+
+```bash
+python src/banda/train.py \
+    model=bandit_separator \
+    data=musdb18hq \
+    trainer=default \
+    logger=wandb \
+    +experiment=train_bandit_musdb18hq_test \
+    hydra.run.dir=outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}_${experiment.name}
+```
+
+**Important Configuration Notes**:
+
+-   **`data_root`**: Ensure your `data_root` path in the dataset configuration (e.g., `src/banda/configs/data/musdb18hq.yaml`) is correctly set. You can use environment variables for flexibility:
+    ```yaml
+    # src/banda/configs/data/musdb18hq.yaml
+    data_root: "${oc.env:MUSDB18HQ_DATA_ROOT,${project_root}/data/musdb18hq/intermediates/npz}"
+    ```
+    Then, set the environment variable:
+    ```bash
+    export MUSDB18HQ_DATA_ROOT="/path/to/your/musdb18hq/data"
+    ```
+    or place your data in `${project_root}/data/musdb18hq/intermediates/npz`.
+
+-   **MPS Fallback (for Apple Silicon)**: If you encounter issues with PyTorch MPS, you might need to set the `PYTORCH_ENABLE_MPS_FALLBACK` environment variable:
+    ```bash
+    export PYTORCH_ENABLE_MPS_FALLBACK=1
+    ```
+
+### Evaluation
+
+(Details on evaluation script and usage will be added here.)
+
+### Inference
+
+(Details on inference script and usage will be added here.)
+
+## Configuration
+
+Banda's configuration is managed by Hydra. Key configuration files are located in `src/banda/configs/`:
+
+-   `config.yaml`: Main configuration entry point.
+-   `model/`: Model-specific configurations (e.g., `bandit_separator.yaml`, `banquet_separator.yaml`).
+-   `data/`: Dataset configurations (e.g., `musdb18hq.yaml`).
+-   `trainer/`: PyTorch Lightning Trainer configurations.
+-   `logger/`: Logger configurations (e.g., `wandb.yaml`).
+-   `experiment/`: Predefined experiment configurations that compose other configs.
+
+You can override any parameter from the command line:
+`python src/banda/train.py model.stft.n_fft=4096`
 
 ## Project Structure
 
-The proposed directory structure is designed for scalability, clear separation of concerns, and adherence to modern Python packaging standards.
-
-```mermaid
-graph TD
-    subgraph Project Root
-        A(banda)
-    end
-
-    subgraph Source Code
-        F(src)
-    end
-
-    subgraph Scripts
-        G(scripts)
-    end
-
-    A --> B[.gitignore]
-    A --> C[LICENSE]
-    A --> D[README.md]
-    A --> E[pyproject.toml]
-    A --> F
-    A --> G
-
-    F --> H(banda)
-    H --> I[__init__.py]
-    H --> J(configs)
-    H --> K(data)
-    H --> L(models)
-    H --> M(tasks)
-    H --> N[train.py]
-    H --> O(utils)
-
-    J --> J1[config.yaml]
-    J --> J2[data/]
-    J --> J3[model/]
-    J --> J4[trainer/]
-    J --> J5[augmentations/]
-
-    K --> K1[__init__.py]
-    K --> K2(datasets)
-    K --> K3(samplers)
-    K --> K4[types.py]
-    K --> K5(augmentations)
-
-    K2 --> K2A[musdb18hq.py]
-    K3 --> K3A[random_chunk.py]
-    K5 --> K5A[__init__.py]
-    K5 --> K5B[base.py]
-    K5 --> K5C[time_domain.py]
-    K5 --> K5D[frequency_domain.py]
-
-    L --> L1[__init__.py]
-    L --> L2[separator.py]
-    L --> L3(components)
-
-    L3 --> L3A[__init__.py]
-    L3 --> L3B[encoder.py]
-    L3 --> L3C[decoder.py]
-    L3 --> L3D[masking_head.py]
-    L3 --> L3E[...]
-
-    M --> M1[__init__.py]
-    M --> M2[separation.py]
-
-    O --> O1[__init__.py]
-    O --> O2[logging.py]
+```
+banda/
+├── docs/                     # Project documentation (design, architecture, etc.)
+├── outputs/                  # Training outputs, logs, and checkpoints
+├── scripts/                  # Utility scripts (e.g., data preprocessing)
+├── src/
+│   ├── banda/
+│   │   ├── configs/          # Hydra configuration files
+│   │   │   ├── data/
+│   │   │   ├── model/
+│   │   │   │   ├── bandsplit/
+│   │   │   │   ├── mask_estim/
+│   │   │   │   └── tf_model/
+│   │   │   ├── trainer/
+│   │   │   └── ...
+│   │   ├── core/             # Core interfaces and base classes
+│   │   ├── data/             # Data loading, batching, and dataset implementations
+│   │   │   ├── batch_types.py
+│   │   │   └── datasets/
+│   │   ├── losses/           # Loss functions and SeparationLossHandler
+│   │   ├── models/           # Model definitions
+│   │   │   ├── common_components/ # Reusable model components (STFT, bandsplit, TF models, mask estimation)
+│   │   │   ├── core_models/     # Main separator models (BaseSeparator, Bandit, Banquet)
+│   │   │   └── query_models/    # Query-specific model components
+│   │   ├── utils/            # Utility functions (logging, registry)
+│   │   └── train.py          # Main training script
+│   └── tests/                # Unit and integration tests
+├── .gitignore
+├── pyproject.toml            # Project metadata and dependencies
+├── README.md                 # Project overview (this file)
+└── CONTRIBUTING.md           # Guidelines for contributing
 ```
 
-## Core Component Design
+## Contributing
 
-### Licensing
-The existing `LICENSE` file will be updated with the dual-license text provided.
+We welcome contributions to Banda! Please see `CONTRIBUTING.md` for guidelines on how to contribute.
 
-### Dependencies (`pyproject.toml`)
-All project dependencies will be defined here, including `torch`, `pytorch-lightning`, `hydra-core`, `ray`, `pydantic`, `torchaudio`, `numpy`, and `structlog`.
+## License
 
-### Configuration (`src/banda/configs`)
-Hydra configurations will be organized by function (data, model, trainer, augmentations) and composed in the main `config.yaml`. This allows for flexible and extensible configuration management.
+This project is dual-licensed:
 
-### Data Types (`src/banda/data/types.py`)
-Pydantic models will be used for defining all data structures, ensuring type safety and clear data contracts. This includes `TorchInputAudioDict`, `NumPyInputAudioDict`, `Identifier`, and dataset-specific identifiers (e.g., `MUSDB18HQIdentifier`).
+1.  **GNU Affero General Public License v3.0 (AGPLv3)** for academic and non-commercial research use. For details, see [https://www.gnu.org/licenses/agpl-3.0.en.html](https://www.gnu.org/licenses/agpl-3.0.en.html)
+2.  **Commercial License** for all other uses. Contact kwatcharasupat \[at] ieee.org for commercial licensing.
 
-### Decoupled Data Handling (`src/banda/data`)
-*   **`src/banda/data/datasets/base.py`**: This file will define an abstract base class `SourceSeparationDataset`, handling common logic for audio loading, resampling, and applying pre-mix and post-mix transformations.
-*   **`src/banda/data/datasets/musdb18hq.py`**: This will implement the `MUSDB18HQDataset`, inheriting from `SourceSeparationDataset`. It will use a dedicated connector for MUSDB18HQ-specific data loading and preprocessing (e.g., parsing track IDs, handling file paths). Dataset-specific preprocessing will be encapsulated within each dataset class.
-*   **`src/banda/data/samplers/random_chunk.py`**: This will implement a `PreMixTransform` for random chunking, allowing for flexible data sampling strategies.
+## Acknowledgements
 
-### Composable Augmentations (`src/banda/data/augmentations`)
-This module will provide a flexible and configurable system for data augmentation.
-*   **`src/banda/data/augmentations/base.py`**: Will define `PreMixTransform` and `PostMixTransform` abstract base classes, along with `ComposePreMixTransforms` and `ComposePostMixTransforms` for chaining multiple transformations.
-*   **`src/banda/data/augmentations/time_domain.py` and `src/banda/data/augmentations/frequency_domain.py`**: These files will contain concrete augmentation implementations (e.g., pitch shift, noise addition) as subclasses of `PreMixTransform` or `PostMixTransform`.
-*   **Application Stages**: Augmentations will be applied at various stages as required:
-    *   **Before chunking**: Handled by the dataset's initial loading or a `PreMixTransform` applied before chunking.
-    *   **After chunking**: If chunking is a `PreMixTransform`, subsequent `PreMixTransform`s will apply after chunking.
-    *   **Before mixing at stem level**: `PreMixTransform`s applied to individual stems before they are mixed.
-    *   **After mixing**: `PostMixTransform`s applied to the `TorchInputAudioDict` after the mixture is formed.
-
-### Bandsplit System (`src/banda/utils/spectral.py`)
-The project includes a flexible bandsplit system for defining and managing frequency bands. This system supports both fixed (e.g., vocal, bass, drum) and perceptual (e.g., musical, mel, bark) bandsplit specifications. More details can be found in the [Bandsplit System Documentation](docs/bandsplit.md).
-### Models (`src/banda/models`)
-The model structure will emphasize modularity and reusability to avoid complexity.
-*   **`src/banda/models/separator.py`**: This will be the main `nn.Module` for the source separation task. It will orchestrate the flow from input mixture to separated sources by composing smaller, well-defined modules.
-*   **`src/banda/models/components/`**: A new directory for modular, reusable model building blocks (e.g., `encoder.py`, `decoder.py`, `masking_head.py`, `rnn_block.py`, `transformer_block.py`). This approach ensures a clean and maintainable model structure.
-
-### Lightning Tasks (`src/banda/tasks`)
-The `LightningModule` will be defined here, connecting the data, models, and training logic in a structured manner.
-
-### Training Entrypoint (`src/banda/train.py`)
-A single, clean entry point that uses Hydra to configure and run the training process.
-
-### Logging (`src/banda/utils/logging.py`)
-Structured logging will be set up using `structlog` for better observability and debugging.
-
-### Documentation
-All files will be created with placeholder docstrings in the PyTorch style, including shape and type annotations, to ensure clear and consistent documentation.
-
-## Preprocessing MUSDB18HQ Dataset
-
-To convert the raw MUSDB18HQ dataset (or a sample of it) into the `.npz` format required by the data loaders, use the provided preprocessing script.
-
-1.  **Install Dependencies**: Ensure you have `soundfile` installed (it's included in `pyproject.toml` and `environment.yaml`).
-2.  **Set `DATA_ROOT`**: Make sure your `DATA_ROOT` environment variable points to the parent directory where your raw `musdb18-sample` (or full `musdb18hq`) dataset is located. For example:
-    ```bash
-    export DATA_ROOT="~/personal/data"
-    ```
-    And your raw dataset should be at `~/personal/data/musdb18-sample` (or `~/personal/data/musdb18hq`).
-3.  **Run Preprocessing Script**:
-    ```bash
-    python scripts/preprocess_musdb18.py
-    ```
-    You can override configuration parameters using Hydra. For example, to specify the input and output paths:
-    ```bash
-    python scripts/preprocess_musdb18.py input_path="${DATA_ROOT}/musdb18hq" output_path="${DATA_ROOT}/musdb18hq/intermediates/npz"
-    ```
-    Or to process only specific stems:
-    ```bash
-    python scripts/preprocess_musdb18.py stems_to_process='["vocals", "mixture"]'
-    ```
-    The processed `.npz` files will be saved to the `output_path` specified in the configuration (defaulting to `"${DATA_ROOT}/musdb18-sample/intermediates/npz"` for the sample dataset).
+(Add acknowledgements here, e.g., for datasets, libraries, or research papers that inspired the project.)

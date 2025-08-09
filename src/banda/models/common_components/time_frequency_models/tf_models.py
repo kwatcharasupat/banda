@@ -19,6 +19,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.nn.utils import weight_norm
 from torch.nn.modules import rnn
+from omegaconf import DictConfig, OmegaConf
 
 from mambapy.mamba import Mamba # Import Mamba
 from mambapy.vim import VMamba # Import VMamba for Vision Mamba
@@ -96,7 +97,7 @@ class SeqBandModellingModule(BaseTimeFrequencyModel):
             bidirectional: bool = True,
             rnn_type: str = "LSTM",
             use_layer_norm: bool = True,
-            tf_dropout: float = 0.0, # Added tf_dropout parameter
+            dropout: float = 0.0, # Changed tf_dropout to dropout
     ) -> None:
         """
         Initializes the SeqBandModellingModule.
@@ -107,7 +108,7 @@ class SeqBandModellingModule(BaseTimeFrequencyModel):
             bidirectional (bool): If True, the RNNs will be bidirectional.
             rnn_type (str): The type of RNN to use ("LSTM" or "GRU").
             use_layer_norm (bool): If True, apply LayerNorm within ResidualRNN.
-            tf_dropout (float): Dropout rate to apply after each ResidualRNN module.
+            dropout (float): Dropout rate to apply after each ResidualRNN module. # Changed tf_dropout to dropout
         """
         super().__init__()
         self.n_modules: int = n_modules
@@ -116,7 +117,7 @@ class SeqBandModellingModule(BaseTimeFrequencyModel):
         self.bidirectional: bool = bidirectional
         self.rnn_type: str = rnn_type
         self.use_layer_norm: bool = use_layer_norm
-        self.tf_dropout: float = tf_dropout # Store dropout for potential use
+        self.dropout: float = dropout # Changed tf_dropout to dropout
 
         # Replace self.rnns and self.fcs with a single ModuleList of ResidualRNNs
         self.seq_modules: nn.ModuleList = nn.ModuleList(
@@ -127,12 +128,12 @@ class SeqBandModellingModule(BaseTimeFrequencyModel):
                     bidirectional=bidirectional,
                     rnn_type=rnn_type,
                     use_layer_norm=use_layer_norm,
-                    dropout=tf_dropout, # Pass tf_dropout to ResidualRNN
+                    dropout=dropout, # Pass dropout to ResidualRNN
                 )
                 for _ in range(n_modules)
             ]
         )
-        self.final_dropout_layer = nn.Dropout(tf_dropout) # Final dropout layer
+        self.final_dropout_layer = nn.Dropout(dropout) # Final dropout layer
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -176,6 +177,21 @@ class SeqBandModellingModule(BaseTimeFrequencyModel):
             logger.error("SeqBandModellingModule: NaN detected in x_out before return", mean_val=x_out.mean().item())
             raise ValueError("NaN in x_out in SeqBandModellingModule")
         return x_out
+
+    @classmethod
+    def from_config(cls, cfg: DictConfig) -> "SeqBandModellingModule":
+        """
+        Instantiates SeqBandModellingModule from a DictConfig.
+        """
+        return cls(
+            n_modules=cfg.n_modules,
+            emb_dim=cfg.emb_dim,
+            rnn_dim=cfg.rnn_dim,
+            bidirectional=cfg.bidirectional,
+            rnn_type=cfg.rnn_type,
+            use_layer_norm=cfg.use_layer_norm,
+            dropout=cfg.dropout, # Changed tf_dropout to dropout
+        )
 
 
 @MODELS_REGISTRY.register("transformer_time_freq")
@@ -255,6 +271,21 @@ class TransformerTimeFreqModule(BaseTimeFrequencyModel):
         
         return x_out
 
+    @classmethod
+    def from_config(cls, cfg: DictConfig) -> "TransformerTimeFreqModule":
+        """
+        Instantiates TransformerTimeFreqModule from a DictConfig.
+        """
+        return cls(
+            n_modules=cfg.n_modules,
+            emb_dim=cfg.emb_dim,
+            dropout=cfg.dropout,
+            nhead=cfg.nhead,
+            dim_feedforward=cfg.dim_feedforward,
+            max_seq_len_bands=cfg.max_seq_len_bands,
+            max_seq_len_time=cfg.max_seq_len_time,
+        )
+
 
 @MODELS_REGISTRY.register("conv_time_freq")
 class ConvolutionalTimeFreqModule(BaseTimeFrequencyModel):
@@ -316,6 +347,17 @@ class ConvolutionalTimeFreqModule(BaseTimeFrequencyModel):
         # Permute back to (batch, n_bands, n_time, emb_dim)
         x_out: torch.Tensor = x_permuted.permute(0, 2, 3, 1)
         return x_out
+
+    @classmethod
+    def from_config(cls, cfg: DictConfig) -> "ConvolutionalTimeFreqModule":
+        """
+        Instantiates ConvolutionalTimeFreqModule from a DictConfig.
+        """
+        return cls(
+            n_modules=cfg.n_modules,
+            emb_dim=cfg.emb_dim,
+            dropout=cfg.dropout,
+        )
 
 
 @MODELS_REGISTRY.register("mamba_time_freq")
@@ -399,3 +441,19 @@ class MambaTimeFreqModule(BaseTimeFrequencyModel):
         x_out = x_encoded.view(batch, n_bands, n_time, emb_dim)
         
         return x_out
+
+    @classmethod
+    def from_config(cls, cfg: DictConfig) -> "MambaTimeFreqModule":
+        """
+        Instantiates MambaTimeFreqModule from a DictConfig.
+        """
+        return cls(
+            n_modules=cfg.n_modules,
+            emb_dim=cfg.emb_dim,
+            dropout=cfg.dropout,
+            max_seq_len_bands=cfg.max_seq_len_bands,
+            max_seq_len_time=cfg.max_seq_len_time,
+            d_state=cfg.d_state,
+            d_conv=cfg.d_conv,
+            expand=cfg.expand,
+        )

@@ -1,0 +1,12 @@
+# @package _global_
+
+defaults:
+  - /model: bandit
+  - /data: musdb18hq
+  - /trainer: default
+  - /logger: wandb
+  - override /model/tfmodel: tfmodel_rnn_gru
+  - override /model/bandsplit: bandsplit_music_48
+
+experiment:
+  name: "test_run_1_bandit_music48_gru"

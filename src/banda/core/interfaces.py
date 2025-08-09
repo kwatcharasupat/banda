@@ -68,7 +68,7 @@ class BaseDataset(ABC):
 
         Args:
             idx: The index of the sample to retrieve.
-
+            
         Returns:
             A single data sample.
         """
@@ -145,7 +145,7 @@ class BaseMetric(Metric):
         """
         pass
 
-class BaseQueryModel(ABC, nn.Module):
+class BaseQueryModel(ABC): # Removed nn.Module from inheritance
     """
     Abstract Base Class for all query encoding models.
 
@@ -179,7 +179,6 @@ class BaseQueryModel(ABC, nn.Module):
 class BaseEncoder(ABC, nn.Module):
     """
     Abstract Base Class for model encoders.
-
     All concrete encoder implementations should inherit from this class.
     It provides a common interface for encoding input data.
     """
@@ -193,13 +192,10 @@ class BaseEncoder(ABC, nn.Module):
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         """
         Defines the forward pass for the encoder.
-
         Concrete implementations must override this method.
-
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
-
         Returns:
             The encoded representation.
         """
@@ -208,7 +204,6 @@ class BaseEncoder(ABC, nn.Module):
 class BaseDecoder(ABC, nn.Module):
     """
     Abstract Base Class for model decoders.
-
     All concrete decoder implementations should inherit from this class.
     It provides a common interface for decoding latent representations.
     """
@@ -222,13 +217,10 @@ class BaseDecoder(ABC, nn.Module):
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         """
         Defines the forward pass for the decoder.
-
         Concrete implementations must override this method.
-
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
-
         Returns:
             The decoded output.
         """
@@ -237,7 +229,6 @@ class BaseDecoder(ABC, nn.Module):
 class BaseMaskingHead(ABC, nn.Module):
     """
     Abstract Base Class for mask estimation heads.
-
     All concrete masking head implementations should inherit from this class.
     It provides a common interface for predicting masks.
     """
@@ -251,13 +242,10 @@ class BaseMaskingHead(ABC, nn.Module):
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         """
         Defines the forward pass for the masking head.
-
         Concrete implementations must override this method.
-
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
-
         Returns:
             The predicted mask.
         """
@@ -266,7 +254,6 @@ class BaseMaskingHead(ABC, nn.Module):
 class BaseTimeFrequencyModel(ABC, nn.Module):
     """
     Abstract Base Class for time-frequency processing modules.
-
     All concrete time-frequency model implementations should inherit from this class.
     It provides a common interface for operations in the time-frequency domain.
     """
@@ -280,13 +267,10 @@ class BaseTimeFrequencyModel(ABC, nn.Module):
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         """
         Defines the forward pass for the time-frequency model.
-
         Concrete implementations must override this method.
-
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
-
         Returns:
             The output of the time-frequency model's forward pass.
         """
@@ -296,10 +280,8 @@ class BaseTimeFrequencyModel(ABC, nn.Module):
     def from_config(cls, cfg: Any) -> "BaseTimeFrequencyModel":
         """
         Instantiates a TimeFrequencyModel from a DictConfig or Pydantic model.
-
         Args:
             cfg (Any): A DictConfig object or Pydantic model containing the model configuration.
-
         Returns:
             BaseTimeFrequencyModel: An instance of the TimeFrequencyModel.
         """

@@ -1,0 +1,9 @@
+# @package _group_
+
+_target_: lightning.pytorch.loggers.wandb.WandbLogger
+project: banda
+name: ${experiment.name}
+save_dir: ${paths.output_dir}
+offline: False
+id: null # set this to a previous run's id to resume training
+version: null # set this to a previous run's version to resume training

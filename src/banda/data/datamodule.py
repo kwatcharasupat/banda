@@ -12,13 +12,15 @@ logger = structlog.get_logger(__name__)
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from typing import Dict, Any, Optional, Set, List
+from typing import Dict, Any, Optional, Set, List, Union
 import os
+import random
+import torch.nn.functional as F
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from banda.data.datasets.base import SourceSeparationDataset, DatasetConnectorConfig
-from banda.data.batch_types import FixedStemSeparationBatch, TorchInputAudioDict
+from banda.data.batch_types import FixedStemSeparationBatch, AudioSignal, QuerySignal
 from pydantic import BaseModel, Field
 from banda.utils.registry import DATASETS_REGISTRY
 
@@ -40,6 +42,7 @@ class SourceSeparationDataModule(pl.LightningDataModule):
         test_dataset_config: Optional[DatasetConnectorConfig] = None,
         num_workers: int = 0,
         pin_memory: bool = False,
+        query_features: Optional[Union[str, int]] = None, # Added query_features
         **kwargs: Any,
     ) -> None:
         """
@@ -60,7 +63,9 @@ class SourceSeparationDataModule(pl.LightningDataModule):
         self.test_dataset_config: Optional[DatasetConnectorConfig] = test_dataset_config
         self.batch_size: int = batch_size
         self.num_workers: int = num_workers
+        self.query_features: Optional[int] = query_features
         self.pin_memory: bool = pin_memory
+        self.current_stage: Optional[str] = None
 
         self.train_dataset: Optional[SourceSeparationDataset] = None
         self.val_dataset: Optional[SourceSeparationDataset] = None
@@ -78,6 +83,7 @@ class SourceSeparationDataModule(pl.LightningDataModule):
             NotImplementedError: If the "predict" stage is requested (not yet implemented).
         """
         logger.info(f"DATASETS_REGISTRY keys: {DATASETS_REGISTRY._data.keys()}")
+        self.current_stage = stage
         if stage == "fit":
             train_dataset_name = self.train_dataset_config.target_.split('.')[-2]
             self.train_dataset = DATASETS_REGISTRY.get(train_dataset_name).from_config(OmegaConf.create(self.train_dataset_config.config))
@@ -180,7 +186,6 @@ class SourceSeparationDataModule(pl.LightningDataModule):
         raise exception
     
     
-    
 
     def _collate_fn(self, batch_list: list) -> FixedStemSeparationBatch:
         """
@@ -214,24 +219,57 @@ class SourceSeparationDataModule(pl.LightningDataModule):
                     # For now, we assume all sources are present or handled by the dataset.
                     pass
 
-        # Stack mixtures and sources
-        collated_mixture: Optional[torch.Tensor] = torch.stack(mixtures) if mixtures else None # Shape: (batch_size, channels, samples)
-        collated_sources_stacked: Dict[str, torch.Tensor] = {name: torch.stack(tensors) for name, tensors in collated_sources.items() if tensors} # Shape: Dict[source_name, (batch_size, channels, samples)]
+        # Stack mixtures and sources and wrap in AudioSignal
+        collated_mixture_audio_signal: Optional[AudioSignal] = AudioSignal(audio=torch.stack(mixtures)) if mixtures else None # Shape: (batch_size, channels, samples)
+        collated_sources_audio_signals: Dict[str, AudioSignal] = {name: AudioSignal(audio=torch.stack(tensors)) for name, tensors in collated_sources.items() if tensors} # Shape: Dict[source_name, (batch_size, channels, samples)]
 
         collated_identifier: Any = batch_list[0].metadata['identifier']
         
-        # Generate a dummy query for Banquet model
-        # Assuming query_features is 128 as per train_bandit_musdb18hq_test.yaml
-        # And batch_size is available from collated_mixture.shape[0]
-        query_features = 128 # This should ideally come from model config
-        batch_size = collated_mixture.shape[0] if collated_mixture is not None else 1 # Fallback if no mixture
-        dummy_query = torch.ones(batch_size, query_features) # Example: tensor of ones
+        # Handle query_class based on self.query_features
+        query_class_signal: Optional[QuerySignal] = None
+        class_labels: Optional[torch.Tensor] = None
+        if self.query_features is not None:
+            batch_size = collated_mixture_audio_signal.audio.shape[0] if collated_mixture_audio_signal and collated_mixture_audio_signal.audio is not None else 1
+            # For Bandit, query_class is typically a dummy or derived from fixed stems.
+            # Here, we create a dummy class_label for demonstration.
+            # Determine the current stage
+            current_stage = self.current_stage if self.current_stage is not None else "fit" # Use stored stage, default to "fit"
+
+            if isinstance(self.query_features, str) and self.query_features == "class_label":
+                # Get available stems from the first item in the batch (assuming consistent stems across batch)
+                available_stems = sorted(list(collated_sources_audio_signals.keys()))
+                num_classes = len(available_stems)
+                
+                if current_stage == "fit":
+                    # For training, randomly choose a class label for each sample in the batch
+                    class_labels = torch.zeros(batch_size, num_classes)
+                    for i in range(batch_size):
+                        random_stem_idx = random.randint(0, num_classes - 1)
+                        class_labels[i, random_stem_idx] = 1.0
+                else:
+                    # For validation/test, for now, just use the first class.
+                    # This will be updated later to enumerate all classes.
+                    class_labels = torch.zeros(batch_size, num_classes)
+                    class_labels[:, 0] = 1.0 # One-hot for the first class
+            elif isinstance(self.query_features, int):
+                num_classes = self.query_features
+                class_labels = torch.ones(batch_size, num_classes) # Use the provided integer as num_classes
+            else:
+                raise ValueError(f"Unsupported query_features type: {type(self.query_features)}. Expected 'class_label' or an integer.")
+            
+            query_class_signal = QuerySignal(class_label=class_labels)
+            query_class_signal = QuerySignal(class_label=class_labels)
+        else:
+            # If query_features is None, it means this is likely a non-query model (like Bandit)
+            # In this case, query_class should still be a QuerySignal, but with no actual query data.
+            query_class_signal = QuerySignal(class_label=None)
+
 
         return FixedStemSeparationBatch(
-            mixture=collated_mixture,
-            sources=collated_sources_stacked,
+            mixture=collated_mixture_audio_signal,
+            sources=collated_sources_audio_signals,
             metadata={"identifier": collated_identifier},
-            query=dummy_query # Add dummy query
+            query_class=query_class_signal # Pass query_class
         )
 
     @classmethod
@@ -245,20 +283,45 @@ class SourceSeparationDataModule(pl.LightningDataModule):
         Returns:
             SourceSeparationDataModule: An instance of the SourceSeparationDataModule.
         """
-        train_dataset_config: DatasetConnectorConfig = DatasetConnectorConfig(**config.train_dataset_config)
-        val_dataset_config: DatasetConnectorConfig = DatasetConnectorConfig(**config.val_dataset_config)
+        # Extract _target_ and config from the nested DictConfig for train_dataset_config
+        train_dataset_target = config.train_dataset_config._target_
+        train_dataset_inner_config = config.train_dataset_config.config
+        train_dataset_config_pydantic = DatasetConnectorConfig(
+            target_=train_dataset_target,
+            config=OmegaConf.to_container(train_dataset_inner_config, resolve=True)
+        )
+
+        # Extract _target_ and config from the nested DictConfig for val_dataset_config
+        val_dataset_target = config.val_dataset_config._target_
+        val_dataset_inner_config = config.val_dataset_config.config
+        val_dataset_config_pydantic = DatasetConnectorConfig(
+            target_=val_dataset_target,
+            config=OmegaConf.to_container(val_dataset_inner_config, resolve=True)
+        )
+
         batch_size: int = config.batch_size
-        test_dataset_config: Optional[DatasetConnectorConfig] = DatasetConnectorConfig(**config.test_dataset_config) if "test_dataset_config" in config else None
+        
+        test_dataset_config_pydantic: Optional[DatasetConnectorConfig] = None
+        if "test_dataset_config" in config:
+            test_dataset_target = config.test_dataset_config._target_
+            test_dataset_inner_config = config.test_dataset_config.config
+            test_dataset_config_pydantic = DatasetConnectorConfig(
+                target_=test_dataset_target,
+                config=OmegaConf.to_container(test_dataset_inner_config, resolve=True)
+            )
+
         num_workers: int = config.get("num_workers", 0)
         pin_memory: bool = config.get("pin_memory", False)
+        query_features: Optional[Union[str, int]] = config.get("query_features", None) # Added query_features
 
         return cls(
-            train_dataset_config=train_dataset_config,
-            val_dataset_config=val_dataset_config,
-            test_dataset_config=test_dataset_config,
+            train_dataset_config=train_dataset_config_pydantic,
+            val_dataset_config=val_dataset_config_pydantic,
+            test_dataset_config=test_dataset_config_pydantic,
             batch_size=batch_size,
             num_workers=num_workers,
             pin_memory=pin_memory,
+            query_features=query_features, # Pass query_features
         )
 
 

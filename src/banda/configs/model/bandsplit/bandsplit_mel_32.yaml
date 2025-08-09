@@ -1,0 +1,12 @@
+# @package _group_
+_target_: banda.models.common_components.configs.common_configs.BandsplitModuleConfig
+
+band_specs:
+  _target_: banda.models.common_components.configs.bandsplit_configs._bandsplit_models.MelBandsplitSpecsConfig
+  bandsplit_type: mel
+  n_bands: 32
+
+require_no_overlap: False
+require_no_gap: True
+normalize_channel_independently: False
+treat_channel_as_feature: False

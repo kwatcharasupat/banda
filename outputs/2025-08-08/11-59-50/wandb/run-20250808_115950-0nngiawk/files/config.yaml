@@ -1,0 +1,215 @@
+_wandb:
+    value:
+        cli_version: 0.21.0
+        e:
+            s2lsg0l2vahczbo2aibaaphusvggp54i:
+                args:
+                    - +experiment=test_run_1_bandit_music48_gru
+                codePath: src/banda/train.py
+                codePathLocal: src/banda/train.py
+                email: kwatcharasupat@gatech.edu
+                executable: /Users/kwatcharasupat/miniforge3/bin/python
+                git:
+                    commit: 0b7153e9031f81c46036480560bb3b6805b0d454
+                    remote: https://github.com/kwatcharasupat/banda.git
+                host: kwatcharasupat-2.local
+                os: macOS-15.5-arm64-arm-64bit
+                program: /Users/kwatcharasupat/personal/banda/src/banda/train.py
+                python: CPython 3.12.5
+                root: outputs/2025-08-08/11-59-50
+                startedAt: "2025-08-08T17:59:50.636859Z"
+                writerId: s2lsg0l2vahczbo2aibaaphusvggp54i
+        m: []
+        python_version: 3.12.5
+        t:
+            "1":
+                - 1
+                - 5
+                - 9
+                - 11
+                - 41
+                - 49
+                - 50
+                - 53
+                - 71
+                - 103
+                - 105
+            "2":
+                - 1
+                - 5
+                - 9
+                - 11
+                - 41
+                - 49
+                - 50
+                - 53
+                - 71
+                - 103
+                - 105
+            "3":
+                - 16
+            "4": 3.12.5
+            "5": 0.21.0
+            "6": 4.52.4
+            "12": 0.21.0
+            "13": darwin-arm64
+data:
+    value:
+        batch_size: 4
+        num_workers: 0
+        pin_memory: false
+        target_: banda.data.datamodule.SourceSeparationDataModule
+        test_dataset_config:
+            config:
+                dataset_connector:
+                    config:
+                        data_root: ./data/musdb18hq/intermediates/npz
+                        split: test
+                    target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+                fs: 44100
+                premix_transform:
+                    chunk_size_seconds: 3
+                    fs: 44100
+                    target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+                split: test
+            target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+        train_dataset_config:
+            config:
+                dataset_connector:
+                    config:
+                        data_root: ./data/musdb18hq/intermediates/npz
+                        split: train
+                    target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+                fs: 44100
+                premix_transform:
+                    chunk_size_seconds: 0.5
+                    fs: 44100
+                    target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+                split: train
+            target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+        val_dataset_config:
+            config:
+                dataset_connector:
+                    config:
+                        data_root: ./data/musdb18hq/intermediates/npz
+                        split: val
+                    target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+                fs: 44100
+                premix_transform:
+                    chunk_size_seconds: 0.5
+                    fs: 44100
+                    target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+                split: val
+            target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+experiment_name:
+    value: bandit_musdb18hq_test
+log_level:
+    value: INFO
+loss:
+    value:
+        _target_: banda.losses.separation_loss_handler.SeparationLossHandler
+        loss_config:
+            _target_: banda.losses.loss_configs.LossCollectionConfig
+            losses:
+                decibel_match_loss:
+                    fn:
+                        _target_: banda.losses.coda_losses.DecibelMatchLoss
+                    weight: 0.1
+                l1_loss:
+                    fn:
+                        _target_: torch.nn.L1Loss
+                    weight: 0.1
+                l1_snr_decibel_match_loss:
+                    fn:
+                        _target_: banda.losses.coda_losses.L1SNRDecibelMatchLoss
+                    weight: 0.1
+                l1_snr_loss:
+                    fn:
+                        _target_: banda.losses.coda_losses.L1SNRLoss
+                    weight: 0.1
+                l2_loss:
+                    fn:
+                        _target_: torch.nn.MSELoss
+                    weight: 0.1
+                stft_loss:
+                    fn:
+                        _target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
+                        hop_lengths:
+                            - 512
+                            - 128
+                        n_ffts:
+                            - 2048
+                            - 512
+                        win_lengths:
+                            - 2048
+                            - 512
+                    weight: 1
+                time_loss:
+                    fn:
+                        _target_: banda.losses.time_domain_loss.TimeDomainLoss
+                    weight: 0.5
+metrics:
+    value:
+        _target_: torchmetrics.audio.ScaleInvariantSignalNoiseRatio
+model:
+    value:
+        _target_: banda.models.core_models.banquet_separator.Banquet
+        emb_dim: 128
+        fs: 44100
+        in_channel: 2
+        mask_estim:
+            _target_: banda.models.common_components.configs.common_configs.MaskEstimationConfig
+            complex_mask: true
+            hidden_activation: Tanh
+            hidden_activation_kwargs: null
+            in_channel: 2
+            mlp_dim: 512
+            use_freq_weights: false
+        query_features: 128
+        stems:
+            - vocals
+            - bass
+            - drums
+            - other
+        stft:
+            _target_: banda.models.common_components.configs.common_configs.STFTConfig
+            center: true
+            hop_length: 512
+            n_fft: 2048
+            normalized: true
+            onesided: true
+            pad_mode: constant
+            power: null
+            win_length: 2048
+            window_fn: hann_window
+            wkwargs: null
+        tfmodel:
+            _target_: banda.models.common_components.time_frequency_models.tf_models.SeqBandModellingModule
+            bidirectional: true
+            emb_dim: 128
+            n_modules: 12
+            rnn_dim: 256
+            rnn_type: GRU
+            tf_dropout: 0
+optimizer:
+    value:
+        _target_: torch.optim.Adam
+        lr: 0.001
+paths:
+    value:
+        data_dir: ./data
+        log_dir: outputs/2025-08-08/11-59-50/logs
+        output_dir: outputs/2025-08-08/11-59-50
+seed:
+    value: 42
+trainer:
+    value:
+        _target_: pytorch_lightning.Trainer
+        accelerator: auto
+        devices: auto
+        gradient_clip_algorithm: norm
+        gradient_clip_val: 5
+        limit_train_batches: 5
+        limit_val_batches: 5
+        log_every_n_steps: 1
+        max_epochs: 1

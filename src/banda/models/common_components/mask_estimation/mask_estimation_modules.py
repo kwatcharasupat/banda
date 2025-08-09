@@ -6,8 +6,7 @@
 
 
 import warnings
-from typing import Dict, List, Optional, Tuple, Type
-
+from typing import Dict, List, Optional, Tuple, Type, Union # Added Union
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -15,10 +14,13 @@ from torch.nn.modules import activation
 from torch.nn.utils import weight_norm
 import structlog
 import logging
-
+from omegaconf import DictConfig, OmegaConf
+import hydra.utils # Added import
 
 logger = structlog.get_logger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
+
+from banda.models.common_components.configs.mask_estimation_configs import MaskEstimationConfig # Import MaskEstimationConfig
 
 
 class BaseNormMLP(nn.Module):
@@ -113,7 +115,7 @@ class NormMLP(BaseNormMLP):
 
         Args:
             qb (torch.Tensor): Input tensor from the time-frequency model.
-                                Shape: (batch, n_time, emb_dim)
+                                (batch, n_time, emb_dim)
 
         Returns:
             torch.Tensor: Predicted mask. Shape: (batch, in_channel, bandwidth, n_time)
@@ -136,6 +138,7 @@ class NormMLP(BaseNormMLP):
             logger.warning(f"NormMLP: Very small standard deviation detected in qb before output_linear. Adding noise.")
             qb = qb + torch.randn_like(qb) * 1e-6
         logger.debug("NormMLP: qb before output_linear", mean_val=qb.mean().item(), min_val=qb.min().item(), max_val=qb.max().item())
+        logger.debug(f"NormMLP: qb shape before output_linear: {qb.shape}") # ADDED THIS LINE
         linear_out = self.output_linear(qb)
         if torch.isnan(linear_out).any():
             logger.error("NormMLP: NaN detected in linear_out after output_linear", mean_val=linear_out.mean().item())
@@ -184,7 +187,7 @@ class MultAddNormMLP(NormMLP):
 
         Args:
             qb (torch.Tensor): Input tensor from the time-frequency model.
-                                Shape: (batch, n_time, emb_dim)
+                                (batch, n_time, emb_dim)
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Predicted multiplicative and additive masks.
@@ -234,7 +237,7 @@ class MultAddNormMLP(NormMLP):
             logger.error("MultAddNormMLP: NaN detected in amb after output2_glu", mean_val=amb.mean().item())
             raise ValueError("NaN in amb after output2_glu")
         logger.debug("MultAddNormMLP: amb after output2_glu", mean_val=amb.mean().item(), min_val=amb.min().item(), max_val=amb.max().item())
-
+        
         amb = self.reshape_output(amb)
         if torch.isnan(amb).any():
             logger.error("MultAddNormMLP: NaN detected in amb after reshape_output", mean_val=amb.mean().item())
@@ -256,7 +259,7 @@ class MaskEstimationModuleBase(MaskEstimationModuleSuperBase):
     """
     def __init__(
             self,
-            band_specs: List[Tuple[float, float]],
+            band_specs: List[Tuple[float, float]], # Added band_specs
             emb_dim: int,
             mlp_dim: int,
             in_channel: Optional[int],
@@ -270,6 +273,7 @@ class MaskEstimationModuleBase(MaskEstimationModuleSuperBase):
 
         self.band_widths = [fend - fstart for fstart, fend in band_specs]
         self.n_bands = len(band_specs)
+        self.band_specs = band_specs # Store band_specs
 
         if hidden_activation_kwargs is None:
             hidden_activation_kwargs = {}
@@ -299,7 +303,7 @@ class MaskEstimationModuleBase(MaskEstimationModuleSuperBase):
 
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                                Shape: (batch, n_bands, n_time, emb_dim)
+                                (batch, n_bands, n_time, emb_dim)
 
         Returns:
             List[torch.Tensor]: A list of predicted masks for each band.
@@ -329,7 +333,6 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
             emb_dim: int,
             mlp_dim: int,
             in_channel: Optional[int],
-            cond_dim: int = 0,
             hidden_activation: str = "Tanh",
             hidden_activation_kwargs: Optional[Dict] = None,
             complex_mask: bool = True,
@@ -337,11 +340,10 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
             norm_mlp_kwargs: Optional[Dict] = None,
             # use_freq_weights: bool = True, # Deprecated
     ) -> None:
-        warnings.warn("check_no_gap is deprecated and its functionality for overlapping bands is now handled by BandsplitModule.")
 
         super().__init__(
-            band_specs=band_specs,
-            emb_dim=emb_dim + cond_dim, # Add cond_dim to emb_dim if conditioning is used
+            band_specs=band_specs, # Pass band_specs to super
+            emb_dim=emb_dim,
             mlp_dim=mlp_dim,
             in_channel=in_channel,
             hidden_activation=hidden_activation,
@@ -352,12 +354,9 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
         )
 
         self.n_freq = n_freq
-        self.band_specs = band_specs
+        # self.band_specs = band_specs # Already stored in super().__init__
         self.in_channel = in_channel
-        # 
         self.use_freq_weights = False # Explicitly set to False as it's deprecated
-
-        self.cond_dim = cond_dim
 
     def forward(self, q: torch.Tensor, cond: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
@@ -365,7 +364,7 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
 
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                                Shape: (batch, n_bands, n_time, emb_dim)
+                                (batch, n_bands, n_time, emb_dim)
             cond (Optional[torch.Tensor]): Conditioning tensor.
 
         Returns:
@@ -382,19 +381,11 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
             else:
                 raise ValueError(f"Invalid cond shape: {cond.shape}")
             q = torch.cat([q, cond], dim=-1)
-        elif self.cond_dim > 0:
-            warnings.warn("cond_dim > 0 but no conditioning tensor provided. Using dummy conditioning.")
-            cond = torch.ones(
-                (batch, n_bands, n_time, self.cond_dim),
-                device=q.device,
-                dtype=q.dtype,
-            )
-            q = torch.cat([q, cond], dim=-1)
 
         mask_list = self.compute_masks(q) # [n_bands * (batch, in_channel, bandwidth, n_time)]
         
         
-
+        
         if any(torch.isnan(m).any() for m in mask_list):
             logger.error("OverlappingMaskEstimationModule: NaN detected in mask_list before combining", mean_vals=[m.mean().item() for m in mask_list])
             raise ValueError("NaN in mask_list in OverlappingMaskEstimationModule")
@@ -413,6 +404,25 @@ class OverlappingMaskEstimationModule(MaskEstimationModuleBase):
 
         return masks
 
+    @classmethod
+    def from_config(cls, cfg: MaskEstimationConfig, band_specs: List[Tuple[float, float]], n_freq: int) -> "OverlappingMaskEstimationModule": # Changed signature
+        """
+        Instantiates OverlappingMaskEstimationModule from a MaskEstimationConfig.
+        """
+        return cls(
+            band_specs=band_specs, # Use passed band_specs
+            n_freq=n_freq, # Use passed n_freq
+            emb_dim=cfg.emb_dim,
+            mlp_dim=cfg.mlp_dim,
+            in_channel=cfg.in_channel,
+            
+            hidden_activation=cfg.hidden_activation,
+            hidden_activation_kwargs=cfg.hidden_activation_kwargs,
+            complex_mask=cfg.complex_mask,
+            norm_mlp_cls=hydra.utils.get_class(cfg.norm_mlp_cls),
+            norm_mlp_kwargs=cfg.norm_mlp_kwargs,
+        )
+
 
 class MaskEstimationModule(OverlappingMaskEstimationModule):
     """
@@ -420,35 +430,33 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
     """
     def __init__(
             self,
-            band_specs: List[Tuple[float, float]],
+            band_specs: List[Tuple[float, float]], # Added band_specs
+            n_freq: int, # Added n_freq as a direct parameter
             emb_dim: int,
             mlp_dim: int,
             in_channel: Optional[int],
-            cond_dim: int = 0, # Added cond_dim for consistency
+            
             hidden_activation: str = "Tanh",
             hidden_activation_kwargs: Optional[Dict] = None,
             complex_mask: bool = True,
             **kwargs, # Catch any extra kwargs from OverlappingMaskEstimationModule
     ) -> None:
-        warnings.warn("check_no_gap is deprecated and its functionality for overlapping bands is now handled by BandsplitModule.")
-        warnings.warn("check_no_overlap is deprecated and its functionality for non-overlapping bands is now handled by BandsplitModule.")
+        
         logger.debug(
             "MaskEstimationModule init",
             band_specs=band_specs,
-            calculated_n_freq=sum([fend - fstart for fstart, fend in band_specs])
+            calculated_n_freq=n_freq # Use the passed n_freq
         )
         super().__init__(
-            band_specs=band_specs,
-            # freq_weights=None, # No frequency weights for non-overlapping - Deprecated
-            n_freq=sum([fend - fstart for fstart, fend in band_specs]), # Total frequency bins
+            band_specs=band_specs, # Pass band_specs to super
+            n_freq=n_freq, # Pass the direct n_freq
             emb_dim=emb_dim,
             mlp_dim=mlp_dim,
             in_channel=in_channel,
-            cond_dim=cond_dim,
+            
             hidden_activation=hidden_activation,
             hidden_activation_kwargs=hidden_activation_kwargs,
             complex_mask=complex_mask,
-            # use_freq_weights=False, # Explicitly set to False - Deprecated
             **kwargs,
         )
 
@@ -457,7 +465,7 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
         Forward pass of the MaskEstimationModule.
         Args:
             q (torch.Tensor): Input tensor from the time-frequency model.
-                                Shape: (batch, n_bands, n_time, emb_dim)
+                                (batch, n_bands, n_time, emb_dim)
             cond (Optional[torch.Tensor]): Conditioning tensor.
         Returns:
             torch.Tensor: Predicted full-band mask. Shape: (batch, in_channel, n_freq, n_time)
@@ -473,14 +481,6 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
             else:
                 raise ValueError(f"Invalid cond shape: {cond.shape}")
             q = torch.cat([q, cond], dim=-1)
-        elif self.cond_dim > 0:
-            warnings.warn("cond_dim > 0 but no conditioning tensor provided. Using dummy conditioning.")
-            cond = torch.ones(
-                (batch, n_bands, n_time, self.cond_dim),
-                device=q.device,
-                dtype=q.dtype,
-            )
-            q = torch.cat([q, cond], dim=-1)
 
         mask_list = self.compute_masks(q) # [n_bands * (batch, in_channel, bandwidth, n_time)]
 
@@ -493,3 +493,20 @@ class MaskEstimationModule(OverlappingMaskEstimationModule):
         ) # (batch, in_channel, n_freq, n_time)
 
         return masks
+
+    @classmethod
+    def from_config(cls, cfg: MaskEstimationConfig, band_specs: List[Tuple[float, float]], n_freq: int) -> "MaskEstimationModule": # Changed signature
+        """
+        Instantiates MaskEstimationModule from a MaskEstimationConfig.
+        """
+        return cls(
+            band_specs=band_specs, # Use passed band_specs
+            n_freq=n_freq, # Use passed n_freq
+            emb_dim=cfg.emb_dim,
+            mlp_dim=cfg.mlp_dim,
+            in_channel=cfg.in_channel,
+            
+            hidden_activation=cfg.hidden_activation,
+            hidden_activation_kwargs=cfg.hidden_activation_kwargs,
+            complex_mask=cfg.complex_mask,
+        )

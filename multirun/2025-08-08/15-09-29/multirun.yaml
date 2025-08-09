@@ -1,0 +1,254 @@
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  launcher:
+    _target_: hydra._internal.core_plugins.basic_launcher.BasicLauncher
+  sweeper:
+    _target_: hydra._internal.core_plugins.basic_sweeper.BasicSweeper
+    max_batch_size: null
+    params: null
+  help:
+    app_name: ${hydra.job.name}
+    header: '${hydra.help.app_name} is powered by Hydra.
+
+      '
+    footer: 'Powered by Hydra (https://hydra.cc)
+
+      Use --hydra-help to view Hydra specific help
+
+      '
+    template: '${hydra.help.header}
+
+      == Configuration groups ==
+
+      Compose your configuration from those groups (group=option)
+
+
+      $APP_CONFIG_GROUPS
+
+
+      == Config ==
+
+      Override anything in the config (foo.bar=value)
+
+
+      $CONFIG
+
+
+      ${hydra.help.footer}
+
+      '
+  hydra_help:
+    template: 'Hydra (${hydra.runtime.version})
+
+      See https://hydra.cc for more info.
+
+
+      == Flags ==
+
+      $FLAGS_HELP
+
+
+      == Configuration groups ==
+
+      Compose your configuration from those groups (For example, append hydra/job_logging=disabled
+      to command line)
+
+
+      $HYDRA_CONFIG_GROUPS
+
+
+      Use ''--cfg hydra'' to Show the Hydra config.
+
+      '
+    hydra_help: ???
+  hydra_logging:
+    version: 1
+    formatters:
+      simple:
+        format: '[%(asctime)s][HYDRA] %(message)s'
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: simple
+        stream: ext://sys.stdout
+    root:
+      level: INFO
+      handlers:
+      - console
+    loggers:
+      logging_example:
+        level: DEBUG
+    disable_existing_loggers: false
+  job_logging:
+    version: 1
+    formatters:
+      simple:
+        format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: simple
+        stream: ext://sys.stdout
+      file:
+        class: logging.FileHandler
+        formatter: simple
+        filename: ${hydra.runtime.output_dir}/${hydra.job.name}.log
+    root:
+      level: INFO
+      handlers:
+      - console
+      - file
+    disable_existing_loggers: false
+  env: {}
+  mode: MULTIRUN
+  searchpath: []
+  callbacks: {}
+  output_subdir: .hydra
+  overrides:
+    hydra:
+    - hydra.mode=MULTIRUN
+    task:
+    - experiment=test_run_4_bandit_erb32_gru
+  job:
+    name: train
+    chdir: null
+    override_dirname: experiment=test_run_4_bandit_erb32_gru
+    id: ???
+    num: ???
+    config_name: config
+    env_set: {}
+    env_copy: []
+    config:
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: []
+  runtime:
+    version: 1.3.2
+    version_base: '1.3'
+    cwd: /Users/kwatcharasupat/personal/banda
+    config_sources:
+    - path: hydra.conf
+      schema: pkg
+      provider: hydra
+    - path: /Users/kwatcharasupat/personal/banda/src/banda/configs
+      schema: file
+      provider: main
+    - path: ''
+      schema: structured
+      provider: schema
+    output_dir: ???
+    choices:
+      experiment: test_run_4_bandit_erb32_gru
+      model/bandsplit: bandsplit_erb_32
+      logger: wandb
+      trainer: default
+      model: bandit
+      data: musdb18hq
+      loss: default
+      hydra/env: default
+      hydra/callbacks: null
+      hydra/job_logging: default
+      hydra/hydra_logging: default
+      hydra/hydra_help: default
+      hydra/help: default
+      hydra/sweeper: basic
+      hydra/launcher: basic
+      hydra/output: default
+  verbose: false
+project_root: ${oc.env:PROJECT_ROOT,.}
+experiment_name: bandit_musdb18hq_test
+seed: 42
+log_level: INFO
+paths:
+  output_dir: ${hydra.run.dir}
+  log_dir: ${hydra.run.dir}/logs
+  data_dir: ${project_root}/data
+_group_:
+  _target_: banda.models.common_components.configs.common_configs.BandsplitModuleConfig
+  batch_size: 4
+  num_workers: 4
+  pin_memory: true
+  train_dataset_config:
+    _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    config:
+      split: train
+      dataset_connector:
+        _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: train
+          data_root: ${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz
+      fs: 44100
+      premix_transform:
+        _target_: banda.data.augmentations.base.ComposePreMixTransforms
+        transforms:
+        - _target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+          config:
+            chunk_size_seconds: 3.0
+            fs: 44100
+            align_sources: true
+      postmix_transform:
+        _target_: banda.data.augmentations.base.ComposePostMixTransforms
+        transforms:
+        - _target_: banda.data.augmentations.time_domain.Gain
+          config:
+            min_gain_db: -6.0
+            max_gain_db: 6.0
+        - _target_: banda.data.augmentations.time_domain.NormalizeAudio
+          config:
+            target_rms_db: -20.0
+  val_dataset_config:
+    _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    config:
+      split: val
+      dataset_connector:
+        _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: val
+          data_root: ${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz
+      fs: 44100
+      premix_transform: null
+      postmix_transform: null
+  loss_fn:
+    _target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
+    n_ffts:
+    - 2048
+    - 512
+    hop_lengths:
+    - 512
+    - 128
+    win_lengths:
+    - 2048
+    - 512
+    mag_weight: 1.0
+    phase_weight: 0.0
+    log_scale: false
+  input_channels: 2
+  output_channels: 2
+  hidden_features: 256
+  num_sources: 4
+  bandsplit: bandsplit_music_32
+  max_epochs: 5
+  accelerator: auto
+  devices: auto
+  log_every_n_steps: 50
+  project: banda
+  name: ${experiment.name}
+  save_dir: ${paths.output_dir}
+  offline: false
+  id: null
+  version: null
+  band_specs:
+    _target_: banda.models.common_components.configs.bandsplit_configs._bandsplit_models.EquivalentRectangularBandsplitSpecsConfig
+    bandsplit_type: erb
+    n_bands: 32
+  require_no_overlap: false
+  require_no_gap: true
+  normalize_channel_independently: false
+  treat_channel_as_feature: false
+override model.tfmodel: tfmodel_rnn_gru
+name: test_run_4_bandit_erb32_gru

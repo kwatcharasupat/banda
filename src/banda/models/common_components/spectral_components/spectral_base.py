@@ -1,22 +1,35 @@
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Tuple, Optional
-from enum import Enum, StrEnum # Import StrEnum
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchaudio as ta # Added torchaudio import
+import torchaudio as ta
+import torchaudio.functional as taF # Import torchaudio.functional
 
-#  # Removed librosa import
-# import torchaudio.functional as taF # Not used directly, but for reference
-# import bark_fbanks # Not used directly, but for reference
-from omegaconf import DictConfig # Import DictConfig
-import structlog # Import structlog
+from omegaconf import DictConfig, OmegaConf # Import OmegaConf
+import structlog
 import logging
 
-logger = structlog.get_logger(__name__) # Get logger instance
+logger = structlog.get_logger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
+
+from banda.models.common_components.configs.bandsplit_configs._bandsplit_models import (
+    BandDefinitionConfig,
+    FixedBandsplitSpecsConfig,
+    VocalBandsplitSpecsConfig,
+    PerceptualBandsplitSpecsConfig,
+    MusicalBandsplitSpecsConfig,
+    MelBandsplitSpecsConfig,
+    BarkBandsplitSpecsConfig,
+    TriangularBarkBandsplitSpecsConfig,
+    MiniBarkBandsplitSpecsConfig,
+    EquivalentRectangularBandsplitSpecsConfig, # Added this import
+    BandsplitConfig,
+    BandsplitType, # Import BandsplitType from here
+)
+
 
 # Add these helper functions if not already defined
 def hz_to_bark(hz: float) -> float:
@@ -191,10 +204,11 @@ class BandsplitSpecification(ABC):
         # If DC band is dropped, we have one less bin
         self.max_index = (nfft // 2 + 1) - (1 if drop_dc_band else 0)
 
-    def index_to_hertz(self, index: int):
+    @staticmethod
+    def index_to_hertz(index: int, nfft: int, fs: int, drop_dc_band: bool):
         # If DC band is dropped, index 0 now corresponds to original index 1
-        adjusted_index = index + (1 if self.drop_dc_band else 0)
-        return adjusted_index * self.fs / self.nfft
+        adjusted_index = index + (1 if drop_dc_band else 0)
+        return adjusted_index * fs / nfft
 
     def hertz_to_index(self, hz: float, round: bool = True):
         # Calculate original index
@@ -260,8 +274,8 @@ class BandsplitSpecification(ABC):
 
 
 class FixedBandsplitSpecs(BandsplitSpecification):
-    def __init__(self, nfft: int, fs: int, config: DictConfig, drop_dc_band: bool = False) -> None:
-        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
+    def __init__(self, nfft: int, fs: int, config: FixedBandsplitSpecsConfig, drop_dc_band: bool = False) -> None:
+        super().__init__(nfft=nfft, fs=fs, drop_dc_band=drop_dc_band)
         self.config = config
         self.bands_config = config.bands # Expecting a list of band definitions
 
@@ -289,45 +303,44 @@ class FixedBandsplitSpecs(BandsplitSpecification):
     def is_overlapping(self) -> bool:
         return False # Fixed bands are typically not overlapping
 
-    def _validate_band_specs(self, band_specs: List[Tuple[int, int]]) -> None:
-        # Implement the safeguard logic here
-        # Check for bands with only one or two bins between much larger bands
-        # For now, a basic check, can be refined later.
-        for i in range(1, len(band_specs) - 1):
-            prev_band_width = band_specs[i][1] - band_specs[i][0]
-            current_band_width = band_specs[i+1][1] - band_specs[i+1][0]
-            if prev_band_width > 0 and current_band_width > 0:
-                ratio = max(prev_band_width, current_band_width) / min(prev_band_width, current_band_width)
-                if ratio > 5 and (band_specs[i][1] - band_specs[i][0] <= 2 or band_specs[i+1][1] - band_specs[i+1][0] <= 2):
-                    logger.warning(f"Potential problematic band size detected between {band_specs[i]} and {band_specs[i+1]}")
-
 
 class VocalBandsplitSpecification(FixedBandsplitSpecs):
-    def __init__(self, nfft: int, fs: int, config: DictConfig, version: str = "7", drop_dc_band: bool = False) -> None:
-        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
+    def __init__(self, nfft: int, fs: int, config: VocalBandsplitSpecsConfig, version: str = "7", drop_dc_band: bool = False, require_no_overlap: bool = False) -> None: # Added require_no_overlap
+        # Load bands from YAML file
+        script_dir = os.path.dirname(__file__)
+        yaml_path = os.path.join(script_dir, "..", "configs", "bandsplit_configs", "vocal_bands.yaml")
+        vocal_bands_config_data = OmegaConf.load(yaml_path)
+        
+        # Dynamically select the version's bands from the loaded config
+        version_config_data = vocal_bands_config_data.get(f"version{version}")
+        if version_config_data is None:
+            raise ValueError(f"Configuration for Vocal Bandsplit version {version} not found in {yaml_path}.")
+        
+        # Convert DictConfig to list of BandDefinitionConfig
+        bands_data = [BandDefinitionConfig(**band) for band in version_config_data.bands]
+
+        # Adjust start_hz of the first band if drop_dc_band is True and start_hz is 0.0
+        if drop_dc_band and bands_data[0].start_hz == 0.0:
+            bands_data[0].start_hz = BandsplitSpecification.index_to_hertz(0, nfft=nfft, fs=fs, drop_dc_band=True)
+            logger.info(f"Adjusted first band start_hz to {bands_data[0].start_hz} due to drop_dc_band=True.")
+
+        # Create a FixedBandsplitSpecsConfig with the dynamically loaded bands
+        fixed_bands_config = FixedBandsplitSpecsConfig(bands=bands_data)
+        
+        # Pass this new config to the superclass
+        super().__init__(nfft=nfft, fs=fs, config=fixed_bands_config, drop_dc_band=drop_dc_band)
         self.version = version
-        # The config for Vocal will contain different versions, e.g., config.version7.bands
+        self.require_no_overlap = require_no_overlap # Store the parameter
 
     def get_band_specs(self) -> List[Tuple[int, int]]:
-        # Dynamically select the version's bands from the config
-        version_config = self.config.get(f"version{self.version}")
-        if version_config is None:
-            raise ValueError(f"Configuration for Vocal Bandsplit version {self.version} not found.")
-        
-        # Temporarily override bands_config with the version-specific bands
-        original_bands_config = self.bands_config
-        self.bands_config = version_config.bands
-        
+        # This logic is now handled in __init__ by creating a FixedBandsplitSpecsConfig
+        # So, we can just call the superclass method directly.
         bands = super().get_band_specs()
-        
-        # Restore original bands_config
-        self.bands_config = original_bands_config
-        
         return bands
 
 
 class OtherBandsplitSpecification(FixedBandsplitSpecs):
-    def __init__(self, nfft: int, fs: int, config: DictConfig, drop_dc_band: bool = False) -> None:
+    def __init__(self, nfft: int, fs: int, config: FixedBandsplitSpecsConfig, drop_dc_band: bool = False) -> None:
         super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
 
     def get_band_specs(self) -> List[Tuple[int, int]]:
@@ -337,7 +350,7 @@ class OtherBandsplitSpecification(FixedBandsplitSpecs):
 
 
 class BassBandsplitSpecification(FixedBandsplitSpecs):
-    def __init__(self, nfft: int, fs: int, config: DictConfig, drop_dc_band: bool = False) -> None:
+    def __init__(self, nfft: int, fs: int, config: FixedBandsplitSpecsConfig, drop_dc_band: bool = False) -> None:
         super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
 
     def get_band_specs(self) -> List[Tuple[int, int]]:
@@ -347,13 +360,16 @@ class BassBandsplitSpecification(FixedBandsplitSpecs):
 
 
 class DrumBandsplitSpecification(FixedBandsplitSpecs):
-    def __init__(self, nfft: int, fs: int, config: DictConfig, drop_dc_band: bool = False) -> None:
+    def __init__(self, nfft: int, fs: int, config: FixedBandsplitSpecsConfig, drop_dc_band: bool = False) -> None:
         super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band)
 
     def get_band_specs(self) -> List[Tuple[int, int]]:
         # Drum bandsplit will directly use the bands defined in its config
         bands = super().get_band_specs()
         return bands
+    @abstractmethod
+    def _get_fbank_fn(self) -> Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor]:
+        raise NotImplementedError
 
 
 class PerceptualBandsplitSpecification(BandsplitSpecification):
@@ -361,36 +377,40 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
             self,
             nfft: int,
             fs: int,
-            fbank_fn: Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor], # Modified signature
-            n_bands: int,
-            f_min: float = 0.0,
-            f_max: float = None,
-            drop_dc_band: bool = False
+            config: PerceptualBandsplitSpecsConfig,
+            drop_dc_band: bool = False,
+            require_no_overlap: bool = False # Add this parameter
     ) -> None:
         super().__init__(nfft=nfft, fs=fs, drop_dc_band=drop_dc_band)
-        self.n_bands = n_bands
+        self.config = config # Store the config
+        self.n_bands = config.n_bands
+        f_min = config.f_min
+        f_max = config.f_max
+        self.require_no_overlap = require_no_overlap # Store the parameter
+        fbank_fn = self._get_fbank_fn() # This will be implemented in subclasses
+
         if f_max is None:
             f_max = fs / 2
 
         # Adjust f_min based on drop_dc_band
-        if self.drop_dc_band and f_min < self.index_to_hertz(0):
-            f_min = self.index_to_hertz(0)
+        if self.drop_dc_band and f_min < BandsplitSpecification.index_to_hertz(0, nfft=self.nfft, fs=self.fs, drop_dc_band=self.drop_dc_band):
+            f_min = BandsplitSpecification.index_to_hertz(0, nfft=self.nfft, fs=self.fs, drop_dc_band=self.drop_dc_band)
 
         # Construct all_freqs for the filterbank based on the new spectrum
         # This will be nfft // 2 if drop_dc_band is True, otherwise nfft // 2 + 1
         n_freqs_for_fbank = self.max_index 
-        all_freqs_for_fbank = torch.linspace(self.index_to_hertz(0), self.index_to_hertz(n_freqs_for_fbank - 1), n_freqs_for_fbank)
+        all_freqs_for_fbank = torch.linspace(self.index_to_hertz(0, nfft=self.nfft, fs=self.fs, drop_dc_band=self.drop_dc_band), self.index_to_hertz(n_freqs_for_fbank - 1, nfft=self.nfft, fs=self.fs, drop_dc_band=self.drop_dc_band), n_freqs_for_fbank)
 
         # Calculate MIDI points for the musical bands based on the full frequency range
         low_midi = hz_to_midi(torch.tensor(f_min)).item()
         high_midi = hz_to_midi(torch.tensor(f_max)).item()
-        midi_points = torch.linspace(low_midi, high_midi, n_bands + 2) # Add 2 for triangular filterbank
+        midi_points = torch.linspace(low_midi, high_midi, self.n_bands + 2) # Use self.n_bands
 
         # Convert MIDI points back to Hz
         hz_points = midi_to_hz(midi_points)
 
         self.filterbank = fbank_fn(
-                all_freqs_for_fbank, hz_points, n_bands
+                all_freqs_for_fbank, hz_points, self.n_bands # Use self.n_bands
         )
 
         # Explicitly ensure the first band covers the first frequency bin if DC band is dropped
@@ -424,8 +444,13 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
                 logger.warning(f"PerceptualBandsplitSpecification: Band {i} has no active bins. Skipping this band.")
                 continue
             
-            start_index = active_bins[0]
-            end_index = active_bins[-1] + 1 # end_index is exclusive
+            start_index = max(0, active_bins[0]) # Ensure start_index is not negative
+            end_index = min(active_bins[-1] + 1, self.max_index) # Cap end_index at self.max_index
+            
+            # If require_no_overlap is True, ensure bands do not overlap
+            if self.require_no_overlap and band_specs and start_index < band_specs[-1][1]:
+                logger.warning(f"Adjusting overlapping band {start_index}-{end_index} to {band_specs[-1][1]}-{end_index} due to require_no_overlap=True.")
+                start_index = band_specs[-1][1] # Start current band from end of previous band
 
             if start_index >= end_index:
                 logger.warning(f"PerceptualBandsplitSpecification: Calculated band ({start_index}, {end_index}) has zero or negative bandwidth. Skipping.")
@@ -443,7 +468,7 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
         
         for bin_idx in uncovered_bins:
             # Add single-bin bands for any uncovered bins
-            band_specs.append((bin_idx, bin_idx + 1))
+            band_specs.append((bin_idx, min(bin_idx + 1, self.max_index))) # Cap bin_idx + 1 at self.max_index
 
         # Sort band_specs by start_index to maintain order
         band_specs.sort(key=lambda x: x[0])
@@ -452,30 +477,16 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
 
     def get_band_specs(self) -> List[Tuple[int, int]]:
         self._validate_band_specs(self.band_specs)
+        total_bandwidth = sum([fend - fstart for fstart, fend in self.band_specs])
+        logger.debug(f"PerceptualBandsplitSpecification: Total bandwidth of band_specs: {total_bandwidth}")
         return self.band_specs
 
     @property
     def is_overlapping(self) -> bool:
-        return True # Perceptual bands are typically overlapping
+        return not self.require_no_overlap # Now determined by the parameter
 
     def get_freq_weights(self) -> List[torch.Tensor]:
         return self.freq_weights
-
-    def _validate_band_specs(self, band_specs: List[Tuple[int, int]]) -> None:
-        """
-        Validates the generated band specifications, including checking for
-        bands with only one or two bins between much larger bands.
-        """
-        # Implement the safeguard logic here for perceptual bands
-        # This can be more complex as perceptual bands might naturally have varying sizes.
-        # For now, a basic check, can be refined later.
-        for i in range(1, len(band_specs) - 1):
-            prev_band_width = band_specs[i][1] - band_specs[i][0]
-            current_band_width = band_specs[i+1][1] - band_specs[i+1][0]
-            if prev_band_width > 0 and current_band_width > 0:
-                ratio = max(prev_band_width, current_band_width) / min(prev_band_width, current_band_width)
-                if ratio > 5 and (band_specs[i][1] - band_specs[i][0] <= 2 or band_specs[i+1][1] - band_specs[i+1][0] <= 2):
-                    logger.warning(f"Potential problematic band size detected between {band_specs[i]} and {band_specs[i+1]}")
 
 
 def musical_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int, scale="constant"): # Modified signature
@@ -497,28 +508,43 @@ class MusicalBandsplitSpecification(PerceptualBandsplitSpecification):
             self,
             nfft: int,
             fs: int,
-            n_bands: int,
-            f_min: float = 0.0,
-            f_max: float = None,
-            drop_dc_band: bool = False
+            config: MusicalBandsplitSpecsConfig, # Changed to use config
+            drop_dc_band: bool = False,
+            require_no_overlap: bool = False # Add this parameter
     ) -> None:
-        super().__init__(fbank_fn=musical_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band, require_no_overlap=require_no_overlap)
+
+    def _get_fbank_fn(self) -> Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor]:
+        return musical_filterbank
 
 
-def mel_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int): # Modified signature
-    # Re-implement melscale_fbanks if torchaudio.functional is not available or desired
-    # For now, keeping the original as it's commented out anyway.
-    # If this becomes an issue, a custom implementation will be needed.
-    # fb = taF.melscale_fbanks(
-    #             n_mels=n_bands,
-    #             sample_rate=fs,
-    #             f_min=f_min,
-    #             f_max=f_max,
-    #             n_freqs=n_freqs,
-    #     ).T
-    # fb[0, 0] = 1.0
-    # return fb
-    raise NotImplementedError("Mel filterbank not implemented without torchaudio.functional")
+def mel_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int, fs: int): # Modified signature to include fs
+    # Implement melscale_fbanks using torchaudio.functional
+    # n_freqs is the number of frequency bins in the spectrogram, which is all_freqs.shape[0]
+    n_freqs = all_freqs.shape[0]
+    
+    # f_min and f_max are derived from hz_points
+    f_min = hz_points[0].item()
+    f_max = hz_points[-1].item()
+
+    fb = taF.melscale_fbanks(
+                n_mels=n_bands,
+                sample_rate=fs,
+                f_min=f_min,
+                f_max=f_max,
+                n_freqs=n_freqs, # Changed n_fft to n_freqs
+                norm="slaney", # Common normalization for Mel filterbanks
+                mel_scale="htk", # Common mel scale for Mel filterbanks
+        ).T # Transpose to get (n_mels, n_freqs)
+
+    # Ensure that the sum of the filterbank weights for each frequency bin is 1
+    # This ensures that the sum of masks for each frequency bin is 1, preventing
+    # amplitude changes due to the bandsplit.
+    # Add a small epsilon to avoid division by zero for bins with no weight
+    epsilon = 1e-10
+    fb = fb / (fb.sum(axis=0, keepdims=True) + epsilon)
+
+    return fb
 
 
 class MelBandsplitSpecification(PerceptualBandsplitSpecification):
@@ -526,12 +552,15 @@ class MelBandsplitSpecification(PerceptualBandsplitSpecification):
             self,
             nfft: int,
             fs: int,
-            n_bands: int,
-            f_min: float = 0.0,
-            f_max: float = None,
-            drop_dc_band: bool = False
+            config: MelBandsplitSpecsConfig, # Changed to use config
+            drop_dc_band: bool = False,
+            require_no_overlap: bool = False # Add this parameter
     ) -> None:
-        super().__init__(fbank_fn=mel_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band, require_no_overlap=require_no_overlap)
+
+    def _get_fbank_fn(self) -> Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor]:
+        # Return a lambda to pass fs to mel_filterbank
+        return lambda all_freqs, hz_points, n_bands: mel_filterbank(all_freqs, hz_points, n_bands, self.fs)
 
 
 def bark_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int): # Modified signature
@@ -547,7 +576,7 @@ def bark_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: i
     #         high_freq=f_max,
     #         scale="constant"
     # )
-    # return torch.as_tensor(fb)
+    # return torch.as_as_tensor(fb)
     raise NotImplementedError("Bark filterbank not implemented without bark_fbanks")
 
 
@@ -556,12 +585,14 @@ class BarkBandsplitSpecification(PerceptualBandsplitSpecification):
             self,
             nfft: int,
             fs: int,
-            n_bands: int,
-            f_min: float = 0.0,
-            f_max: float = None,
-            drop_dc_band: bool = False
+            config: BarkBandsplitSpecsConfig, # Changed to use config
+            drop_dc_band: bool = False,
+            require_no_overlap: bool = False # Add this parameter
     ) -> None:
-        super().__init__(fbank_fn=bark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band, require_no_overlap=require_no_overlap)
+
+    def _get_fbank_fn(self) -> Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor]:
+        return bark_filterbank
 
 
 def triangular_bark_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int): # Modified signature
@@ -592,12 +623,14 @@ class TriangularBarkBandsplitSpecification(PerceptualBandsplitSpecification):
             self,
             nfft: int,
             fs: int,
-            n_bands: int,
-            f_min: float = 0.0,
-            f_max: float = None,
-            drop_dc_band: bool = False
+            config: TriangularBarkBandsplitSpecsConfig,
+            drop_dc_band: bool = False,
+            require_no_overlap: bool = False # Add this parameter
     ) -> None:
-        super().__init__(fbank_fn=triangular_bark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band, require_no_overlap=require_no_overlap)
+
+    def _get_fbank_fn(self) -> Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor]:
+        return triangular_bark_filterbank
 
 
 def minibark_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int): # Modified signature
@@ -617,12 +650,14 @@ class MiniBarkBandsplitSpecification(PerceptualBandsplitSpecification):
             self,
             nfft: int,
             fs: int,
-            n_bands: int,
-            f_min: float = 0.0,
-            f_max: float = None,
-            drop_dc_band: bool = False
+            config: MiniBarkBandsplitSpecsConfig, # Changed to use config
+            drop_dc_band: bool = False,
+            require_no_overlap: bool = False # Add this parameter
     ) -> None:
-        super().__init__(fbank_fn=minibark_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band, require_no_overlap=require_no_overlap)
+
+    def _get_fbank_fn(self) -> Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor]:
+        return minibark_filterbank
 
 
 def erb_filterbank(all_freqs: torch.Tensor, hz_points: torch.Tensor, n_bands: int) -> torch.Tensor: # Modified signature
@@ -662,25 +697,14 @@ class EquivalentRectangularBandsplitSpecification(PerceptualBandsplitSpecificati
             self,
             nfft: int,
             fs: int,
-            n_bands: int,
-            f_min: float = 0.0,
-            f_max: float = None,
-            drop_dc_band: bool = False
+            config: EquivalentRectangularBandsplitSpecsConfig, # Changed to use config
+            drop_dc_band: bool = False,
+            require_no_overlap: bool = False # Add this parameter
     ) -> None:
-        super().__init__(fbank_fn=erb_filterbank, nfft=nfft, fs=fs, n_bands=n_bands, f_min=f_min, f_max=f_max, drop_dc_band=drop_dc_band)
+        super().__init__(nfft=nfft, fs=fs, config=config, drop_dc_band=drop_dc_band, require_no_overlap=require_no_overlap)
 
-
-class BandsplitType(StrEnum): # Inherit from StrEnum
-    VOCAL = "vocal"
-    BASS = "bass"
-    DRUM = "drum"
-    OTHER = "other"
-    MUSICAL = "musical"
-    MEL = "mel"
-    BARK = "bark"
-    TRIBARK = "tribark"
-    ERB = "erb"
-    MINIBARK = "minibark"
+    def _get_fbank_fn(self) -> Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor]:
+        return erb_filterbank
 
 
 # Bandsplit Factory Function
@@ -688,20 +712,21 @@ def get_bandsplit_specs_factory(
     bandsplit_type: BandsplitType, # Use Enum type hint
     n_fft: int,
     fs: int,
-    n_bands: Optional[int] = None,
-    version: Optional[str] = None,
-    fixed_bands_config: Optional[DictConfig] = None,
-    drop_dc_band: bool = False # New parameter
+    config: BandsplitConfig, # Now takes a Pydantic config
+    drop_dc_band: bool = False, # New parameter
+    require_no_overlap: bool = False # Add this parameter
 ) -> BandsplitSpecification: # Return type is now BandsplitSpecification
     """
     Factory function to create and return band specifications based on type.
     """
     bandsplit_map = {
         BandsplitType.VOCAL: VocalBandsplitSpecification,
+        BandsplitType.VOCAL_V7: VocalBandsplitSpecification, # Added VOCAL_V7
         BandsplitType.BASS: BassBandsplitSpecification,
         BandsplitType.DRUM: DrumBandsplitSpecification,
         BandsplitType.OTHER: OtherBandsplitSpecification,
         BandsplitType.MUSICAL: MusicalBandsplitSpecification,
+        BandsplitType.MUSIC: MusicalBandsplitSpecification,
         BandsplitType.MEL: MelBandsplitSpecification,
         BandsplitType.BARK: BarkBandsplitSpecification,
         BandsplitType.TRIBARK: TriangularBarkBandsplitSpecification,
@@ -714,19 +739,8 @@ def get_bandsplit_specs_factory(
     if bandsplit_class is None:
         raise ValueError(f"Unknown bandsplit_type: {bandsplit_type}")
 
-    if bandsplit_type in [BandsplitType.VOCAL, BandsplitType.BASS, BandsplitType.DRUM, BandsplitType.OTHER]:
-        if fixed_bands_config is None:
-            raise ValueError(f"fixed_bands_config must be provided for {bandsplit_type.value} bandsplit_type")
-        if bandsplit_type == BandsplitType.VOCAL:
-            specs = bandsplit_class(nfft=n_fft, fs=fs, config=fixed_bands_config, version=version, drop_dc_band=drop_dc_band)
-        else:
-            specs = bandsplit_class(nfft=n_fft, fs=fs, config=fixed_bands_config, drop_dc_band=drop_dc_band)
-    elif bandsplit_type in [BandsplitType.MUSICAL, BandsplitType.MEL, BandsplitType.BARK, BandsplitType.TRIBARK, BandsplitType.ERB, BandsplitType.MINIBARK]:
-        if n_bands is None:
-            raise ValueError(f"n_bands must be provided for {bandsplit_type.value} bandsplit_type")
-        specs = bandsplit_class(nfft=n_fft, fs=fs, n_bands=n_bands, drop_dc_band=drop_dc_band)
-    else:
-        # This case should ideally not be reached due to the initial check
-        raise ValueError(f"Unhandled bandsplit_type: {bandsplit_type.value}")
+    # The config object is now directly passed and is already a Pydantic model
+    # The bandsplit_class constructor will handle the specific config type
+    specs = bandsplit_class(nfft=n_fft, fs=fs, config=config, drop_dc_band=drop_dc_band, require_no_overlap=require_no_overlap)
 
     return specs

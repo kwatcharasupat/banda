@@ -71,10 +71,8 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier]):
         """
         Initializes the MUSDB18Connector.
 
-        Args:
-            split (str): The dataset split (e.g., "train", "test", "val").
-            data_root (str): The root directory where the MUSDB18HQ dataset
-                             (specifically the intermediates/npz folder) is located.
+        This class handles loading track identifiers and providing paths to stem files
+        for the MUSDB18HQ dataset.
         """
         super().__init__(split=split, data_root=data_root)
         self.stem_path: str = os.path.join(self.data_root, split, "{track_filename}")

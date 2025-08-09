@@ -1,0 +1,52 @@
+# @package _group_
+
+# Dataset configuration for MUSDB18HQ
+# This configuration is designed to be used with Hydra's multirun feature.
+
+train_dataset_config:
+  _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+  config:
+    split: train
+    dataset_connector:
+      _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+      config:
+        split: train
+        data_root: "${paths.data_root}/musdb18hq/intermediates/npz" # Path relative to DATA_ROOT
+    fs: 44100
+    premix_transform:
+      _target_: banda.data.augmentations.base.ComposePreMixTransforms
+      transforms:
+      - _target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+        config:
+          chunk_size_seconds: 3.0
+          fs: 44100
+          align_sources: true
+    postmix_transform:
+      _target_: banda.data.augmentations.base.ComposePostMixTransforms
+      transforms:
+      - _target_: banda.data.augmentations.time_domain.Gain
+        config:
+          min_gain_db: -6.0
+          max_gain_db: 6.0
+      - _target_: banda.data.augmentations.time_domain.NormalizeAudio
+        config:
+          target_rms_db: -20.0
+
+val_dataset_config:
+  _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+  config:
+    split: val
+    dataset_connector:
+      _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+      config:
+        split: val
+        data_root: "${paths.data_root}/musdb18hq/intermediates/npz" # Path relative to DATA_ROOT
+    fs: 44100
+    premix_transform: null
+    postmix_transform: null
+
+input_channels: 2
+output_channels: 2
+hidden_features: 256
+num_sources: 4
+bandsplit: bandsplit_music_32

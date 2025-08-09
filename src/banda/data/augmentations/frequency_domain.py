@@ -11,7 +11,8 @@ import torchaudio.transforms as T
 from typing import Optional
 
 from banda.data.augmentations.base import PostMixTransform
-from banda.data.types import Identifier, TorchInputAudioDict
+from banda.data.batch_types import TorchInputAudioDict
+from banda.data.types import Identifier
 
 
 class RandomFrequencyMasking(PostMixTransform):

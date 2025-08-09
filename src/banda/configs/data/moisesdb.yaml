@@ -1,42 +1,31 @@
 # @package _group_
 
-_target_: banda.data.datamodule.SourceSeparationDataModule
-batch_size: 4
-num_workers: 8
-pin_memory: True
+# Dataset configuration for MoisesDB
+# This configuration is designed to be used with Hydra's multirun feature.
 
 train_dataset_config:
   _target_: banda.data.datasets.moisesdb.MoisesDBDataset
-  split: "train"
-  fs: 44100
-  dataset_connector:
-    _target_: banda.data.datasets.moisesdb.MoisesDBConnector
+  config:
     split: "train"
-    data_root: "$DATA_ROOT/moisesdb/intermediates/npz" # Update with actual path
+    data_root: "${paths.data_root}/moisesdb/intermediates/npz" # Update with actual path
   recompute_mixture: True
-  auto_load_mixture: False # Assuming mixture is not pre-computed in MoisesDB npz files
-  allowed_extensions: [".npz"]
 
 val_dataset_config:
   _target_: banda.data.datasets.moisesdb.MoisesDBDataset
-  split: "val"
-  fs: 44100
-  dataset_connector:
-    _target_: banda.data.datasets.moisesdb.MoisesDBConnector
+  config:
     split: "val"
-    data_root: "$DATA_ROOT/moisesdb/intermediates/npz" # Update with actual path
+    data_root: "${paths.data_root}/moisesdb/intermediates/npz" # Update with actual path
   recompute_mixture: True
-  auto_load_mixture: False
-  allowed_extensions: [".npz"]
 
 test_dataset_config:
   _target_: banda.data.datasets.moisesdb.MoisesDBDataset
-  split: "test"
-  fs: 44100
-  dataset_connector:
-    _target_: banda.data.datasets.moisesdb.MoisesDBConnector
+  config:
     split: "test"
-    data_root: "$DATA_ROOT/moisesdb/intermediates/npz" # Update with actual path
+    data_root: "${paths.data_root}/moisesdb/intermediates/npz" # Update with actual path
   recompute_mixture: True
-  auto_load_mixture: False
-  allowed_extensions: [".npz"]
+
+input_channels: 2
+output_channels: 2
+hidden_features: 256
+num_sources: 4
+bandsplit: bandsplit_music_32

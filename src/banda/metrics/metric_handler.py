@@ -60,7 +60,7 @@ class MetricHandler(nn.Module): # Inherit from nn.Module
                         if source_name in true_sources:
                             # Call the metric instance directly. This will update its internal state
                             # and return the computed value for the current input.
-                            value: torch.Tensor = metric_instance(sep_audio.to(pl_module.device), true_sources[source_name].to(pl_module.device))
+                            value: torch.Tensor = metric_instance(sep_audio.audio.to_device(pl_module.device), true_sources[source_name].audio.to_device(pl_module.device))
                             current_step_metric_values.append(value)
                     if current_step_metric_values:
                         avg_metric_value: torch.Tensor = torch.stack(current_step_metric_values).mean()
@@ -75,7 +75,7 @@ class MetricHandler(nn.Module): # Inherit from nn.Module
                             logger.debug(f"MetricHandler.update_step_metrics: Metric '{metric_name}' device: {metric_instance.device}")
                         # Ensure inputs to metrics are on the correct device
                         # Update all metrics in the collection
-                        self.metrics.update(sep_audio.to(pl_module.device), true_sources[source_name].to(pl_module.device))
+                        self.metrics.update(sep_audio.audio.to_device(pl_module.device), true_sources[source_name].audio.to_device(pl_module.device))
 
     def compute_and_log_epoch_metrics(self, pl_module: pl.LightningModule, stage: str) -> None:
         """

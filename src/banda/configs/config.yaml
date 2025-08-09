@@ -1,4 +1,18 @@
-# @package _global_
-
 defaults:
-  - train_bandit_musdb18hq_test
+  - _self_
+  - model: bandit
+  - loss: default
+  - metrics: default
+  - optimizer: default
+  - trainer: default
+  - experiment: test_run_4_bandit_erb32_gru # Default experiment for quick testing
+
+project_root: ${oc.env:PROJECT_ROOT,.}
+experiment_name: bandit_musdb18hq_test
+seed: 42
+log_level: INFO
+
+paths:
+  output_dir: ${hydra.run.dir}
+  log_dir: ${hydra.run.dir}/logs
+  data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data} # Added default DATA_ROOT

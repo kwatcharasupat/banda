@@ -6,4 +6,4 @@ emb_dim: 128 # Added emb_dim
 rnn_dim: 256
 bidirectional: True
 rnn_type: "GRU" # Set to GRU as requested
-tf_dropout: 0.0
+dropout: 0.0 # Changed from tf_dropout to dropout

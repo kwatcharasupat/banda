@@ -9,11 +9,12 @@ from abc import abstractmethod
 from typing import List, Union
 import importlib
 
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, Field, Extra # Added Field import
 from omegaconf import DictConfig
 import hydra
 
-from banda.data.types import Identifier, NumPySourceDict, TorchInputAudioDict
+from banda.data.batch_types import TorchInputAudioDict
+from banda.data.types import Identifier, NumPySourceDict
 
 
 class _TransformConfig(BaseModel):
@@ -23,7 +24,7 @@ class _TransformConfig(BaseModel):
 
 class TransformConfig(BaseModel): # Inherit directly from BaseModel
     model_config = {'arbitrary_types_allowed': True}
-    target_: str # Use target_ instead of _target_
+    target_: str = Field(...) # Reverted to target_
     config: DictConfig # Use DictConfig for nested config
 
 class Transform:
@@ -35,15 +36,18 @@ class Transform:
     def from_config(cls, config: DictConfig): # Change to DictConfig
         """
         Create a Transform instance from a configuration.
-
         Args:
             config (DictConfig): Configuration for the transform.
-
         Returns:
             Transform: An instance of the Transform class.
         """
-        class_path = config.target_
-        kwargs = {k: v for k, v in config.items() if k != 'target_'}
+        class_path = config._target_ # Use _target_
+        
+        # Extract kwargs from the 'config' field if it exists, otherwise from the top-level config
+        if hasattr(config, 'config') and isinstance(config.config, DictConfig):
+            kwargs = {k: v for k, v in config.config.items()}
+        else:
+            kwargs = {k: v for k, v in config.items() if k != '_target_'}
 
         module_name, class_name = class_path.rsplit(".", 1)
         module = importlib.import_module(module_name)

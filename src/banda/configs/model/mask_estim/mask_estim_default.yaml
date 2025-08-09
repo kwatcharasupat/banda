@@ -1,9 +1,11 @@
 _target_: banda.models.common_components.configs.common_configs.MaskEstimationConfig
 
 # Mask Estimation Configuration
+mask_estimation_type: non_overlapping
 mlp_dim: 512
 hidden_activation: "Tanh"
 hidden_activation_kwargs: null
 complex_mask: True
 use_freq_weights: False
-in_channel: ${model.in_channel} # Added in_channel
+in_channel: ${model.input_channels}
+norm_mlp_cls: banda.models.common_components.mask_estimation.mask_estimation_modules.NormMLP # Added norm_mlp_cls

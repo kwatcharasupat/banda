@@ -1,0 +1,100 @@
+_wandb:
+    value:
+        cli_version: 0.21.0
+        e:
+            m3y4apdvsl181954lrpdzt09w7uidthc:
+                args:
+                    - -m
+                    - experiment=test_run_5_bandit_mel32_gru
+                codePath: src/banda/train.py
+                codePathLocal: src/banda/train.py
+                email: kwatcharasupat@gatech.edu
+                executable: /Users/kwatcharasupat/miniforge3/envs/banda/bin/python
+                git:
+                    commit: 0b7153e9031f81c46036480560bb3b6805b0d454
+                    remote: https://github.com/kwatcharasupat/banda.git
+                host: kwatcharasupat-2.local
+                os: macOS-15.5-arm64-arm-64bit
+                program: /Users/kwatcharasupat/personal/banda/src/banda/train.py
+                python: CPython 3.12.11
+                root: outputs/2025-08-08/15-50-36
+                startedAt: "2025-08-08T21:50:36.622512Z"
+                writerId: m3y4apdvsl181954lrpdzt09w7uidthc
+        m: []
+        python_version: 3.12.11
+        t:
+            "1":
+                - 1
+                - 9
+                - 50
+                - 103
+            "2":
+                - 1
+                - 9
+                - 50
+                - 103
+            "3":
+                - 16
+            "4": 3.12.11
+            "5": 0.21.0
+            "12": 0.21.0
+            "13": darwin-arm64
+data:
+    value:
+        train_dataset_config:
+            config:
+                dataset_connector:
+                    config:
+                        data_root: /Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz
+        val_dataset_config:
+            config:
+                dataset_connector:
+                    config:
+                        data_root: /Users/kwatcharasupat/personal/data/musdb18hq/intermediates/npz
+experiment_name:
+    value: bandit_musdb18hq_test
+log_level:
+    value: INFO
+loss:
+    value:
+        _target_: banda.losses.separation_loss_handler.SeparationLossHandler
+        loss_fn:
+            _target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
+            hop_lengths:
+                - 512
+                - 128
+            log_scale: false
+            mag_weight: 1
+            n_ffts:
+                - 2048
+                - 512
+            phase_weight: 0
+            win_lengths:
+                - 2048
+                - 512
+metrics:
+    value:
+        _target_: torchmetrics.audio.ScaleInvariantSignalNoiseRatio
+model:
+    value:
+        _target_: banda.models.core_models.bandit_separator.Bandit
+        input_channels: 2
+        tfmodel: tfmodel_rnn_gru
+optimizer:
+    value:
+        _target_: torch.optim.Adam
+        lr: 0.001
+paths:
+    value:
+        data_dir: ./data
+        log_dir: outputs/2025-08-08/15-50-36/logs
+        output_dir: outputs/2025-08-08/15-50-36
+seed:
+    value: 42
+trainer:
+    value:
+        _target_: pytorch_lightning.Trainer
+        accelerator: auto
+        devices: auto
+        log_every_n_steps: 50
+        max_epochs: 5

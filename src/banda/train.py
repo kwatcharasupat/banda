@@ -5,6 +5,7 @@
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 
 
+import logging
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import pytorch_lightning as pl
@@ -12,11 +13,13 @@ import pytorch_lightning.callbacks as pl_callbacks
 import torch
 import hydra.utils
 from typing import Dict, Any, List, Tuple
+import structlog # Added import for structlog
 
 from banda.utils.logging import configure_logging
 from pytorch_lightning.loggers import WandbLogger
 from banda.tasks.separation import SeparationTask
 from banda.models.core_models.banquet_separator import Banquet
+from banda.models.core_models.bandit_separator import Bandit # Import Bandit
 from banda.data.datamodule import SourceSeparationDataModule
 import wandb
 from hydra.core.hydra_config import HydraConfig
@@ -25,6 +28,7 @@ import os
 from banda.utils.registry import MODELS_REGISTRY, LOSSES_REGISTRY, DATASETS_REGISTRY, TASKS_REGISTRY
 from banda.metrics.metric_handler import MetricHandler # Import MetricHandler
 
+logger = structlog.get_logger(__name__) # Added logger initialization
 
 @hydra.main(config_path="configs", config_name="config", version_base="1.3")
 def train(cfg: DictConfig) -> None:
@@ -62,21 +66,15 @@ def train(cfg: DictConfig) -> None:
         "paths": {
             "output_dir": output_dir,
             "log_dir": os.path.join(output_dir, "logs"),
-            "data_dir": cfg.paths.data_dir # Directly assign, it's already resolved by Hydra
         }
     }
 
     # Initialize wandb
     wandb.init(project="banda", config=wandb_config_dict, dir=output_dir)
 
-    logger = hydra.utils.log
-    configure_logging(
-        log_level=cfg.get("log_level", "INFO"),
-        log_format=cfg.get("log_format", "console"),
-        log_file=os.path.join(output_dir, "train.log")
-    )
+    configure_logging(log_level=cfg.get("log_level", "INFO"))
 
-    logger.info(f"Starting training with configuration:\n{OmegaConf.to_yaml(cfg)}")
+    logging.info(f"Starting training with configuration:\n{OmegaConf.to_yaml(cfg)}")
 
     # Set random seed for reproducibility
     pl.seed_everything(cfg.seed)
@@ -85,7 +83,10 @@ def train(cfg: DictConfig) -> None:
     datamodule: pl.LightningDataModule = SourceSeparationDataModule.from_config(cfg.data)
     
     # 2. Instantiate Model
-    model: pl.LightningModule = Banquet.from_config(cfg.model)
+    if "query_features" in cfg.model:
+        model: pl.LightningModule = Banquet.from_config(cfg) # Pass full cfg
+    else:
+        model: pl.LightningModule = Bandit.from_config(cfg) # Pass full cfg
 
     # 3. Instantiate Loss Function
     loss_handler: torch.nn.Module = hydra.utils.instantiate(cfg.loss)
@@ -106,7 +107,7 @@ def train(cfg: DictConfig) -> None:
 
     # 6. Instantiate Trainer
     trainer_config: DictConfig = cfg.trainer
-    trainer_kwargs: Dict[str, Any] = {k: v for k, v in trainer_config.items() if k != 'target_'}
+    trainer_kwargs: Dict[str, Any] = {k: v for k, v in trainer_config.items() if k != '_target_'} # Corrected filter
     wandb_logger: WandbLogger = WandbLogger(project="banda", log_model="all", save_dir=output_dir)
     trainer: pl.Trainer = pl.Trainer(
         logger=wandb_logger,
@@ -128,11 +129,11 @@ def train(cfg: DictConfig) -> None:
         task.to(trainer.device)
 
     # 7. Train the model
-    logger.info("Starting model training...")
+    logging.info("Starting model training...")
     try:
         print(datamodule.__class__)
         trainer.fit(task, datamodule=datamodule)
-        logger.info("Model training completed.")
+        logging.info("Model training completed.")
     except Exception as e:
         logger.error(f"An error occurred during training: {e}")
         raise e
@@ -140,10 +141,10 @@ def train(cfg: DictConfig) -> None:
         wandb.finish()
 
     # 8. Test the model
-    logger.info("Starting model testing...")
+    logging.info("Starting model testing...")
     try:
         trainer.test(task, datamodule=datamodule)
-        logger.info("Model testing completed.")
+        logging.info("Model testing completed.")
     except Exception as e:
         logger.error(f"An error occurred during testing: {e}")
         raise e

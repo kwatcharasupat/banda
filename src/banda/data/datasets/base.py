@@ -15,6 +15,7 @@ from typing import (
     Optional,
     Dict,
     Any,
+    Type, # Added Type import
 )
 
 import numpy as np
@@ -35,9 +36,9 @@ from banda.data.augmentations.base import (
 from banda.data.types import (
     GenericIdentifier,
     NumPySourceDict,
-    TorchInputAudioDict,
     Identifier,
 )
+from banda.data.batch_types import TorchInputAudioDict
 from banda.core.interfaces import BaseDataset
 from banda.data.batch_types import AudioBatch
 
@@ -62,7 +63,7 @@ class DatasetConnectorConfig(BaseModel):
         config (Dict[str, Any]): A dictionary of configuration parameters for the connector.
     """
     model_config = {'arbitrary_types_allowed': True}
-    target_: str = Field(...)
+    target_: str = Field(...) # Reverted to target_
     config: Dict[str, Any] = Field({})
 
 class DatasetConnector(ABC, Generic[GenericIdentifier]):
@@ -152,13 +153,16 @@ class DatasetConnector(ABC, Generic[GenericIdentifier]):
             AttributeError: If the specified class or module cannot be found.
             TypeError: If the configuration parameters do not match the connector's constructor.
         """
-        class_path: str = config.target_
+        class_path: str = config._target_ # Kept _target_ here as it's from Hydra config
         
         if hasattr(config, 'config') and isinstance(config.config, DictConfig):
             kwargs: Dict[str, Any] = {k: v for k, v in config.config.items()}
         else:
-            kwargs: Dict[str, Any] = {k: v for k, v in config.items() if k != 'target_'}
+            kwargs: Dict[str, Any] = {k: v for k, v in config.items() if k != '_target_'} # Kept _target_ here
 
+        # Expand environment variables in data_root if present
+        if 'data_root' in kwargs:
+            kwargs['data_root'] = os.path.expandvars(kwargs['data_root'])
         module_name, class_name = class_path.rsplit(".", 1)
         module = importlib.import_module(module_name)
         connector_cls: Type["DatasetConnector"] = getattr(module, class_name)
@@ -478,14 +482,14 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
     ) -> TorchInputAudioDict:
         """
         Retrieves and processes a dictionary of audio data (sources and mixture).
-
+ 
         This method handles loading stems, applying pre-mix transforms,
         computing or loading the mixture, and applying post-mix transforms.
-
+ 
         Args:
             stems (List[str]): A list of stem names to retrieve.
             identifier (GenericIdentifier): The unique identifier for the track.
-
+ 
         Returns:
             TorchInputAudioDict: A Pydantic model containing the mixture and source
                 audio data as PyTorch tensors.
@@ -513,7 +517,7 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
     def identifiers(self) -> List[GenericIdentifier]:
         """
         Returns the list of track identifiers from the dataset connector.
-
+ 
         Returns:
             List[GenericIdentifier]: A list of unique identifiers for all tracks.
         """
@@ -523,7 +527,7 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
     def n_tracks(self) -> int:
         """
         Returns the total number of tracks from the dataset connector.
-
+ 
         Returns:
             int: The total number of tracks.
         """
@@ -536,10 +540,10 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
     ) -> "SourceSeparationDataset":
         """
         Creates a SourceSeparationDataset instance from a configuration object.
-
+ 
         Args:
             config (DictConfig): A DictConfig object containing the dataset configuration.
-
+ 
         Returns:
             SourceSeparationDataset: An instance of the configured dataset.
         """
