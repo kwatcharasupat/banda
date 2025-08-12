@@ -1,0 +1,12 @@
+# @package _global_
+
+# Common experiment settings
+project_root: ${oc.env:PROJECT_ROOT,.}
+experiment_name: default_experiment
+seed: 42
+log_level: INFO
+
+paths:
+  output_dir: ${hydra.run.dir}
+  log_dir: ${hydra.run.dir}/logs
+  data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data}

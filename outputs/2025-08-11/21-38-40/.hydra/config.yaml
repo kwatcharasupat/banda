@@ -1,0 +1,67 @@
+project_root: ${oc.env:PROJECT_ROOT,.}
+experiment_name: default_experiment
+seed: 42
+log_level: INFO
+paths:
+  output_dir: ${hydra.run.dir}
+  log_dir: ${hydra.run.dir}/logs
+  data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data}
+model:
+  model:
+    _target_: banda.models.separator.Separator
+    stft_config:
+      _target_: banda.models.common_components.spectral_components.spectral_base.STFTConfig
+      n_fft: 2048
+      hop_length: 512
+      win_length: 2048
+      window: hann
+      center: true
+      pad_mode: constant
+      freeze_parameters: true
+    bandsplit_module_config:
+      _target_: banda.models.common_components.spectral_components.bandsplit.BandsplitModuleConfig
+      n_bands: 1
+      emb_dim: 128
+      input_channels: 2
+    mask_estimation_config:
+      _target_: banda.models.common_components.mask_estimation.mask_estimation_modules.MaskEstimationConfig
+      emb_dim: 128
+      output_channels: 2
+    time_frequency_model_config:
+      _target_: banda.models.common_components.time_frequency_models.tf_models.RNNTFModelConfig
+      n_modules: 12
+      emb_dim: 128
+      dropout: 0.0
+      rnn_type: LSTM
+      bidirectional: true
+      rnn_dim: 256
+      max_seq_len_bands: null
+      max_seq_len_time: null
+  _target_: banda.models.core_models.bandit_separator.Bandit
+  input_channels: 2
+  output_channels: 2
+  hidden_features: 128
+  num_sources: 4
+  stft_config:
+    window: hann
+  time_frequency_model_config:
+    rnn_type: gru
+    n_modules: 2
+    rnn_dim: 256
+    dropout: 0.1
+    bidirectional: true
+    emb_dim: 128
+  bandsplit_module_config:
+    band_specs:
+      _target_: banda.models.common_components.bandsplit_configs.MusicalBandsplitSpecsConfig
+      n_bands: 48
+      drop_dc_band: true
+    n_fft: ${model.stft_config.n_fft}
+    fs: ${data.train_dataset_config.fs}
+    require_no_overlap: false
+    require_no_gap: false
+    normalize_channel_independently: false
+    treat_channel_as_feature: false
+    drop_dc_band: true
+experiment:
+  name: test_run_1_bandit_music48_gru

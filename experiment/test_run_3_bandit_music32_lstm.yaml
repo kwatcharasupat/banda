@@ -1,0 +1,49 @@
+# @package _global_
+
+defaults:
+  - /data: default
+  - /model: bandit # Inherit from the bandit model config
+  - /loss: default
+  - /metrics: default
+  - /optimizer: default
+  - /trainer: default
+  - /logger: wandb
+
+experiment:
+  name: "test_run_3_bandit_music32_lstm"
+
+model:
+  hidden_features: 256
+  stft_config:
+    window: hann
+    return_complex: true
+  bandsplit_module_config:
+    band_specs:
+      _target_: banda.models.common_components.bandsplit_configs.MusicalBandsplitSpecsConfig
+      n_bands: 32
+      drop_dc_band: true
+    n_fft: ${model.stft_config.n_fft}
+    fs: ${data.train_dataset_config.fs}
+    require_no_overlap: True
+    require_no_gap: True
+    normalize_channel_independently: False
+    treat_channel_as_feature: False
+    drop_dc_band: True
+  time_frequency_model_config:
+    rnn_type: LSTM
+    n_modules: 12
+    emb_dim: 128
+    rnn_dim: 256
+    bidirectional: True
+    dropout: 0.0
+  mask_estimation_config:
+    _target_: banda.models.common_components.mask_estimation.mask_estimation_modules.MaskEstimationConfig
+    emb_dim: 128
+    output_channels: 2
+    mlp_dim: 512
+    hidden_activation: "Tanh"
+    hidden_activation_kwargs: null
+    complex_mask: True
+    use_freq_weights: False
+    in_channel: ${model.input_channels}
+    norm_mlp_cls: banda.models.common_components.mask_estimation.mask_estimation_modules.NormMLP

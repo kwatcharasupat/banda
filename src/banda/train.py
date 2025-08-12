@@ -16,10 +16,13 @@ from typing import Dict, Any, List, Tuple, Optional
 import sys
 import os
 
-# Add the parent directory of 'banda' to sys.path to enable package-relative imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 from banda.utils.logging import configure_logging
+from banda.configs.train_configs import TrainConfig, TrainerConfig, LoggerConfig, OptimizerConfig
+from banda.metrics.metric_handler import MetricsConfig
+from banda.losses.separation_loss_handler import LossConfig
+from banda.data.datamodule import DatasetConfig
+from banda.models.common_components.configs.common_configs import BaseSeparatorConfig, BanditSeparatorConfig, BanquetSeparatorConfig
+from banda.models.common_components.time_frequency_models.tf_models import RNNTFModelConfig, TransformerTFModelConfig, MambaTFModelConfig
 from pytorch_lightning.loggers import WandbLogger
 from banda.tasks.separation import SeparationTask
 from banda.models.core_models.banquet_separator import Banquet
@@ -30,14 +33,13 @@ from hydra.core.hydra_config import HydraConfig
 
 from banda.utils.registry import MODELS_REGISTRY, LOSSES_REGISTRY, DATASETS_REGISTRY, TASKS_REGISTRY
 from banda.metrics.metric_handler import MetricHandler # Import MetricHandler
-from banda.configs.train_configs import TrainConfig, TrainerConfig, LoggerConfig, OptimizerConfig # Import Pydantic configs
 from banda.metrics.metric_handler import MetricsConfig
 from banda.losses.separation_loss_handler import LossConfig
 from banda.data.datamodule import DatasetConfig # Import Pydantic configs
 from banda.models.common_components.configs.common_configs import BaseSeparatorConfig, BanditSeparatorConfig, BanquetSeparatorConfig # Import BaseSeparatorConfig
 from banda.models.common_components.time_frequency_models.tf_models import RNNTFModelConfig, TransformerTFModelConfig, MambaTFModelConfig # Import TFModelConfigs
 
-@hydra.main(config_path="configs", config_name="config", version_base="1.3") # Point to the top-level config.yaml
+@hydra.main(config_path="../../experiment", version_base="1.3") # Point to the top-level config.yaml
 def train(cfg: DictConfig) -> None:
     """
     Main training function for the banda project.
@@ -100,20 +102,16 @@ def train(cfg: DictConfig) -> None:
     datamodule: pl.LightningDataModule = SourceSeparationDataModule.from_config(train_config.data)
     
     # 2. Instantiate Model
-    # Use the appropriate model class based on the Pydantic config type
-    if isinstance(train_config.model, BanquetSeparatorConfig):
-        model: pl.LightningModule = Banquet.from_config(train_config.model)
-    elif isinstance(train_config.model, BanditSeparatorConfig):
-        model: pl.LightningModule = Bandit.from_config(train_config.model)
+    # This allows for generalization to any new separator model that inherits from BaseSeparator
+    # and has a corresponding Pydantic config inheriting from BaseSeparatorConfig.
+    # The model's from_config method should be registered in MODELS_REGISTRY.
+    logging.info(f"Derived model registry key: {train_config.model.__class__.__name__.replace('SeparatorConfig', '').lower()}")
+    model_cls = MODELS_REGISTRY.get(train_config.model.target_.split('.')[-1].lower())
+    if model_cls:
+        model: pl.LightningModule = model_cls.from_config(train_config.model)
     else:
-        # This allows for generalization to any new separator model that inherits from BaseSeparator
-        # and has a corresponding Pydantic config inheriting from BaseSeparatorConfig.
-        # The model's from_config method should be registered in MODELS_REGISTRY.
-        model_cls = MODELS_REGISTRY.get(train_config.model.__class__.__name__.replace("SeparatorConfig", "").lower())
-        if model_cls:
-            model: pl.LightningModule = model_cls.from_config(train_config.model)
-        else:
-            raise ValueError(f"Unsupported model configuration type or model not registered: {type(train_config.model)}")
+        raise ValueError(f"Unsupported model configuration type or model not registered: {type(train_config.model)}")
+        
 
     # 3. Instantiate Loss Function
     loss_handler: LossConfig = LossConfig.from_config(train_config.loss) # Changed to LossConfig

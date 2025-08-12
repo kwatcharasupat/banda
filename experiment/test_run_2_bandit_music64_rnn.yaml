@@ -1,0 +1,35 @@
+# @package _global_
+
+defaults:
+  - /data: default
+  - /model: bandit # Inherit from the bandit model config
+  - /loss: default
+  - /metrics: default
+  - /optimizer: default
+  - /trainer: default
+  - /logger: wandb
+
+experiment:
+  name: "test_run_2_bandit_music64_rnn"
+
+model:
+  hidden_features: 256
+  stft_config:
+    return_complex: true
+  bandsplit_module_config:
+    band_specs:
+      _target_: banda.models.common_components.bandsplit_configs.MusicalBandsplitSpecsConfig
+      n_bands: 64
+      band_scale: linear
+      drop_dc_band: true
+    n_fft: ${model.stft_config.n_fft}
+    fs: ${data.train_dataset_config.fs}
+    drop_dc_band: true
+    require_no_overlap: false
+  time_frequency_model_config:
+    rnn_type: gru
+    n_modules: 2
+    rnn_dim: 512
+    dropout: 0.1
+    bidirectional: true
+    emb_dim: 64

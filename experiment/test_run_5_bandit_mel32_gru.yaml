@@ -1,0 +1,34 @@
+# @package _global_
+
+defaults:
+  - /data: default
+  - /model: bandit # Inherit from the bandit model config
+  - /loss: default
+  - /metrics: default
+  - /optimizer: default
+  - /trainer: default
+  - /logger: wandb
+
+experiment:
+  name: "test_run_5_bandit_mel32_gru"
+
+model:
+  stft_config:
+    window: hann
+  bandsplit_module_config:
+    band_specs:
+      _target_: banda.models.common_components.bandsplit_configs.MelBandsplitSpecsConfig
+      n_bands: 32
+    n_fft: ${model.stft_config.n_fft}
+    fs: ${data.train_dataset_config.fs}
+    require_no_overlap: False
+    require_no_gap: True
+    normalize_channel_independently: False
+    treat_channel_as_feature: False
+  time_frequency_model_config:
+    rnn_type: gru
+    n_modules: 12
+    emb_dim: 128
+    rnn_dim: 256
+    bidirectional: True
+    dropout: 0.0
