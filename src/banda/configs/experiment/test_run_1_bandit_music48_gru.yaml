@@ -1,17 +1,19 @@
 # @package _global_
 
+
+
 experiment:
   name: "test_run_1_bandit_music48_gru"
 
 data:
-  _target_: banda.data.datamodule.SourceSeparationDataModule
+  _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
   dataset_name: musdb18hq
   batch_size: 4
   num_workers: 8
   pin_memory: true
   data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data}
   train_dataset_config:
-    _target_: ${DATASETS_REGISTRY.get:musdb18hq}
+    _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
     config:
       split: train
       dataset_connector:
@@ -39,7 +41,7 @@ data:
           config:
             target_rms_db: -20.0
   val_dataset_config:
-    _target_: ${DATASETS_REGISTRY.get:musdb18hq}
+    _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
     config:
       split: val
       dataset_connector:
@@ -52,7 +54,7 @@ data:
       postmix_transform: null
 
 model:
-  _target_: ${MODELS_REGISTRY.get:bandit}
+  _target_: banda.models.core_models.bandit_separator.Bandit
   input_channels: 2
   output_channels: 2
   hidden_features: 128
@@ -70,7 +72,7 @@ model:
     pad_mode: "constant"
     onesided: True
   tfmodel:
-    _target_: ${MODELS_REGISTRY.get:seq_band_modelling}
+    _target_: banda.models.common_components.time_frequency_models.tf_models.RNNTFModel
     rnn_type: gru
     n_modules: 2
     hidden_features: 256

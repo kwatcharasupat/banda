@@ -1,117 +1,66 @@
+#  Copyright (c) 2025 by Karn Watcharasupat and contributors. All rights reserved.
+#  This project is dual-licensed:
+#  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
+#     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
+#  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
+#
+
+from typing import Any, Dict, List, Optional, Union
 import torch
-import torch.nn as nn
-from typing import Dict, List, Union
-import structlog
-from omegaconf import OmegaConf, DictConfig
-import hydra.utils
+from torch import nn
+from pydantic import BaseModel, Field, ConfigDict
 
+# from banda.utils.registry import LOSSES_REGISTRY # Removed as per previous instructions
 
-logger = structlog.get_logger(__name__)
+class LossConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    target_: str = Field(alias="_target_") # Changed _target_ to target_
+    name: str
+    weight: float = 1.0
+    params: Optional[Dict[str, Any]] = None
 
-
-from banda.data.batch_types import (
-    SeparationBatch,
-    FixedStemSeparationBatch,
-    BaseSeparationBatch, # Import the new base class
-    QueryAudioSeparationBatch,
-    QueryClassSeparationBatch,
-    AudioSignal, # Import AudioSignal
-)
-from banda.losses.base import LossHandler
-from banda.losses.loss_configs import LossCollectionConfig
-
-
-class SeparationLossHandler(LossHandler):
-    """
-    Handles loss calculation for various source separation tasks based on batch type.
-    """
-
-    def __init__(self, loss_config: DictConfig): # Changed type hint to DictConfig
-        """
-        Args:
-            loss_config (DictConfig): A Hydra DictConfig containing
-                                      all necessary parameters for the loss functions.
-        """
-        super().__init__(None) # Pass None to base LossHandler
-        
-        # Explicitly create LossCollectionConfig from the DictConfig
-        parsed_loss_config = LossCollectionConfig(**loss_config)
-
+class SeparationLossHandler(nn.Module):
+    def __init__(self, loss_configs: List[LossConfig]):
+        super().__init__()
         self.loss_fns = nn.ModuleDict()
         self.loss_weights = {}
-        for name, config in parsed_loss_config.losses.items(): # Use parsed_loss_config
-            # Manually instantiate the loss function using class_target
-            loss_class = hydra.utils.get_class(config.fn.class_target)
-            loss_params = {k: v for k, v in config.fn.items() if k != "class_target"}
-            self.loss_fns[name] = loss_class(**loss_params)
-            self.loss_weights[name] = config.weight
 
+        for loss_cfg in loss_configs:
+            loss_fn_class = self._get_loss_class(loss_cfg.name)
+            loss_fn = loss_fn_class(**(loss_cfg.params or {}))
+            self.loss_fns[loss_cfg.name] = loss_fn
+            self.loss_weights[loss_cfg.name] = loss_cfg.weight
 
-    def calculate_loss(
-        self,
-        predictions: Dict[str, AudioSignal], # Changed type hint to AudioSignal
-        batch: SeparationBatch,
-    ) -> torch.Tensor:
-        """
-        Calculates the loss based on the provided predictions and batch.
-        This method is generalized to handle both fixed-stem and query-based separation,
-        as both models now return Dict[str, AudioSignal].
-
-        Args:
-            predictions (Dict[str, AudioSignal]): A dictionary of predicted source AudioSignal objects.
-            batch (SeparationBatch): The input batch containing true sources and other data.
-
-        Returns:
-            torch.Tensor: The calculated loss.
-        """
-        # Initialize total_loss on the correct device
-        if not predictions:
-            return torch.tensor(0.0) # No predictions, no loss
-
-        # Get device from the first available audio tensor in predictions
-        first_prediction_key = next(iter(predictions))
-        if predictions[first_prediction_key].audio is not None:
-            device = predictions[first_prediction_key].audio.device
-        elif predictions[first_prediction_key].spectrogram is not None:
-            device = predictions[first_prediction_key].spectrogram.device
+    def _get_loss_class(self, name: str):
+        # This is a placeholder. In a real scenario, you'd map names to actual loss classes.
+        # For example, using a registry or a dictionary lookup.
+        if name == "mse":
+            return nn.MSELoss
+        elif name == "l1":
+            return nn.L1Loss
         else:
-            # Fallback if no audio or spectrogram is present in any prediction
-            device = torch.device("cpu") 
-        total_loss = torch.tensor(0.0, device=device)
+            raise ValueError(f"Unknown loss function: {name}")
 
-        true_sources = batch.sources # true_sources is Dict[str, AudioSignal]
-        num_sources_with_predictions = 0
+    def forward(self, predictions: Dict[str, torch.Tensor], targets: Dict[str, torch.Tensor]) -> torch.Tensor:
+        total_loss = 0.0
+        for loss_name, loss_fn in self.loss_fns.items():
+            # Assuming predictions and targets dicts have keys matching loss names or a common key
+            # This logic might need to be more sophisticated depending on your loss functions
+            if loss_name in predictions and loss_name in targets:
+                loss = loss_fn(predictions[loss_name], targets[loss_name])
+            elif "mixture" in predictions and "mixture" in targets: # Example for a common case
+                loss = loss_fn(predictions["mixture"], targets["mixture"])
+            else:
+                raise KeyError(f"Loss '{loss_name}' cannot find corresponding predictions/targets.")
+            
+            total_loss += loss * self.loss_weights[loss_name]
+        return total_loss
 
-        # Iterate over predictions and match with true sources
-        for source_name, sep_audio_signal in predictions.items(): # sep_audio_signal is AudioSignal
-            if source_name in true_sources:
-                true_audio_signal = true_sources[source_name] # true_audio_signal is AudioSignal
-                num_sources_with_predictions += 1
-                for loss_name, loss_fn in self.loss_fns.items():
-                    weight = self.loss_weights.get(loss_name, 1.0)
-                    
-                    # Use audio or spectrogram for loss calculation based on availability
-                    if sep_audio_signal.audio is not None and true_audio_signal.audio is not None:
-                        loss = loss_fn(sep_audio_signal.audio, true_audio_signal.audio)
-                    elif sep_audio_signal.spectrogram is not None and true_audio_signal.spectrogram is not None:
-                        loss = loss_fn(sep_audio_signal.spectrogram, true_audio_signal.spectrogram)
-                    else:
-                        logger.warning(f"Skipping loss for {source_name} due to missing audio/spectrogram in AudioSignal.")
-                        continue
-                    total_loss += loss * weight
-        
-        if num_sources_with_predictions > 0:
-            return total_loss / num_sources_with_predictions
+    @classmethod
+    def from_config(cls, config: Union[LossConfig, List[LossConfig]]) -> "SeparationLossHandler":
+        if isinstance(config, list):
+            return cls(config)
         else:
-            return torch.tensor(0.0, device=device) # Return 0 loss on the correct device if no matching sources
+            return cls([config])
 
-    def to(self, device: torch.device) -> None:
-        """
-        Moves all internal loss functions to the specified device.
-
-        Args:
-            device (torch.device): The target device.
-        """
-        logger.debug(f"SeparationLossHandler.to: Moving loss functions to device {device}")
-        for loss_fn in self.loss_fns.values():
-            loss_fn.to(device)
+# No model_rebuild() calls needed here

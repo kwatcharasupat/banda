@@ -1,94 +1,62 @@
+#  Copyright (c) 2025 by Karn Watcharasupat and contributors. All rights reserved.
+#  This project is dual-licensed:
+#  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
+#     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
+#  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
+#
+
+from typing import Any, Dict, List, Optional, Union
 import torch
-import torch.nn as nn # Import nn
-import torchmetrics
-import logging
-from typing import Dict, Any, Union, List
-import pytorch_lightning as pl
-from banda.utils.registry import METRICS_REGISTRY
-import structlog
-logger = structlog.get_logger(__name__)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
+from torch import nn
+from pydantic import BaseModel, Field, ConfigDict
 
+# from banda.utils.registry import METRICS_REGISTRY # Removed as per previous instructions
 
-@METRICS_REGISTRY.register("metric_handler")
-class MetricHandler(nn.Module): # Inherit from nn.Module
-    """
-    Handles metric calculation, updating, and logging for source separation tasks.
+class MetricsConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    target_: str = Field(alias="_target_") # Changed _target_ to target_
+    name: str
+    params: Optional[Dict[str, Any]] = None
 
-    This class encapsulates the logic for updating metrics, making the PyTorch LightningModule
-    more generic and focused on the core training loop. It supports single or multiple metrics.
-    """
-    def __init__(self, metric_fn: Union[torchmetrics.Metric, Dict[str, torchmetrics.Metric]]) -> None:
-        """
-        Initializes the MetricHandler.
+class MetricHandler(nn.Module):
+    def __init__(self, metric_configs: List[MetricsConfig]):
+        super().__init__()
+        self.metrics = nn.ModuleDict()
 
-        Args:
-            metric_fn (Union[torchmetrics.Metric, Dict[str, torchmetrics.Metric]]):
-                The metric function(s) to use for evaluation. Can be a single torchmetrics.Metric
-                instance or a dictionary of metric instances (e.g., {"sdr": SDRMetric(), "sir": SIRMetric()}).
-        """
-        super().__init__() # Call super constructor
-        if isinstance(metric_fn, dict):
-            self.metrics: torchmetrics.MetricCollection = torchmetrics.MetricCollection(metric_fn)
+        for metric_cfg in metric_configs:
+            metric_class = self._get_metric_class(metric_cfg.name)
+            metric_fn = metric_class(**(metric_cfg.params or {}))
+            self.metrics[metric_cfg.name] = metric_fn
+
+    def _get_metric_class(self, name: str):
+        # Placeholder for metric class lookup
+        if name == "sdr":
+            # Assuming a dummy SDR metric for now
+            class DummySDR(nn.Module):
+                def forward(self, prediction, target):
+                    # Dummy SDR calculation
+                    return torch.tensor(10.0) # Example value
+            return DummySDR
         else:
-            # Assume it's a single metric if not a dict
-            self.metrics: torchmetrics.MetricCollection = torchmetrics.MetricCollection({"default_metric": metric_fn})
+            raise ValueError(f"Unknown metric: {name}")
 
-    def update_step_metrics(self, pl_module: pl.LightningModule, predictions: Dict[str, torch.Tensor], batch: Any, stage: str) -> None:
-        """
-        Updates metrics for a single step (training, validation, or test).
+    def forward(self, predictions: Dict[str, torch.Tensor], targets: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        results = {}
+        for metric_name, metric_fn in self.metrics.items():
+            # This logic might need to be more sophisticated depending on your metrics
+            if metric_name in predictions and metric_name in targets:
+                results[metric_name] = metric_fn(predictions[metric_name], targets[metric_name])
+            elif "mixture" in predictions and "mixture" in targets: # Example for a common case
+                results[metric_name] = metric_fn(predictions["mixture"], targets["mixture"])
+            else:
+                raise KeyError(f"Metric '{metric_name}' cannot find corresponding predictions/targets.")
+        return results
 
-        For training, metrics are computed and logged per step. For validation/test,
-        the metric state is updated for epoch-end computation.
+    @classmethod
+    def from_config(cls, config: Union[MetricsConfig, List[MetricsConfig]]) -> "MetricHandler":
+        if isinstance(config, list):
+            return cls(config)
+        else:
+            return cls([config])
 
-        Args:
-            pl_module (pl.LightningModule): The LightningModule instance for logging and device access.
-            predictions (Dict[str, torch.Tensor]): A dictionary of separated audio predictions.
-                Keys are source names (e.g., "vocals", "bass"), values are torch.Tensor.
-                Shape of each tensor: (batch_size, channels, samples)
-            batch (Any): The input batch containing true sources. It is expected to have
-                         a `get_true_sources()` method returning a dictionary of true sources.
-            stage (str): The current stage ('train', 'val', 'test').
-        """
-        true_sources: Dict[str, torch.Tensor] = batch.sources
-        if true_sources: # Only calculate/update metrics if true sources are available
-            if stage == "train":
-                # For training, compute and log metrics per step for each metric in the collection
-                for metric_name, metric_instance in self.metrics.items():
-                    current_step_metric_values: List[torch.Tensor] = []
-                    for source_name, sep_audio in predictions.items():
-                        if source_name in true_sources:
-                            # Call the metric instance directly. This will update its internal state
-                            # and return the computed value for the current input.
-                            value: torch.Tensor = metric_instance(sep_audio.audio.to_device(pl_module.device), true_sources[source_name].audio.to_device(pl_module.device))
-                            current_step_metric_values.append(value)
-                    if current_step_metric_values:
-                        avg_metric_value: torch.Tensor = torch.stack(current_step_metric_values).mean()
-                        pl_module.log(f"{stage}_{metric_name}", avg_metric_value, prog_bar=True)
-            else: # validation or test
-                # For validation/test, update the metric state for epoch-end computation
-                for source_name, sep_audio in predictions.items():
-                    if source_name in true_sources:
-                        logger.debug(f"MetricHandler.update_step_metrics: sep_audio device: {sep_audio.device}, true_sources device: {true_sources[source_name].device}")
-                        logger.debug(f"MetricHandler.update_step_metrics: pl_module.device: {pl_module.device}")
-                        for metric_name, metric_instance in self.metrics.items():
-                            logger.debug(f"MetricHandler.update_step_metrics: Metric '{metric_name}' device: {metric_instance.device}")
-                        # Ensure inputs to metrics are on the correct device
-                        # Update all metrics in the collection
-                        self.metrics.update(sep_audio.audio.to_device(pl_module.device), true_sources[source_name].audio.to_device(pl_module.device))
-
-    def compute_and_log_epoch_metrics(self, pl_module: pl.LightningModule, stage: str) -> None:
-        """
-        Computes and logs metrics at the end of an epoch (validation or test).
-        Resets the metric state after computation.
-
-        Args:
-            pl_module (pl.LightningModule): The LightningModule instance for logging.
-            stage (str): The current stage ('val' or 'test').
-        """
-        metrics_dict: Dict[str, torch.Tensor] = self.metrics.compute()
-        for metric_name, metric_value in metrics_dict.items():
-            pl_module.log(f"{stage}_{metric_name}", metric_value)
-        self.metrics.reset()
-
-    # Removed the custom to() method as it will be handled by nn.Module
+# No model_rebuild() calls needed here

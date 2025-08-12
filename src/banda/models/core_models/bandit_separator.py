@@ -15,9 +15,10 @@ import hydra.utils # Re-import hydra.utils
 from banda.data.batch_types import FixedStemSeparationBatch, AudioSignal
 from banda.core.interfaces import BaseModel
 from banda.models.core_models.base_separator import BaseSeparator # Changed import to BaseSeparator
-from banda.models.common_components.mask_estimation.mask_estimation_modules import MaskEstimationModule, OverlappingMaskEstimationModule
+from banda.models.common_components.mask_estimation.mask_estimation_modules import MaskEstimationModule # Removed OverlappingMaskEstimationModule
 from banda.models.common_components.utils.constants import VDBO_STEMS # Example default stems
-from banda.models.common_components.configs.common_configs import BanditSeparatorConfig, STFTConfig, BandsplitModuleConfig, BaseTFModelConfig, RNNTFModelConfig, TransformerTFModelConfig, MambaTFModelConfig, MaskEstimationConfig
+from banda.models.common_components.configs.common_configs import STFTConfig, BandsplitModuleConfig, BaseTFModelConfig, MaskEstimationConfig, BanditSeparatorConfig
+from banda.models.common_components.time_frequency_models.tf_models import RNNTFModelConfig, TransformerTFModelConfig, MambaTFModelConfig
 from banda.models.common_components.spectral_components.spectral_base import BandsplitSpecification
 from banda.models.common_components.configs.bandsplit_configs import VocalBandsplitSpecsConfig, MusicalBandsplitSpecsConfig # Corrected import
 from banda.models.common_components.time_frequency_models.tf_models import SeqBandModellingModule # Import specific TF models
@@ -117,55 +118,15 @@ class Bandit(BaseSeparator): # Inherit from BaseSeparator
         return separated_signals
 
     @classmethod
-    def from_config(cls, cfg: DictConfig) -> "Bandit":
+    def from_config(cls, config: BanditSeparatorConfig) -> "Bandit":
         """
-        Instantiates a Bandit model from a DictConfig.
-
-        This class method is responsible for parsing the configuration and
-        constructing a `BanditSeparatorConfig` object, which is then used to
-        initialize the `Bandit` model.
+        Instantiates a Bandit model from a BanditSeparatorConfig Pydantic model.
 
         Args:
-            cfg (DictConfig): A DictConfig object containing the full configuration.
+            config (BanditSeparatorConfig): A BanditSeparatorConfig Pydantic object containing
+                                       all necessary parameters for the model.
 
         Returns:
             Bandit: An instance of the Bandit model.
         """
-        # Extract relevant parts of the config
-        model_cfg = cfg.model
-        data_cfg = cfg.data
-
-        # Use hydra.utils.instantiate for Pydantic config classes
-        stft_config = hydra.utils.instantiate(model_cfg.stft, _recursive_=False)
-        
-        # Instantiate bandsplit module config directly from model_cfg.bandsplit
-        bandsplit_module_config = hydra.utils.instantiate(model_cfg.bandsplit, _recursive_=False)
-
-        # Get the raw tfmodel config (DictConfig)
-        tfmodel_raw_config = model_cfg.tfmodel
-        # Instantiate tfmodel config (Pydantic object) to get resolved values like emb_dim
-        tfmodel_config_resolved = hydra.utils.instantiate(tfmodel_raw_config, _recursive_=False)
-        
-        # Instantiate mask_estim config directly from model_cfg.mask_estim
-        # Add n_freq to mask_estim_config
-        mask_estim_config_data = OmegaConf.to_container(model_cfg.mask_estim, resolve=True)
-        mask_estim_config_data["n_freq"] = stft_config.n_fft // 2 + 1
-        mask_estim_config = hydra.utils.instantiate(OmegaConf.create(mask_estim_config_data), _recursive_=False)
-
-
-        # Manually construct a dictionary that matches BanditSeparatorConfig's structure
-        bandit_config_data = {
-            "stems": VDBO_STEMS, # Default stems for Bandit
-            "fs": data_cfg.train_dataset_config.config.fs, # Use data_cfg.train_dataset_config.config.fs directly
-            "emb_dim": tfmodel_config_resolved.emb_dim, # Access emb_dim from the instantiated tfmodel_config
-            "in_channel": model_cfg.input_channels,
-            "stft": stft_config,
-            "bandsplit": bandsplit_module_config,
-            "tfmodel": tfmodel_raw_config, # Pass the raw DictConfig for tfmodel
-            "mask_estim": mask_estim_config,
-        }
-        
-        # Create the BanditSeparatorConfig instance
-        bandit_separator_config: BanditSeparatorConfig = BanditSeparatorConfig(**bandit_config_data)
-        
-        return cls(bandit_separator_config)
+        return cls(config)

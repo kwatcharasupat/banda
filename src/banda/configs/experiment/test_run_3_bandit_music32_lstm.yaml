@@ -1,7 +1,6 @@
 # @package _global_
 
-defaults:
-  - /logger: wandb
+
 
 model:
   _target_: banda.models.core_models.bandit_separator.Bandit
@@ -135,5 +134,9 @@ mask_estim_default: # Added mask_estim_default configuration
   _target_: banda.models.common_components.configs.mask_estimation_configs.OverlappingMaskEstimationSpecsConfig
   mask_estimation_type: overlapping
   mlp_dim: 512
+  hidden_activation: "Tanh"
+  hidden_activation_kwargs: null
+  complex_mask: True
+  use_freq_weights: False
   in_channel: ${model.input_channels}
   norm_mlp_cls: banda.models.common_components.mask_estimation.mask_estimation_modules.NormMLP

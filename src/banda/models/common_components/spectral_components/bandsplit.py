@@ -1,75 +1,96 @@
+#  Copyright (c) 2025 by Karn Watcharasupat and contributors. All rights reserved.
+#  This project is dual-licensed:
+#  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
+#     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
+#  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
+#
+
+from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
-import torch.nn as nn
-from typing import List, Tuple
-from omegaconf import DictConfig
-import hydra.utils
+from torch import nn
+from pydantic import BaseModel, Field, ConfigDict
 
-import structlog
-import logging
+# from banda.utils.registry import MODELS_REGISTRY # Removed as per previous instructions
 
-logger = structlog.get_logger(__name__)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
-
-from banda.models.common_components.configs.common_configs import BandsplitModuleConfig
-from banda.models.common_components.spectral_components.spectral_base import BandsplitSpecification, get_bandsplit_specs_factory
-from banda.models.common_components.configs.bandsplit_configs import BandsplitType # Import BandsplitType
-
+class BandsplitModuleConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    target_: str = Field(alias="_target_") # Changed _target_ to target_
+    n_bands: int
+    emb_dim: int
+    input_channels: int = 2 # For magnitude and phase
 
 class BandsplitModule(nn.Module):
     """
-    A module for performing bandsplitting on a spectrogram.
+    Splits the input spectrogram into multiple frequency bands and applies a linear
+    projection to each band.
     """
-    def __init__(self, config: BandsplitModuleConfig) -> None:
+    def __init__(self, n_bands: int, emb_dim: int, input_channels: int = 2):
         super().__init__()
-        self.config = config
+        self.n_bands = n_bands
+        self.emb_dim = emb_dim
+        self.input_channels = input_channels
 
-        # Explicitly instantiate band_specs as a Pydantic object
-        instantiated_band_specs = hydra.utils.instantiate(config.band_specs, _recursive_=False)
-
-        logger.info(f"bandsplit_type: {BandsplitType.MUSICAL}")
-        logger.info(f"n_fft: {config.n_fft}")
-        logger.info(f"fs: {config.fs}")
-        logger.info(f"config.band_specs type: {type(instantiated_band_specs)}")
-        logger.info(f"config.band_specs content: {instantiated_band_specs}")
-        logger.info(f"drop_dc_band: {config.drop_dc_band}")
-        logger.info(f"require_no_overlap: {config.require_no_overlap}")
-
-        self.band_specs_factory = get_bandsplit_specs_factory(
-            bandsplit_type=BandsplitType.MUSICAL, # Explicitly set bandsplit_type
-            n_fft=config.n_fft, # Assuming n_fft is passed to BandsplitModuleConfig
-            fs=config.fs, # Assuming fs is passed to BandsplitModuleConfig
-            config=instantiated_band_specs, # Pass the instantiated Pydantic object
-            drop_dc_band=config.drop_dc_band,
-            require_no_overlap=config.require_no_overlap
+        self.linear_projections = nn.ModuleList(
+            [nn.Linear(input_channels, emb_dim) for _ in range(n_bands)]
         )
-        self.band_specs = self.band_specs_factory.get_band_specs()
 
-    def forward(self, spectrogram: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Applies bandsplitting to the input spectrogram.
-
         Args:
-            spectrogram (torch.Tensor): Input spectrogram.
-                Shape: (batch_size, channels, freq_bins, time_frames, 2)
-
+            x (torch.Tensor): Input spectrogram. Shape: (batch, channels, freq, time)
         Returns:
-            torch.Tensor: Bandsplit features.
-                Shape: (batch_size, channels, n_bands, time_frames, 2)
+            torch.Tensor: Output tensor with shape (batch, n_bands, time, emb_dim)
         """
-        bandsplit_features = []
-        for f_start, f_end in self.band_specs:
-            band = spectrogram[..., f_start:f_end, :, :]
-            bandsplit_features.append(band)
+        batch_size, channels, n_freq, n_time = x.shape
         
-        # Concatenate along a new dimension for bands
-        # Resulting shape: (batch_size, channels, n_bands, band_freq_bins, time_frames, 2)
-        # This needs to be flattened or handled appropriately by the next module
-        # For now, let's assume a simple concatenation and let the TF model handle reshaping
+        # Ensure n_freq is divisible by n_bands
+        if n_freq % self.n_bands != 0:
+            raise ValueError(f"Number of frequency bins ({n_freq}) must be divisible by n_bands ({self.n_bands})")
         
-        # Pad bands to have the same frequency dimension if necessary, or handle variable length
-        # For simplicity, let's assume fixed-size bands for now or handle padding later.
-        # A common approach is to pad to the max band size or use a list of tensors.
+        band_size = n_freq // self.n_bands
         
-        # For now, let's just return a list of tensors, and the TF model will handle it.
-        # If the TF model expects a single tensor, we'll need to adjust this.
-        return bandsplit_features # Returning a list of tensors for now
+        outputs = []
+        for i in range(self.n_bands):
+            # Extract band
+            band = x[:, :, i * band_size : (i + 1) * band_size, :]
+            
+            # Reshape band for linear projection: (batch, band_size, time, channels)
+            # Then flatten band_size and channels for linear layer: (batch, time, band_size * channels)
+            # Or, apply linear layer to (batch, time, channels) for each freq bin, then average/pool
+            # Let's assume the linear projection is applied per-frequency-bin, then averaged.
+            # A simpler approach is to apply linear projection to the channels dimension directly.
+            
+            # Current approach: linear projection on the channel dimension (input_channels -> emb_dim)
+            # This means the linear layer operates on (batch, freq_bin, time, channels)
+            # We need to reshape to (batch * freq_bin * time, channels) for linear layer
+            # Or, apply it to (batch, channels, freq, time) directly if it's a 1x1 conv
+            
+            # Let's assume the linear projection is applied to the last dimension (channels)
+            # Reshape band to (batch * band_size * n_time, channels)
+            band_reshaped = band.permute(0, 2, 3, 1).contiguous().view(-1, channels)
+            
+            projected_band = self.linear_projections[i](band_reshaped)
+            
+            # Reshape back to (batch, band_size, n_time, emb_dim)
+            projected_band = projected_band.view(batch_size, band_size, n_time, self.emb_dim)
+            
+            # Average or pool across the frequency dimension within the band
+            # For simplicity, let's average across the frequency bins within the band
+            outputs.append(projected_band.mean(dim=1, keepdim=True)) # Shape: (batch, 1, n_time, emb_dim)
+        
+        # Concatenate outputs along the band dimension
+        output_tensor = torch.cat(outputs, dim=1) # Shape: (batch, n_bands, n_time, emb_dim)
+        return output_tensor
+
+    @classmethod
+    def from_config(cls, config: BandsplitModuleConfig) -> "BandsplitModule":
+        """
+        Instantiates BandsplitModule from a BandsplitModuleConfig Pydantic model.
+        """
+        return cls(
+            n_bands=config.n_bands,
+            emb_dim=config.emb_dim,
+            input_channels=config.input_channels,
+        )
+
+# No model_rebuild() calls needed here

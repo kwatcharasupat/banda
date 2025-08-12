@@ -28,6 +28,38 @@ from banda.utils.registry import MODELS_REGISTRY
 from banda.core.interfaces import BaseTimeFrequencyModel
 from banda.models.common_components.positional_embeddings import RotaryPositionalEmbedding2D # Import the new module
 
+from pydantic import BaseModel, ConfigDict, Field
+
+@MODELS_REGISTRY.register("BaseTFModelConfig")
+class BaseTFModelConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    # Common parameters for all TF models
+    target_: str = Field(alias="_target_") # Changed _target_ to target_
+    n_modules: int
+    emb_dim: int
+    dropout: float
+    # Positional Encoding parameters (optional, for Transformer/Mamba)
+    max_seq_len_bands: Optional[int] = None
+    max_seq_len_time: Optional[int] = None
+
+@MODELS_REGISTRY.register("RNNTFModelConfig")
+class RNNTFModelConfig(BaseTFModelConfig):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    rnn_type: str # Added rnn_type
+    bidirectional: bool # Added bidirectional
+
+@MODELS_REGISTRY.register("TransformerTFModelConfig")
+class TransformerTFModelConfig(BaseTFModelConfig):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    nhead: int
+    dim_feedforward: int
+
+@MODELS_REGISTRY.register("MambaTFModelConfig")
+class MambaTFModelConfig(BaseTFModelConfig):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    d_state: int
+    d_conv: int
+    expand: int
 
 class ResidualRNN(nn.Module):
     def __init__(
@@ -77,7 +109,6 @@ class ResidualRNN(nn.Module):
         fc_out = self.dropout_layer(fc_out) # Apply dropout
 
         z = fc_out + z0 # Residual connection
-
         return z
 
 
@@ -192,6 +223,20 @@ class SeqBandModellingModule(BaseTimeFrequencyModel):
             use_layer_norm=cfg.use_layer_norm,
             dropout=cfg.dropout, # Changed tf_dropout to dropout
         )
+    @classmethod
+    def from_config(cls, config: "RNNTFModelConfig") -> "SeqBandModellingModule":
+        """
+        Instantiates SeqBandModellingModule from an RNNTFModelConfig Pydantic model.
+        """
+        return cls(
+            n_modules=config.n_modules,
+            emb_dim=config.emb_dim,
+            rnn_dim=config.rnn_dim,
+            bidirectional=config.bidirectional,
+            rnn_type=config.rnn_type,
+            use_layer_norm=config.use_layer_norm,
+            dropout=config.dropout,
+        )
 
 
 @MODELS_REGISTRY.register("transformer_time_freq")
@@ -255,7 +300,6 @@ class TransformerTimeFreqModule(BaseTimeFrequencyModel):
         n_time: int
         emb_dim: int
         batch, n_bands, n_time, emb_dim = x.shape
-
         # Reshape for transformer: (batch, n_bands * n_time, emb_dim)
         x_reshaped: torch.Tensor = x.view(batch, n_bands * n_time, emb_dim)
 
@@ -271,6 +315,20 @@ class TransformerTimeFreqModule(BaseTimeFrequencyModel):
         
         return x_out
 
+    @classmethod
+    def from_config(cls, config: "TransformerTFModelConfig") -> "TransformerTimeFreqModule":
+        """
+        Instantiates TransformerTimeFreqModule from a TransformerTFModelConfig Pydantic model.
+        """
+        return cls(
+            n_modules=config.n_modules,
+            emb_dim=config.emb_dim,
+            dropout=config.dropout,
+            nhead=config.nhead,
+            dim_feedforward=config.dim_feedforward,
+            max_seq_len_bands=config.max_seq_len_bands,
+            max_seq_len_time=config.max_seq_len_time,
+        )
     @classmethod
     def from_config(cls, cfg: DictConfig) -> "TransformerTimeFreqModule":
         """
@@ -320,6 +378,7 @@ class ConvolutionalTimeFreqModule(BaseTimeFrequencyModel):
                     nn.Conv2d(emb_dim, emb_dim, kernel_size=(3, 3), padding=(1, 1)),
                     nn.BatchNorm2d(emb_dim),
                     nn.ReLU(),
+    
                     nn.Conv2d(emb_dim, emb_dim, kernel_size=(3, 1), padding=(1, 0)), # Changed kernel_size and padding
                     nn.BatchNorm2d(emb_dim),
                     nn.ReLU(),
@@ -330,6 +389,9 @@ class ConvolutionalTimeFreqModule(BaseTimeFrequencyModel):
         """
         Forward pass of the ConvolutionalTimeFreqModule.
         Args:
+    
+    
+    
             x (torch.Tensor): Input tensor from BandSplitModule.
                 Shape: (batch, n_bands, n_time, emb_dim)
         Returns:
@@ -360,6 +422,16 @@ class ConvolutionalTimeFreqModule(BaseTimeFrequencyModel):
         )
 
 
+    @classmethod
+    def from_config(cls, config: "BaseTFModelConfig") -> "ConvolutionalTimeFreqModule":
+        """
+        Instantiates ConvolutionalTimeFreqModule from a BaseTFModelConfig Pydantic model.
+        """
+        return cls(
+            n_modules=config.n_modules,
+            emb_dim=config.emb_dim,
+            dropout=config.dropout,
+        )
 @MODELS_REGISTRY.register("mamba_time_freq")
 class MambaTimeFreqModule(BaseTimeFrequencyModel):
     """
@@ -457,3 +529,24 @@ class MambaTimeFreqModule(BaseTimeFrequencyModel):
             d_conv=cfg.d_conv,
             expand=cfg.expand,
         )
+    @classmethod
+    def from_config(cls, config: "MambaTFModelConfig") -> "MambaTimeFreqModule": # Changed return type to MambaTimeFreqModule
+        """
+        Instantiates MambaTFModelModule from a MambaTFModelConfig Pydantic model.
+        """
+        return cls(
+            n_modules=config.n_modules,
+            emb_dim=config.emb_dim,
+            dropout=config.dropout,
+            max_seq_len_bands=config.max_seq_len_bands,
+            max_seq_len_time=config.max_seq_len_time,
+            d_state=config.d_state,
+            d_conv=config.d_conv,
+            expand=config.expand,
+        )
+
+# Rebuild Pydantic models after all definitions are complete
+BaseTFModelConfig.model_rebuild()
+RNNTFModelConfig.model_rebuild()
+TransformerTFModelConfig.model_rebuild()
+MambaTFModelConfig.model_rebuild()

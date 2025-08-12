@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple, Union, Type
 from omegaconf import DictConfig, OmegaConf
 from banda.utils.registry import MODELS_REGISTRY, QUERY_MODELS_REGISTRY, QUERY_PROCESSORS_REGISTRY
 import hydra.utils
+
 import structlog
 import logging
 
@@ -19,9 +20,10 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 from banda.core.interfaces import BaseQueryModel, BaseTimeFrequencyModel
 from banda.models.core_models.base_separator import BaseSeparator
-from banda.models.common_components.mask_estimation.mask_estimation_modules import MaskEstimationModule, OverlappingMaskEstimationModule
+from banda.models.common_components.mask_estimation.mask_estimation_modules import MaskEstimationModule # Removed OverlappingMaskEstimationModule
 from banda.models.common_components.utils.constants import VDBO_STEMS # Example default stems
-from banda.models.common_components.configs.common_configs import BanquetSeparatorConfig, STFTConfig, BandsplitModuleConfig, BaseTFModelConfig
+from banda.models.common_components.configs.common_configs import STFTConfig, BandsplitModuleConfig, BaseTFModelConfig, BanquetSeparatorConfig
+from banda.models.core_models.banquet_separator import BanquetSeparatorConfig
 from pydantic import Field
 from dataclasses import dataclass
 from banda.data.batch_types import AudioSignal, QuerySignal
@@ -131,44 +133,15 @@ class Banquet(BaseSeparator, BaseQueryModel):
         return separated_signals
 
     @classmethod
-    def from_config(cls, cfg: DictConfig) -> "Banquet":
+    def from_config(cls, config: BanquetSeparatorConfig) -> "Banquet":
         """
-        Instantiates a BanquetSeparator model from a DictConfig.
-
-        This class method is responsible for parsing the configuration and
-        constructing a `BanquetSeparatorConfig` object, which is then used to
-        initialize the `Banquet` model.
+        Instantiates a Banquet model from a BanquetSeparatorConfig Pydantic model.
 
         Args:
-            cfg (DictConfig): A DictConfig object containing the full configuration.
+            config (BanquetSeparatorConfig): A BanquetSeparatorConfig Pydantic object containing
+                                       all necessary parameters for the model.
 
         Returns:
             Banquet: An instance of the Banquet model.
         """
-        # Extract relevant parts of the config
-        model_cfg = cfg.model
-        data_cfg = cfg.data
-
-        # Instantiate bandsplit module config, allowing recursive instantiation for band_specs
-        # Removed _recursive_=False to allow Hydra to fully instantiate nested Pydantic models
-        bandsplit_module_config = hydra.utils.instantiate(model_cfg.bandsplit)
-
-        # Manually construct a dictionary that matches BanquetSeparatorConfig's structure
-        # and instantiate nested Pydantic models using hydra.utils.instantiate
-        banquet_config_data = {
-            "stems": VDBO_STEMS, # Default stems for Banquet
-            "fs": data_cfg.train_dataset_config.config.fs,
-            "emb_dim": model_cfg.tfmodel.emb_dim,
-            "in_channel": model_cfg.input_channels,
-            "query_features": data_cfg.query_features, # From data config
-            "query_processor_type": model_cfg.query_processor_type if "query_processor_type" in model_cfg else "linear", # Default to linear if not specified
-            "stft": hydra.utils.instantiate(model_cfg.stft, _recursive_=False), # Instantiate STFTConfig
-            "bandsplit": bandsplit_module_config, # Use the already instantiated bandsplit config
-            "tfmodel": hydra.utils.instantiate(model_cfg.tfmodel, _recursive_=False), # Instantiate TFModelConfig (RNN, Transformer, or Mamba)
-            "mask_estim": hydra.utils.instantiate(model_cfg.mask_estim, _recursive_=False), # Instantiate MaskEstimationConfig
-        }
-        
-        # Create the BanquetSeparatorConfig instance
-        banquet_separator_config: BanquetSeparatorConfig = BanquetSeparatorConfig(**banquet_config_data)
-        
-        return cls(banquet_separator_config)
+        return cls(config)

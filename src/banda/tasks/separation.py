@@ -10,6 +10,9 @@ import structlog
 import logging
 import hydra.utils # Import hydra.utils
 
+from pydantic import BaseModel
+# Removed: from banda.configs.train_configs import OptimizerConfig # Import OptimizerConfig from train_configs
+
 logger = structlog.get_logger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 
@@ -28,7 +31,7 @@ class SeparationTask(pl.LightningModule):
         model: Union[Banquet, Bandit], # Allow both Banquet and Bandit
         loss_handler: SeparationLossHandler,
         metric_handler: MetricHandler,
-        optimizer: Dict[str, Any],
+        optimizer_config: "banda.configs.train_configs.OptimizerConfig", # Changed type hint to string literal
     ):
         """
         Initializes the SeparationTask.
@@ -37,13 +40,13 @@ class SeparationTask(pl.LightningModule):
             model (Separator): The source separation model.
             loss_handler (SeparationLossHandler): The handler for calculating loss.
             metric_handler (MetricHandler): The handler for calculating metrics.
-            optimizer (Dict[str, Any]): Configuration for the optimizer.
+            optimizer_config (OptimizerConfig): Configuration for the optimizer.
         """
         super().__init__()
         self.model = model
         self.loss_handler = loss_handler
         self.metric_handler = metric_handler
-        self.optimizer_config = optimizer
+        self.optimizer_config = optimizer_config
         self.save_hyperparameters(ignore=["model", "loss_handler", "metric_handler"])
 
     def setup(self, stage: str) -> None:
@@ -85,7 +88,6 @@ class SeparationTask(pl.LightningModule):
         Args:
             batch (Any): The input batch.
             batch_idx (int): The index of the current batch.
-
         Returns:
             torch.Tensor: The calculated loss for the current step.
         """
@@ -154,5 +156,30 @@ class SeparationTask(pl.LightningModule):
         """
         Configures the optimizer for training.
         """
-        optimizer = hydra.utils.instantiate(self.optimizer_config, self.parameters())
+        optimizer_class = hydra.utils.get_class(self.optimizer_config._target_)
+        optimizer_params = {k: v for k, v in self.optimizer_config.model_dump().items() if k != "_target_"}
+        optimizer = optimizer_class(self.parameters(), **optimizer_params)
         return optimizer
+
+    @classmethod
+    def from_config(cls, model: Union[Banquet, Bandit], loss_config: Any, metrics_config: Any, optimizer_config: "banda.configs.train_configs.OptimizerConfig") -> "SeparationTask": # Changed type hint to string literal
+        """
+        Instantiates a SeparationTask from Pydantic config models.
+
+        Args:
+            model (Union[Banquet, Bandit]): The instantiated source separation model.
+            loss_config (Any): The Pydantic LossConfig object.
+            metrics_config (Any): The Pydantic MetricsConfig object.
+            optimizer_config (OptimizerConfig): The Pydantic OptimizerConfig object.
+
+        Returns:
+            SeparationTask: An instance of the SeparationTask.
+        """
+        loss_handler = SeparationLossHandler.from_config(loss_config)
+        metric_handler = MetricHandler.from_config(metrics_config)
+        return cls(
+            model=model,
+            loss_handler=loss_handler,
+            metric_handler=metric_handler,
+            optimizer_config=optimizer_config,
+        )

@@ -10,14 +10,16 @@ import torch.nn as nn
 from typing import Dict, List, Optional, Tuple, Union, Type
 from abc import ABC, abstractmethod
 from omegaconf import DictConfig, OmegaConf
-import hydra.utils
+from banda.models.common_components.time_frequency_models.tf_models import SeqBandModellingModule, TransformerTimeFreqModule, ConvolutionalTimeFreqModule, MambaTimeFreqModule
+
 
 from banda.data.batch_types import AudioSignal
 from banda.models.common_components.spectral_components.spectral_base import SpectralComponent
-from banda.models.common_components.spectral_components.bandsplit import BandsplitModule # Corrected import
-from banda.models.common_components.mask_estimation.mask_estimation_modules import MaskEstimationModule
+from banda.models.common_components.spectral_components.bandsplit import BandsplitModule
+from banda.models.common_components.mask_estimation.mask_estimation_modules import MaskEstimationModule # Removed OverlappingMaskEstimationModule
 from banda.models.common_components.time_frequency_models.tf_models import BaseTimeFrequencyModel
-from banda.models.common_components.configs.common_configs import BaseSeparatorConfig, STFTConfig, BandsplitModuleConfig, BaseTFModelConfig, MaskEstimationConfig
+from banda.models.common_components.configs.common_configs import STFTConfig, BaseTFModelConfig, MaskEstimationConfig, BaseSeparatorConfig
+from banda.models.common_components.spectral_components.bandsplit import BandsplitModuleConfig
 
 
 class BaseSeparator(nn.Module, ABC):
@@ -44,43 +46,43 @@ class BaseSeparator(nn.Module, ABC):
         self.in_channel = config.in_channel
 
         # Initialize STFT module
-        if isinstance(config.stft, STFTConfig):
-            self.stft_module = hydra.utils.instantiate(config.stft)
+        if isinstance(config.stft_config, STFTConfig):
+            self.stft_module = SpectralComponent.from_config(config.stft_config)
         else:
             # Assume it's already an instantiated STFT module if not a config
-            self.stft_module = config.stft
+            self.stft_module = config.stft_config
 
         # Initialize Bandsplit module
-        if isinstance(config.bandsplit, BandsplitModuleConfig):
+        if isinstance(config.bandsplit_module_config, BandsplitModuleConfig):
             # Explicitly pass the BandsplitModuleConfig object as the 'config' argument
-            self.bandsplit_module = hydra.utils.instantiate(
-                {
-                    "_target_": "banda.models.common_components.spectral_components.bandsplit.BandsplitModule",
-                    "config": config.bandsplit
-                }
-            )
+            self.bandsplit_module = BandsplitModule.from_config(config.bandsplit_module_config)
         else:
             # Assume it's already an instantiated BandsplitModule if not a config
-            self.bandsplit_module = config.bandsplit
+            self.bandsplit_module = config.bandsplit_module_config
 
         # Initialize Time-Frequency model
-        if isinstance(config.tfmodel, DictConfig):
-            self.tf_model = hydra.utils.instantiate(config.tfmodel)
+        if isinstance(config.time_frequency_model_config, RNNTFModelConfig):
+            self.tf_model = SeqBandModellingModule.from_config(config.time_frequency_model_config)
+        elif isinstance(config.time_frequency_model_config, TransformerTFModelConfig):
+            self.tf_model = TransformerTimeFreqModule.from_config(config.time_frequency_model_config)
+        elif isinstance(config.time_frequency_model_config, MambaTFModelConfig):
+            self.tf_model = MambaTimeFreqModule.from_config(config.time_frequency_model_config)
+        elif isinstance(config.time_frequency_model_config, BaseTFModelConfig): # Catch-all for other BaseTFModelConfig types
+            self.tf_model = ConvolutionalTimeFreqModule.from_config(config.time_frequency_model_config)
         else:
-            # Assume it's already an instantiated TF model if not a DictConfig
-            self.tf_model = config.tfmodel
+            # Assume it's already an instantiated TF model if not a config
+            self.tf_model = config.time_frequency_model_config
 
         # Initialize Mask Estimation modules
         self.mask_estim: nn.ModuleDict = nn.ModuleDict()
         for stem in self.stems:
-            if isinstance(config.mask_estim, MaskEstimationConfig):
-                # Pass n_freq to mask estimation module
-                mask_estim_config_dict = OmegaConf.to_container(config.mask_estim, resolve=True)
-                mask_estim_config_dict["n_freq"] = self.stft_module.n_fft // 2 + 1
-                self.mask_estim[stem] = hydra.utils.instantiate(OmegaConf.create(mask_estim_config_dict))
+            if isinstance(config.mask_estimation_config, MaskEstimationConfig):
+                self.mask_estim[stem] = MaskEstimationModule.from_config( # Always use MaskEstimationModule
+                    config.mask_estimation_config
+                )
             else:
                 # Assume it's already an instantiated MaskEstimationModule if not a config
-                self.mask_estim[stem] = config.mask_estim
+                self.mask_estim[stem] = config.mask_estimation_config
 
 
     def _apply_stft(self, audio: torch.Tensor) -> AudioSignal:

@@ -1,38 +1,33 @@
-# @package _group_
+_target_: banda.models.separator.Separator # This is the target for the overall separator model
 
-_target_: banda.models.separator.Separator
-stems: ["vocals", "bass", "drums", "other"] # Example stems
-fs: 44100
-n_fft: 2048
-win_length: 2048
-hop_length: 512
-window_fn: "hann_window"
-center: True
-normalized: True
-pad_mode: "constant"
-onesided: True
+stft_config:
+  _target_: banda.models.common_components.spectral_components.spectral_base.STFTConfig
+  n_fft: 2048
+  hop_length: 512
+  win_length: 2048
+  window: hann # Corresponds to window_fn in original YAML
+  center: true
+  pad_mode: constant
+  freeze_parameters: true # Default value, not in original YAML
 
-# BandsplitModule parameters
-band_specs: null # Use default (full band) for now, or specify e.g., [[0, 1025]]
-require_no_overlap: False
-require_no_gap: True
-normalize_channel_independently: False
-treat_channel_as_feature: True
-emb_dim: 128
-in_channel: 2
+bandsplit_module_config:
+  _target_: banda.models.common_components.spectral_components.bandsplit.BandsplitModuleConfig
+  n_bands: 1 # Assuming a default of 1 band if not specified, or needs to be derived
+  emb_dim: 128 # From original YAML
+  input_channels: 2 # From original YAML
 
-# Time-Frequency Model parameters
-tf_model_type: "rnn" # "rnn", "transformer", or "conv"
-n_tf_modules: 12
-rnn_dim: 256
-bidirectional: True
-rnn_type: "LSTM"
-tf_dropout: 0.0
+mask_estimation_config:
+  _target_: banda.models.common_components.mask_estimation.mask_estimation_modules.MaskEstimationConfig
+  emb_dim: 128 # From original YAML
+  output_channels: 2 # From original YAML
 
-# Mask Estimation parameters
-mlp_dim: 512
-hidden_activation: "Tanh"
-hidden_activation_kwargs: null
-complex_mask: True
-overlapping_band: False
-use_freq_weights: False
+time_frequency_model_config:
+  _target_: banda.models.common_components.time_frequency_models.tf_models.RNNTFModelConfig # Assuming RNN based on original tf_model_type
+  n_modules: 12 # From original n_tf_modules
+  emb_dim: 128 # From original YAML
+  dropout: 0.0 # From original tf_dropout
+  rnn_type: LSTM # From original YAML
+  bidirectional: true # From original YAML
+  rnn_dim: 256 # From original YAML
+  max_seq_len_bands: null # Optional, setting to null
+  max_seq_len_time: null # Optional, setting to null

@@ -1,7 +1,6 @@
 # @package _global_
 
-defaults:
-  - /logger: wandb
+
 
 model:
   _target_: banda.models.core_models.bandit_separator.Bandit

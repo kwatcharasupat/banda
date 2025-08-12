@@ -12,7 +12,7 @@ from banda.models.common_components.configs.bandsplit_configs._bandsplit_models 
     BandDefinitionConfig,
     BandsplitType,
 )
-from banda.models.common_components.spectral_components.spectral_base import BandsplitSpecification
+from banda.models.common_components.spectral_components.spectral_base import BandsplitSpecification # Corrected import
 from banda.models.common_components.spectral_components.bandsplit_registry import bandsplit_registry
 
 class FixedBandsplitSpecs(BandsplitSpecification):

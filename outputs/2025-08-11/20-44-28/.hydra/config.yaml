@@ -1,0 +1,13 @@
+project_root: ${oc.env:PROJECT_ROOT,.}
+experiment_name: bandit_musdb18hq_test
+seed: 42
+log_level: INFO
+paths:
+  data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data}
+data: ${oc.load:data/default.yaml}
+model: ${oc.load:model/default.yaml}.model_config
+loss: ${oc.load:loss/default.yaml}.loss_config
+metrics: ${oc.load:metrics/default.yaml}.metrics_config
+optimizer: ${oc.load:optimizer/default.yaml}.optimizer_config
+trainer: ${oc.load:trainer/default.yaml}.trainer_config
+logger: ${oc.load:logger/wandb.yaml}.logger_config

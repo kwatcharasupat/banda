@@ -3,336 +3,162 @@
 #  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
+#
 
-
-import torch
-import structlog
-
-logger = structlog.get_logger(__name__)
-
-import pytorch_lightning as pl
-from torch.utils.data import DataLoader
-from typing import Dict, Any, Optional, Set, List, Union
 import os
-import random
-import torch.nn.functional as F
-import hydra
-from omegaconf import DictConfig, OmegaConf
+import warnings
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from banda.data.datasets.base import SourceSeparationDataset, DatasetConnectorConfig
-from banda.data.batch_types import FixedStemSeparationBatch, AudioSignal, QuerySignal
-from pydantic import BaseModel, Field
-from banda.utils.registry import DATASETS_REGISTRY
+import lightning as L
+import torch
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from torch.utils.data import DataLoader, Dataset
+from pydantic import BaseModel, Field, ConfigDict
 
+# from banda.utils.registry import DATASETS_REGISTRY # Removed as per previous instructions
 
-class SourceSeparationDataModule(pl.LightningDataModule):
-    """
-    A PyTorch Lightning DataModule for source separation datasets.
+class DatasetConnectorConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    target_: str = Field(alias="_target_")
+    config: Dict[str, Any] # This will hold data_root and other connector-specific configs
 
-    This DataModule handles the setup and loading of training, validation,
-    and test datasets, providing DataLoaders for each stage. It also includes
-    a custom collate function for handling `FixedStemSeparationBatch` objects.
-    """
+class DatasetConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    target_: str = Field(alias="_target_")
+    split: str
+    dataset_connector: DatasetConnectorConfig
+    fs: int
+    premix_transform: Optional[Dict[str, Any]] = None # Changed to Dict[str, Any]
+    postmix_transform: Optional[Dict[str, Any]] = None # Changed to Dict[str, Any]
 
-    def __init__(
-        self,
-        train_dataset_config: DatasetConnectorConfig,
-        val_dataset_config: DatasetConnectorConfig,
-        batch_size: int,
-        test_dataset_config: Optional[DatasetConnectorConfig] = None,
-        num_workers: int = 0,
-        pin_memory: bool = False,
-        query_features: Optional[Union[str, int]] = None, # Added query_features
-        **kwargs: Any,
-    ) -> None:
-        """
-        Initializes the SourceSeparationDataModule.
+class DataModuleConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    train_dataset_config: Optional[DatasetConfig] = None
+    val_dataset_config: Optional[DatasetConfig] = None
+    test_dataset_config: Optional[DatasetConfig] = None
+    predict_dataset_config: Optional[DatasetConfig] = None
+    # DataLoader parameters
+    batch_size: int
+    num_workers: int
+    shuffle: bool
+    pin_memory: bool
+    drop_last: bool
 
-        Args:
-            train_dataset_config (DatasetConnectorConfig): Configuration for the training dataset.
-            val_dataset_config (DatasetConnectorConfig): Configuration for the validation dataset.
-            batch_size (int): Batch size for data loaders.
-            test_dataset_config (Optional[DatasetConnectorConfig]): Optional configuration for the test dataset.
-            num_workers (int): Number of subprocesses to use for data loading.
-            pin_memory (bool): If True, the data loader will copy Tensors into CUDA pinned memory.
-            **kwargs: Additional keyword arguments (e.g., for future extensibility).
-        """
+class BaseDataset(Dataset):
+    def __init__(self, config: DatasetConfig):
+        self.config = config
+        # These fields are now accessed via self.config.dataset_connector.config
+        # self.dataset_dir = config.dataset_dir
+        self.sample_rate = config.fs # Use fs from DatasetConfig
+        # self.segment_duration = config.segment_duration
+        # self.use_augmentation = config.use_augmentation
+        # self.augmentation_config = config.augmentation_config
+
+    def __len__(self) -> int:
+        raise NotImplementedError
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        raise NotImplementedError
+
+class SourceSeparationDataModule(L.LightningDataModule): # Renamed BaseDataModule to SourceSeparationDataModule
+    def __init__(self, config: DataModuleConfig): # Changed to DataModuleConfig
         super().__init__()
-        self.train_dataset_config: DatasetConnectorConfig = train_dataset_config
-        self.val_dataset_config: DatasetConnectorConfig = val_dataset_config
-        self.test_dataset_config: Optional[DatasetConnectorConfig] = test_dataset_config
-        self.batch_size: int = batch_size
-        self.num_workers: int = num_workers
-        self.query_features: Optional[int] = query_features
-        self.pin_memory: bool = pin_memory
-        self.current_stage: Optional[str] = None
+        self.config = config
+        self.train_dataset: Optional[Dataset] = None
+        self.val_dataset: Optional[Dataset] = None
+        self.test_dataset: Optional[Dataset] = None
+        self.predict_dataset: Optional[Dataset] = None
 
-        self.train_dataset: Optional[SourceSeparationDataset] = None
-        self.val_dataset: Optional[SourceSeparationDataset] = None
-        self.test_dataset: Optional[SourceSeparationDataset] = None
-
-    def setup(self, stage: str) -> None:
+    def prepare_data(self) -> None:
         """
-        Loads data for the given stage (fit, validate, test, predict).
-
-        Args:
-            stage (str): The current stage ("fit", "validate", "test", "predict").
-
-        Raises:
-            ValueError: If test dataset configuration is not provided for the "test" stage.
-            NotImplementedError: If the "predict" stage is requested (not yet implemented).
+        Download data if needed. This stage is called on 1 GPU/TPU in distributed
+        training, it's not called on every device.
         """
-        logger.info(f"DATASETS_REGISTRY keys: {DATASETS_REGISTRY._data.keys()}")
-        self.current_stage = stage
-        if stage == "fit":
-            train_dataset_name = self.train_dataset_config.target_.split('.')[-2]
-            self.train_dataset = DATASETS_REGISTRY.get(train_dataset_name).from_config(OmegaConf.create(self.train_dataset_config.config))
-            val_dataset_name = self.val_dataset_config.target_.split('.')[-2]
-            self.val_dataset = DATASETS_REGISTRY.get(val_dataset_name).from_config(OmegaConf.create(self.val_dataset_config.config))
-        elif stage == "validate":
-            val_dataset_name = self.val_dataset_config.target_.split('.')[-2]
-            self.val_dataset = DATASETS_REGISTRY.get(val_dataset_name).from_config(OmegaConf.create(self.val_dataset_config.config))
-        elif stage == "test":
-            if self.test_dataset_config:
-                test_dataset_name = self.test_dataset_config.target_.split('.')[-2]
-                self.test_dataset = DATASETS_REGISTRY.get(test_dataset_name).from_config(OmegaConf.create(self.test_dataset_config.config))
-            else:
-                raise ValueError("Test dataset configuration not provided.")
-        elif stage == "predict":
-            # Implement predict dataset loading if needed
-            raise NotImplementedError("Predict dataset not implemented yet.")
+        pass
 
-    def train_dataloader(self) -> DataLoader:
+    def setup(self, stage: Optional[str] = None) -> None:
         """
-        Returns the DataLoader for the training set.
+        Load data, split datasets, etc. This stage is called on every device.
+        """
+        if stage == "fit" or stage is None:
+            if self.config.train_dataset_config:
+                self.train_dataset = self._create_dataset(self.config.train_dataset_config)
+            if self.config.val_dataset_config:
+                self.val_dataset = self._create_dataset(self.config.val_dataset_config)
+        if stage == "test" or stage is None:
+            if self.config.test_dataset_config:
+                self.test_dataset = self._create_dataset(self.config.test_dataset_config)
+            elif self.config.val_dataset_config: # Fallback to val if test is not provided
+                self.test_dataset = self._create_dataset(self.config.val_dataset_config)
+        if stage == "predict" or stage is None:
+            if self.config.predict_dataset_config:
+                self.predict_dataset = self._create_dataset(self.config.predict_dataset_config)
+            elif self.config.val_dataset_config: # Fallback to val if predict is not provided
+                self.predict_dataset = self._create_dataset(self.config.val_dataset_config)
 
-        Returns:
-            DataLoader: A DataLoader instance for the training dataset.
+    def _create_dataset(self, dataset_config: DatasetConfig) -> Dataset:
         """
-        if self.train_dataset is None:
-            raise RuntimeError("Train dataset not set up. Call setup('fit') first.")
+        Helper method to create a dataset based on the specific dataset config.
+        This should be implemented by subclasses.
+        """
+        # Instantiate the dataset class using its _target_ and config
+        dataset_cls = hydra.utils.get_class(dataset_config.target_)
+        return dataset_cls(config=dataset_config) # Pass the entire DatasetConfig
+
+    def train_dataloader(self) -> TRAIN_DATALOADERS:
+        if not self.train_dataset:
+            return [] # Return empty list if no train dataset
         return DataLoader(
             self.train_dataset,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
-            shuffle=True,
-            collate_fn=self._collate_fn,
+            batch_size=self.config.batch_size,
+            shuffle=self.config.shuffle,
+            num_workers=self.config.num_workers,
+            pin_memory=self.config.pin_memory,
+            drop_last=self.config.drop_last,
         )
 
-    def val_dataloader(self) -> DataLoader:
-        """
-        Returns the DataLoader for the validation set.
-
-        Returns:
-            DataLoader: A DataLoader instance for the validation dataset.
-        """
-        if self.val_dataset is None:
-            raise RuntimeError("Validation dataset not set up. Call setup('fit') or setup('validate') first.")
+    def val_dataloader(self) -> EVAL_DATALOADERS:
+        if not self.val_dataset:
+            return [] # Return empty list if no val dataset
         return DataLoader(
             self.val_dataset,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
-            shuffle=False,
-            collate_fn=self._collate_fn,
+            batch_size=self.config.batch_size,
+            shuffle=False,  # Validation data should not be shuffled
+            num_workers=self.config.num_workers,
+            pin_memory=self.config.pin_memory,
+            drop_last=self.config.drop_last,
         )
 
-    def test_dataloader(self) -> DataLoader:
-        """
-        Returns the DataLoader for the test set.
-
-        Note: For testing, the batch size is fixed to 1 as full-length audio
-        inference is typically performed.
-
-        Returns:
-            DataLoader: A DataLoader instance for the test dataset.
-        """
-        if self.test_dataset is None:
-            raise RuntimeError("Test dataset not set up. Call setup('test') first.")
+    def test_dataloader(self) -> EVAL_DATALOADERS:
+        if not self.test_dataset:
+            return [] # Return empty list if no test dataset
         return DataLoader(
             self.test_dataset,
-            batch_size=1,
-            num_workers=0, # Typically 0 workers for test to avoid issues with large files
-            pin_memory=self.pin_memory,
-            shuffle=False,
-            collate_fn=self._collate_fn,
+            batch_size=self.config.batch_size, # Use common batch_size from DataModuleConfig
+            shuffle=False,  # Test data should not be shuffled
+            num_workers=self.config.num_workers, # Use common num_workers from DataModuleConfig
+            pin_memory=self.config.pin_memory, # Use common pin_memory from DataModuleConfig
+            drop_last=self.config.drop_last, # Use common drop_last from DataModuleConfig
         )
 
-    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """
-        Transfers the batch to the specified device.
-
-        This method is overridden to handle custom batch types like `FixedStemSeparationBatch`.
-
-        Args:
-            batch (Any): The batch to transfer.
-            device (torch.device): The target device.
-            dataloader_idx (int): The index of the dataloader.
-
-        Returns:
-            Any: The batch transferred to the specified device.
-        """
-        if isinstance(batch, FixedStemSeparationBatch):
-            return batch.to_device(device)
-        else:
-            # Fallback to default behavior for other batch types
-            return super().transfer_batch_to_device(batch, device, dataloader_idx)
-    def on_exception(self, exception: BaseException) -> None:
-        """
-        Called when an exception occurs during training, validation, or testing.
-        """
-        logger.error(f"An exception occurred in DataModule: {exception}")
-        raise exception
-    
-    
-
-    def _collate_fn(self, batch_list: list) -> FixedStemSeparationBatch:
-        """
-        Custom collate function to convert a list of samples into a Pydantic batch.
-
-        This function is designed for `FixedStemSeparationBatch`. For other batch types,
-        a more complex or separate collate functions would be needed.
-
-        Args:
-            batch_list (list): A list of individual samples (dictionaries) from the dataset.
-
-        Returns:
-            FixedStemSeparationBatch: A collated batch of data.
-        """
-        # Collect all mixtures and sources
-        mixtures: List[torch.Tensor] = [item.audio.mixture for item in batch_list if item.audio.mixture is not None]
-        
-        # Collect sources for each stem
-        all_source_names: Set[str] = set()
-        for item in batch_list:
-            if item.audio.sources:
-                all_source_names.update(item.audio.sources.keys())
-
-        collated_sources: Dict[str, List[torch.Tensor]] = {name: [] for name in all_source_names}
-        for item in batch_list:
-            for name in all_source_names:
-                if item.audio.sources and name in item.audio.sources:
-                    collated_sources[name].append(item.audio.sources[name])
-                else:
-                    # If a source is missing for a particular item, handle it (e.g., by padding or skipping)
-                    # For now, we assume all sources are present or handled by the dataset.
-                    pass
-
-        # Stack mixtures and sources and wrap in AudioSignal
-        collated_mixture_audio_signal: Optional[AudioSignal] = AudioSignal(audio=torch.stack(mixtures)) if mixtures else None # Shape: (batch_size, channels, samples)
-        collated_sources_audio_signals: Dict[str, AudioSignal] = {name: AudioSignal(audio=torch.stack(tensors)) for name, tensors in collated_sources.items() if tensors} # Shape: Dict[source_name, (batch_size, channels, samples)]
-
-        collated_identifier: Any = batch_list[0].metadata['identifier']
-        
-        # Handle query_class based on self.query_features
-        query_class_signal: Optional[QuerySignal] = None
-        class_labels: Optional[torch.Tensor] = None
-        if self.query_features is not None:
-            batch_size = collated_mixture_audio_signal.audio.shape[0] if collated_mixture_audio_signal and collated_mixture_audio_signal.audio is not None else 1
-            # For Bandit, query_class is typically a dummy or derived from fixed stems.
-            # Here, we create a dummy class_label for demonstration.
-            # Determine the current stage
-            current_stage = self.current_stage if self.current_stage is not None else "fit" # Use stored stage, default to "fit"
-
-            if isinstance(self.query_features, str) and self.query_features == "class_label":
-                # Get available stems from the first item in the batch (assuming consistent stems across batch)
-                available_stems = sorted(list(collated_sources_audio_signals.keys()))
-                num_classes = len(available_stems)
-                
-                if current_stage == "fit":
-                    # For training, randomly choose a class label for each sample in the batch
-                    class_labels = torch.zeros(batch_size, num_classes)
-                    for i in range(batch_size):
-                        random_stem_idx = random.randint(0, num_classes - 1)
-                        class_labels[i, random_stem_idx] = 1.0
-                else:
-                    # For validation/test, for now, just use the first class.
-                    # This will be updated later to enumerate all classes.
-                    class_labels = torch.zeros(batch_size, num_classes)
-                    class_labels[:, 0] = 1.0 # One-hot for the first class
-            elif isinstance(self.query_features, int):
-                num_classes = self.query_features
-                class_labels = torch.ones(batch_size, num_classes) # Use the provided integer as num_classes
-            else:
-                raise ValueError(f"Unsupported query_features type: {type(self.query_features)}. Expected 'class_label' or an integer.")
-            
-            query_class_signal = QuerySignal(class_label=class_labels)
-            query_class_signal = QuerySignal(class_label=class_labels)
-        else:
-            # If query_features is None, it means this is likely a non-query model (like Bandit)
-            # In this case, query_class should still be a QuerySignal, but with no actual query data.
-            query_class_signal = QuerySignal(class_label=None)
-
-
-        return FixedStemSeparationBatch(
-            mixture=collated_mixture_audio_signal,
-            sources=collated_sources_audio_signals,
-            metadata={"identifier": collated_identifier},
-            query_class=query_class_signal # Pass query_class
+    def predict_dataloader(self) -> EVAL_DATALOADERS:
+        if not self.predict_dataset:
+            return [] # Return empty list if no predict dataset
+        return DataLoader(
+            self.predict_dataset,
+            batch_size=self.config.batch_size, # Use common batch_size from DataModuleConfig
+            shuffle=False,
+            num_workers=self.config.num_workers, # Use common num_workers from DataModuleConfig
+            pin_memory=self.config.pin_memory, # Use common pin_memory from DataModuleConfig
+            drop_last=self.config.drop_last, # Use common drop_last from DataModuleConfig
         )
 
     @classmethod
-    def from_config(cls, config: DictConfig) -> "SourceSeparationDataModule":
+    def from_config(cls, config: DataModuleConfig) -> "SourceSeparationDataModule": # Changed to DataModuleConfig
         """
-        Instantiates a SourceSeparationDataModule from a DictConfig.
-
-        Args:
-            config (DictConfig): A DictConfig object containing the data module configuration.
-
-        Returns:
-            SourceSeparationDataModule: An instance of the SourceSeparationDataModule.
+        Instantiates a DataModule from a DataModuleConfig.
+        This method should be overridden by subclasses to return the specific DataModule.
         """
-        # Extract _target_ and config from the nested DictConfig for train_dataset_config
-        train_dataset_target = config.train_dataset_config._target_
-        train_dataset_inner_config = config.train_dataset_config.config
-        train_dataset_config_pydantic = DatasetConnectorConfig(
-            target_=train_dataset_target,
-            config=OmegaConf.to_container(train_dataset_inner_config, resolve=True)
-        )
+        return cls(config)
 
-        # Extract _target_ and config from the nested DictConfig for val_dataset_config
-        val_dataset_target = config.val_dataset_config._target_
-        val_dataset_inner_config = config.val_dataset_config.config
-        val_dataset_config_pydantic = DatasetConnectorConfig(
-            target_=val_dataset_target,
-            config=OmegaConf.to_container(val_dataset_inner_config, resolve=True)
-        )
-
-        batch_size: int = config.batch_size
-        
-        test_dataset_config_pydantic: Optional[DatasetConnectorConfig] = None
-        if "test_dataset_config" in config:
-            test_dataset_target = config.test_dataset_config._target_
-            test_dataset_inner_config = config.test_dataset_config.config
-            test_dataset_config_pydantic = DatasetConnectorConfig(
-                target_=test_dataset_target,
-                config=OmegaConf.to_container(test_dataset_inner_config, resolve=True)
-            )
-
-        num_workers: int = config.get("num_workers", 0)
-        pin_memory: bool = config.get("pin_memory", False)
-        query_features: Optional[Union[str, int]] = config.get("query_features", None) # Added query_features
-
-        return cls(
-            train_dataset_config=train_dataset_config_pydantic,
-            val_dataset_config=val_dataset_config_pydantic,
-            test_dataset_config=test_dataset_config_pydantic,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-            query_features=query_features, # Pass query_features
-        )
-
-
-class DataModuleConfig(BaseModel):
-    """
-    Pydantic model for data module configuration.
-
-    Attributes:
-        name (str): The name of the data module to register.
-        config (Dict[str, Any]): A dictionary of configuration parameters for the data module.
-    """
-    model_config = {'arbitrary_types_allowed': True}
-    name: str = Field(...)
-    config: Dict[str, Any] = Field({})
+# No model_rebuild() calls needed here

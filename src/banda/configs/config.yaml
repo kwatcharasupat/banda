@@ -5,7 +5,8 @@ defaults:
   - optimizer: default
   - trainer: default
   - data: default # Added data default
-  - experiment: test_run_4_bandit_erb32_gru # Default experiment for quick testing
+  - logger: wandb # Moved from experiment configs
+  - model: default # Added model default
 
 project_root: ${oc.env:PROJECT_ROOT,.}
 experiment_name: bandit_musdb18hq_test
@@ -15,4 +16,4 @@ log_level: INFO
 paths:
   output_dir: ${hydra.run.dir}
   log_dir: ${hydra.run.dir}/logs
-  data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data} # Added default DATA_ROOT
+  data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data}
