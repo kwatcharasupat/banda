@@ -33,6 +33,7 @@ from banda.data.augmentations.base import (
     TransformConfig,
     Transform
 )
+from banda.data.datamodule import DatasetConnectorConfig
 from banda.data.types import (
     GenericIdentifier,
     NumPySourceDict,
@@ -53,18 +54,6 @@ class NonWavFileWarning(Warning):
     """
     Warning for non-WAV file extensions.
     """
-
-class DatasetConnectorConfig(BaseModel):
-    """
-    Configuration model for a dataset connector.
-
-    Attributes:
-        target_ (str): The full path to the dataset connector class.
-        config (Dict[str, Any]): A dictionary of configuration parameters for the connector.
-    """
-    model_config = {'arbitrary_types_allowed': True}
-    target_: str = Field(...) # Reverted to target_
-    config: Dict[str, Any] = Field({})
 
 class DatasetConnector(ABC, Generic[GenericIdentifier]):
     """
@@ -134,7 +123,7 @@ class DatasetConnector(ABC, Generic[GenericIdentifier]):
         raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config: DictConfig) -> "DatasetConnector":
+    def from_config(cls, config: DatasetConnectorConfig) -> "DatasetConnector":
         """
         Create a dataset connector instance from a configuration object.
 
@@ -153,12 +142,14 @@ class DatasetConnector(ABC, Generic[GenericIdentifier]):
             AttributeError: If the specified class or module cannot be found.
             TypeError: If the configuration parameters do not match the connector's constructor.
         """
-        class_path: str = config._target_ # Kept _target_ here as it's from Hydra config
-        
-        if hasattr(config, 'config') and isinstance(config.config, DictConfig):
-            kwargs: Dict[str, Any] = {k: v for k, v in config.config.items()}
-        else:
-            kwargs: Dict[str, Any] = {k: v for k, v in config.items() if k != '_target_'} # Kept _target_ here
+
+        if isinstance(config, dict):
+            config = DatasetConnectorConfig(**config)
+
+        assert isinstance(config, DatasetConnectorConfig), type(config)
+
+        class_path: str = config.target_ # Kept _target_ here as it's from Hydra config        
+        kwargs: Dict[str, Any] = config.model_dump(exclude=["target_"])
 
         # Expand environment variables in data_root if present
         if 'data_root' in kwargs:
@@ -167,7 +158,7 @@ class DatasetConnector(ABC, Generic[GenericIdentifier]):
         module = importlib.import_module(module_name)
         connector_cls: Type["DatasetConnector"] = getattr(module, class_name)
 
-        return connector_cls(**kwargs)
+        return connector_cls.from_config(**kwargs)
 
 class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
     """
@@ -547,7 +538,8 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
         Returns:
             SourceSeparationDataset: An instance of the configured dataset.
         """
-        dataset_connector: DatasetConnector[GenericIdentifier] = DatasetConnector.from_config(config['dataset_connector'])
+
+        dataset_connector: DatasetConnector[GenericIdentifier] = DatasetConnector.from_config(config.dataset_connector)
  
         premix_transform: Optional[Transform] = None
         if config.get("premix_transform") is not None:

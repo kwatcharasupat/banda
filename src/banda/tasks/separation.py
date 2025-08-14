@@ -1,11 +1,11 @@
 import torch
 import pytorch_lightning as pl
 from typing import Any, Dict, Union, Optional
-from banda.models.core_models.banquet_separator import Banquet
-from banda.models.core_models.bandit_separator import Bandit # Import Bandit
-from banda.losses.separation_loss_handler import SeparationLossHandler
+from banda.configs.train_configs import OptimizerConfig
+# from banda.models.bandit_separator import Bandit # Import Bandit
+from banda.losses.loss_handler import LossHandler
 from banda.metrics.metric_handler import MetricHandler
-from banda.utils.registry import TASKS_REGISTRY
+from banda.models.separator import SeparatorModel
 import structlog
 import logging
 import hydra.utils # Import hydra.utils
@@ -16,8 +16,6 @@ from pydantic import BaseModel
 logger = structlog.get_logger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 
-
-@TASKS_REGISTRY.register("separation_task")
 class SeparationTask(pl.LightningModule):
     """
     A PyTorch Lightning module for source separation tasks.
@@ -28,10 +26,10 @@ class SeparationTask(pl.LightningModule):
 
     def __init__(
         self,
-        model: Union[Banquet, Bandit], # Allow both Banquet and Bandit
-        loss_handler: SeparationLossHandler,
+        model: SeparatorModel,
+        loss_handler: LossHandler,
         metric_handler: MetricHandler,
-        optimizer_config: "banda.configs.train_configs.OptimizerConfig", # Changed type hint to string literal
+        optimizer_config: OptimizerConfig,
     ):
         """
         Initializes the SeparationTask.
@@ -62,24 +60,6 @@ class SeparationTask(pl.LightningModule):
             # and will be moved by Lightning automatically.
             # Removed explicit metric.to(self.device) calls as well.
 
-
-    def forward(self, audio: torch.Tensor, query: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
-        """
-        Forward pass through the model.
-
-        Args:
-            audio (torch.Tensor): Input audio tensor.
-            query (Optional[torch.Tensor]): Optional input query tensor.
-
-        Returns:
-            Dict[str, torch.Tensor]: Dictionary of separated audio tensors.
-        """
-        if isinstance(self.model, Banquet) and query is not None:
-            return self.model(audio, query)
-        elif isinstance(self.model, Bandit):
-            return self.model(audio)
-        else:
-            raise ValueError("Model type not supported or query not provided for query-based model.")
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
         """
@@ -160,26 +140,3 @@ class SeparationTask(pl.LightningModule):
         optimizer_params = {k: v for k, v in self.optimizer_config.model_dump().items() if k != "_target_"}
         optimizer = optimizer_class(self.parameters(), **optimizer_params)
         return optimizer
-
-    @classmethod
-    def from_config(cls, model: Union[Banquet, Bandit], loss_config: Any, metrics_config: Any, optimizer_config: "banda.configs.train_configs.OptimizerConfig") -> "SeparationTask": # Changed type hint to string literal
-        """
-        Instantiates a SeparationTask from Pydantic config models.
-
-        Args:
-            model (Union[Banquet, Bandit]): The instantiated source separation model.
-            loss_config (Any): The Pydantic LossConfig object.
-            metrics_config (Any): The Pydantic MetricsConfig object.
-            optimizer_config (OptimizerConfig): The Pydantic OptimizerConfig object.
-
-        Returns:
-            SeparationTask: An instance of the SeparationTask.
-        """
-        loss_handler = SeparationLossHandler.from_config(loss_config)
-        metric_handler = MetricHandler.from_config(metrics_config)
-        return cls(
-            model=model,
-            loss_handler=loss_handler,
-            metric_handler=metric_handler,
-            optimizer_config=optimizer_config,
-        )

@@ -3,7 +3,7 @@ This module defines Pydantic models for standardizing data batch structures
 used throughout the banda codebase.
 """
 
-from typing import Union, Dict, Any, Optional, List, Set
+from typing import Type, TypeVar, Union, Dict, Any, Optional, List, Set
 from pydantic import BaseModel, ConfigDict
 import torch
 import numpy as np
@@ -154,6 +154,8 @@ class BaseSeparationBatch(ArbitraryTypesAllowedBaseModel):
     sources: Dict[str, AudioSignal]
     metadata: Dict[str, Any]
 
+    estimates: Dict[str, AudioSignal]
+
     def to_device(self, device: torch.device) -> "BaseSeparationBatch":
         """
         Moves all torch.Tensor attributes of the batch to the specified device.
@@ -228,4 +230,4 @@ class FixedStemSeparationBatch(QueryClassSeparationBatch):
         return super().to_device(device)
 
 
-SeparationBatch = Union[FixedStemSeparationBatch, QueryAudioSeparationBatch, QueryClassSeparationBatch]
+SeparationBatch = TypeVar("SeparationBatch", bound=BaseSeparationBatch)

@@ -16,28 +16,23 @@ from typing import Dict, Any, List, Tuple, Optional
 import sys
 import os
 
+from banda.models.separator import OpenUnmix, SeparatorModel
 from banda.utils.logging import configure_logging
 from banda.configs.train_configs import TrainConfig, TrainerConfig, LoggerConfig, OptimizerConfig
 from banda.metrics.metric_handler import MetricsConfig
-from banda.losses.separation_loss_handler import LossConfig
+from banda.losses.loss_handler import LossConfig, LossHandler
 from banda.data.datamodule import DatasetConfig
-from banda.models.common_components.configs.common_configs import BaseSeparatorConfig, BanditSeparatorConfig, BanquetSeparatorConfig
-from banda.models.common_components.time_frequency_models.tf_models import RNNTFModelConfig, TransformerTFModelConfig, MambaTFModelConfig
 from pytorch_lightning.loggers import WandbLogger
 from banda.tasks.separation import SeparationTask
-from banda.models.core_models.banquet_separator import Banquet
-from banda.models.core_models.bandit_separator import Bandit # Import Bandit
+
 from banda.data.datamodule import SourceSeparationDataModule, DataModuleConfig # Corrected import
 import wandb
 from hydra.core.hydra_config import HydraConfig
 
-from banda.utils.registry import MODELS_REGISTRY, LOSSES_REGISTRY, DATASETS_REGISTRY, TASKS_REGISTRY
 from banda.metrics.metric_handler import MetricHandler # Import MetricHandler
 from banda.metrics.metric_handler import MetricsConfig
-from banda.losses.separation_loss_handler import LossConfig
+from banda.losses.loss_handler import LossConfig
 from banda.data.datamodule import DatasetConfig # Import Pydantic configs
-from banda.models.common_components.configs.common_configs import BaseSeparatorConfig, BanditSeparatorConfig, BanquetSeparatorConfig # Import BaseSeparatorConfig
-from banda.models.common_components.time_frequency_models.tf_models import RNNTFModelConfig, TransformerTFModelConfig, MambaTFModelConfig # Import TFModelConfigs
 
 @hydra.main(config_path="../../experiment", version_base="1.3") # Point to the top-level config.yaml
 def train(cfg: DictConfig) -> None:
@@ -101,33 +96,24 @@ def train(cfg: DictConfig) -> None:
     # 1. Instantiate DataModule
     datamodule: pl.LightningDataModule = SourceSeparationDataModule.from_config(train_config.data)
     
-    # 2. Instantiate Model
-    # This allows for generalization to any new separator model that inherits from BaseSeparator
-    # and has a corresponding Pydantic config inheriting from BaseSeparatorConfig.
-    # The model's from_config method should be registered in MODELS_REGISTRY.
-    logging.info(f"Derived model registry key: {train_config.model.__class__.__name__.replace('SeparatorConfig', '').lower()}")
-    model_cls = MODELS_REGISTRY.get(train_config.model.target_.split('.')[-1].lower())
-    if model_cls:
-        model: pl.LightningModule = model_cls.from_config(train_config.model)
-    else:
-        raise ValueError(f"Unsupported model configuration type or model not registered: {type(train_config.model)}")
-        
+    model: OpenUnmix = OpenUnmix.from_config(train_config.model) # Changed to OpenUnmix
 
     # 3. Instantiate Loss Function
-    loss_handler: LossConfig = LossConfig.from_config(train_config.loss) # Changed to LossConfig
+    loss_handler: LossHandler = LossHandler.from_config(train_config.loss) # Changed to LossConfig
     # 4. Instantiate Metrics
-    metric_handler: MetricsConfig = MetricsConfig.from_config(train_config.metrics) # Changed to MetricsConfig
+
+    metric_handler: MetricHandler = MetricHandler.from_config(train_config.metrics) # Changed to MetricsConfig
 
     # 5. Instantiate Lightning Task
-    task: pl.LightningModule = SeparationTask.from_config(
+    task: pl.LightningModule = SeparationTask(
         model=model,
-        loss_config=train_config.loss,
-        metrics_config=train_config.metrics,
-        optimizer_config=train_config.optimizer
+        loss_handler=loss_handler,
+        metric_handler=metric_handler,
+        optimizer_config=train_config.optimizer,
     )
 
     # 6. Instantiate Trainer
-    trainer_kwargs: Dict[str, Any] = train_config.trainer.model_dump(exclude={"_target_"})
+    trainer_kwargs: Dict[str, Any] = train_config.trainer.model_dump(exclude={"target_"})
     wandb_logger: WandbLogger = WandbLogger(
         project=train_config.logger.project,
         log_model=train_config.logger.log_model,
@@ -148,14 +134,12 @@ def train(cfg: DictConfig) -> None:
         **trainer_kwargs
     )
 
-    # Move task to the correct device before training
-    if trainer.accelerator == "mps":
-        task.to(trainer.device)
+    for item in datamodule.train_dataloader():
+        print(item)
 
     # 7. Train the model
     logging.info("Starting model training...")
     try:
-        print(datamodule.__class__)
         trainer.fit(task, datamodule=datamodule)
         logging.info("Model training completed.")
     except Exception as e:

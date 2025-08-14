@@ -6,7 +6,7 @@ from typing import (
     Any,
 )
 
-from banda.utils.registry import DATASETS_REGISTRY
+from banda.utils.registry import DatasetRegistry
 import structlog
 
 from banda.data.types import (
@@ -151,7 +151,7 @@ class MedleyDBConnector(DatasetConnector[MedleyDBIdentifier]):
         """
         return len(self._identifiers)
 
-@DATASETS_REGISTRY.register("medleydb")
+@DatasetRegistry.register("medleydb")
 class MedleyDBDataset(SourceSeparationDataset):
     """
     Dataset for the MedleyDB dataset.

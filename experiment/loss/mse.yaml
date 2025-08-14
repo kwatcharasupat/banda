@@ -1,0 +1,4 @@
+- _target_: SpectralMSELoss
+  name: SpectralMSELoss
+  weight: 1.0
+  params: null

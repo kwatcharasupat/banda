@@ -1,9 +1,0 @@
-defaults:
-  - /data: musdb18hq
-  - /trainer: default
-  - /loss: default
-  - /logger: wandb
-  - _self_
-
-model:
-  input_channels: 2

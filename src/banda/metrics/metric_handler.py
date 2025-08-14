@@ -10,11 +10,11 @@ import torch
 from torch import nn
 from pydantic import BaseModel, Field, ConfigDict
 
-# from banda.utils.registry import METRICS_REGISTRY # Removed as per previous instructions
+from banda.utils.registry import MetricRegistry
 
 class MetricsConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    target_: str = Field(alias="_target_") # Changed _target_ to target_
+    target_: str = Field(alias="_target_")
     name: str
     params: Optional[Dict[str, Any]] = None
 
@@ -24,21 +24,9 @@ class MetricHandler(nn.Module):
         self.metrics = nn.ModuleDict()
 
         for metric_cfg in metric_configs:
-            metric_class = self._get_metric_class(metric_cfg.name)
+            metric_class = MetricRegistry.get(metric_cfg.target_) # Use MetricRegistry
             metric_fn = metric_class(**(metric_cfg.params or {}))
             self.metrics[metric_cfg.name] = metric_fn
-
-    def _get_metric_class(self, name: str):
-        # Placeholder for metric class lookup
-        if name == "sdr":
-            # Assuming a dummy SDR metric for now
-            class DummySDR(nn.Module):
-                def forward(self, prediction, target):
-                    # Dummy SDR calculation
-                    return torch.tensor(10.0) # Example value
-            return DummySDR
-        else:
-            raise ValueError(f"Unknown metric: {name}")
 
     def forward(self, predictions: Dict[str, torch.Tensor], targets: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         results = {}
@@ -58,5 +46,3 @@ class MetricHandler(nn.Module):
             return cls(config)
         else:
             return cls([config])
-
-# No model_rebuild() calls needed here

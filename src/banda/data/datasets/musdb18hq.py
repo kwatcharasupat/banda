@@ -15,7 +15,7 @@ from typing import (
 
 import structlog
 
-from banda.utils.registry import DATASETS_REGISTRY
+from banda.utils.registry import DatasetRegistry
 from banda.data.types import (
     Identifier,
     __VDBO__
@@ -160,7 +160,7 @@ class MUSDB18Connector(DatasetConnector[MUSDB18Identifier]):
         """
         return len(self._identifiers)
 
-@DATASETS_REGISTRY.register("musdb18hq")
+@DatasetRegistry.register("musdb18hq")
 class MUSDB18HQDataset(SourceSeparationDataset):
     """
     Dataset for the MUSDB18HQ dataset.

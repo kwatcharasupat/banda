@@ -1,0 +1,179 @@
+_wandb:
+    value:
+        cli_version: 0.21.0
+        e:
+            oa69ltqtd7buvzqt3a8ecbvpucy4kc2y:
+                args:
+                    - -cn
+                    - test_umx
+                codePath: src/banda/train.py
+                codePathLocal: src/banda/train.py
+                email: kwatcharasupat@gatech.edu
+                executable: /Users/kwatcharasupat/miniforge3/envs/banda/bin/python
+                git:
+                    commit: 9259273fa6bfd53d24175f5198db32c032234c1e
+                    remote: https://github.com/kwatcharasupat/banda.git
+                host: kwatcharasupat-2.local
+                os: macOS-15.5-arm64-arm-64bit
+                program: /Users/kwatcharasupat/personal/banda/src/banda/train.py
+                python: CPython 3.12.11
+                root: outputs/2025-08-12/14-56-16
+                startedAt: "2025-08-12T20:56:16.895589Z"
+                writerId: oa69ltqtd7buvzqt3a8ecbvpucy4kc2y
+        m: []
+        python_version: 3.12.11
+        t:
+            "1":
+                - 1
+                - 9
+                - 50
+                - 103
+                - 106
+            "2":
+                - 1
+                - 9
+                - 50
+                - 103
+                - 106
+            "3":
+                - 16
+            "4": 3.12.11
+            "5": 0.21.0
+            "12": 0.21.0
+            "13": darwin-arm64
+data:
+    value:
+        batch_size: 4
+        drop_last: true
+        num_workers: 4
+        pin_memory: true
+        predict_dataset_config:
+            dataset_connector:
+                config:
+                    data_root: ${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz
+                target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+            fs: 44100
+            postmix_transform: null
+            premix_transform: null
+            split: predict
+            target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+        shuffle: true
+        test_dataset_config:
+            dataset_connector:
+                config:
+                    data_root: ${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz
+                target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+            fs: 44100
+            postmix_transform: null
+            premix_transform: null
+            split: test
+            target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+        train_dataset_config:
+            dataset_connector:
+                config:
+                    data_root: ${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz
+                target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+            fs: 44100
+            postmix_transform:
+                _target_: banda.data.augmentations.base.ComposePostMixTransforms
+                transforms:
+                    - _target_: banda.data.augmentations.time_domain.Gain
+                      config:
+                        max_gain_db: 6
+                        min_gain_db: -6
+                    - _target_: banda.data.augmentations.time_domain.NormalizeAudio
+                      config:
+                        target_rms_db: -20
+            premix_transform:
+                _target_: banda.data.augmentations.base.ComposePreMixTransforms
+                transforms:
+                    - _target_: banda.data.samplers.random_chunk.RandomChunkingTransform
+                      config:
+                        align_sources: true
+                        chunk_size_seconds: 3
+                        fs: 44100
+            split: train
+            target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+        val_dataset_config:
+            dataset_connector:
+                config:
+                    data_root: ${oc.env:DATA_ROOT}/musdb18hq/intermediates/npz
+                target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+            fs: 44100
+            postmix_transform: null
+            premix_transform: null
+            split: val
+            target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+experiment_name:
+    value: umx_test
+log_level:
+    value: INFO
+logger:
+    value:
+        log_model: true
+        project: banda
+        save_dir: ${paths.output_dir}
+        target_: lightning.pytorch.loggers.wandb.WandbLogger
+loss:
+    value:
+        - name: mse
+          params: null
+          target_: banda.losses.mse.SpectralMSELoss
+          weight: 1
+metrics:
+    value:
+        - name: si_snr
+          params: {}
+          target_: torchmetrics.audio.ScaleInvariantSignalNoiseRatio
+model:
+    value:
+        _target_: banda.models.separator.Separator
+        bandsplit_module_config:
+            _target_: banda.models.common_components.spectral_components.bandsplit.BandsplitModuleConfig
+            emb_dim: 128
+            input_channels: 2
+            n_bands: 1
+        mask_estimation_config:
+            _target_: banda.models.common_components.mask_estimation.mask_estimation_modules.MaskEstimationConfig
+            emb_dim: 128
+            output_channels: 2
+        stft_config:
+            _target_: banda.models.common_components.spectral_components.spectral_base.STFTConfig
+            center: true
+            freeze_parameters: true
+            hop_length: 512
+            n_fft: 2048
+            pad_mode: constant
+            win_length: 2048
+            window: hann
+        time_frequency_model_config:
+            _target_: banda.models.common_components.time_frequency_models.tf_models.RNNTFModelConfig
+            bidirectional: true
+            dropout: 0
+            emb_dim: 128
+            max_seq_len_bands: null
+            max_seq_len_time: null
+            n_modules: 12
+            rnn_dim: 256
+            rnn_type: LSTM
+optimizer:
+    value:
+        lr: 0.001
+        target_: torch.optim.Adam
+paths:
+    value:
+        data_root: /Users/kwatcharasupat/personal/data
+        log_dir: outputs/2025-08-12/14-56-16/logs
+        output_dir: outputs/2025-08-12/14-56-16
+project_root:
+    value: ${oc.env:PROJECT_ROOT,.}
+seed:
+    value: 42
+trainer:
+    value:
+        accelerator: auto
+        devices: auto
+        log_every_n_steps: 50
+        max_epochs: 5
+        precision: 32
+        target_: pytorch_lightning.Trainer

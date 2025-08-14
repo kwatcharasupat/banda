@@ -9,7 +9,8 @@ import os
 import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import lightning as L
+import hydra
+import pytorch_lightning as pl
 import torch
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader, Dataset
@@ -60,7 +61,7 @@ class BaseDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         raise NotImplementedError
 
-class SourceSeparationDataModule(L.LightningDataModule): # Renamed BaseDataModule to SourceSeparationDataModule
+class SourceSeparationDataModule(pl.LightningDataModule): # Renamed BaseDataModule to SourceSeparationDataModule
     def __init__(self, config: DataModuleConfig): # Changed to DataModuleConfig
         super().__init__()
         self.config = config
@@ -69,32 +70,17 @@ class SourceSeparationDataModule(L.LightningDataModule): # Renamed BaseDataModul
         self.test_dataset: Optional[Dataset] = None
         self.predict_dataset: Optional[Dataset] = None
 
-    def prepare_data(self) -> None:
-        """
-        Download data if needed. This stage is called on 1 GPU/TPU in distributed
-        training, it's not called on every device.
-        """
-        pass
+        if self.config.train_dataset_config:
+            self.train_dataset = self._create_dataset(self.config.train_dataset_config)
 
-    def setup(self, stage: Optional[str] = None) -> None:
-        """
-        Load data, split datasets, etc. This stage is called on every device.
-        """
-        if stage == "fit" or stage is None:
-            if self.config.train_dataset_config:
-                self.train_dataset = self._create_dataset(self.config.train_dataset_config)
-            if self.config.val_dataset_config:
-                self.val_dataset = self._create_dataset(self.config.val_dataset_config)
-        if stage == "test" or stage is None:
-            if self.config.test_dataset_config:
-                self.test_dataset = self._create_dataset(self.config.test_dataset_config)
-            elif self.config.val_dataset_config: # Fallback to val if test is not provided
-                self.test_dataset = self._create_dataset(self.config.val_dataset_config)
-        if stage == "predict" or stage is None:
-            if self.config.predict_dataset_config:
-                self.predict_dataset = self._create_dataset(self.config.predict_dataset_config)
-            elif self.config.val_dataset_config: # Fallback to val if predict is not provided
-                self.predict_dataset = self._create_dataset(self.config.val_dataset_config)
+        if self.config.val_dataset_config:
+            self.val_dataset = self._create_dataset(self.config.val_dataset_config)
+
+        if self.config.test_dataset_config:
+            self.test_dataset = self._create_dataset(self.config.test_dataset_config)
+
+        if self.config.predict_dataset_config:
+            self.predict_dataset = self._create_dataset(self.config.predict_dataset_config)
 
     def _create_dataset(self, dataset_config: DatasetConfig) -> Dataset:
         """
@@ -103,7 +89,10 @@ class SourceSeparationDataModule(L.LightningDataModule): # Renamed BaseDataModul
         """
         # Instantiate the dataset class using its _target_ and config
         dataset_cls = hydra.utils.get_class(dataset_config.target_)
-        return dataset_cls(config=dataset_config) # Pass the entire DatasetConfig
+
+        
+
+        return dataset_cls.from_config(config=dataset_config) # Pass the entire DatasetConfig
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if not self.train_dataset:
