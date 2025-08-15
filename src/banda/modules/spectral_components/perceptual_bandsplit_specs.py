@@ -7,7 +7,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-from banda.models.common_components.configs.bandsplit_configs._bandsplit_models import (
+from banda.models.modules.configs.bandsplit_configs._bandsplit_models import (
     PerceptualBandsplitSpecsConfig,
     MusicalBandsplitSpecsConfig,
     MelBandsplitSpecsConfig,
@@ -15,7 +15,7 @@ from banda.models.common_components.configs.bandsplit_configs._bandsplit_models 
     EquivalentRectangularBandsplitSpecsConfig,
     BandsplitType,
 )
-from banda.models.common_components.spectral_components.spectral_base import (
+from banda.models.modules.spectral_components.spectral_base import (
     BandsplitSpecification,
     bark_to_hz,
     hz_to_midi,
@@ -24,7 +24,7 @@ from banda.models.common_components.spectral_components.spectral_base import (
     hz_to_erb,
     _create_triangular_filterbank,
 )
-from banda.models.common_components.spectral_components.bandsplit_registry import bandsplit_registry
+from banda.models.modules.spectral_components.bandsplit_registry import bandsplit_registry
 
 class PerceptualBandsplitSpecification(BandsplitSpecification):
     def __init__(

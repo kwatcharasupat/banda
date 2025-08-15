@@ -2,9 +2,9 @@ import os
 import torch
 from typing import List, Tuple
 from omegaconf import OmegaConf
-from banda.models.common_components.configs.bandsplit_configs._bandsplit_models import VocalBandsplitSpecsConfig, FixedBandsplitSpecsConfig, BandDefinitionConfig
-from banda.models.common_components.spectral_components.spectral_base import BandsplitSpecification
-from banda.models.common_components.spectral_components.fixed_bandsplit_specs import FixedBandsplitSpecs # Import the base class
+from banda.models.modules.configs.bandsplit_configs._bandsplit_models import VocalBandsplitSpecsConfig, FixedBandsplitSpecsConfig, BandDefinitionConfig
+from banda.models.modules.spectral_components.spectral_base import BandsplitSpecification
+from banda.models.modules.spectral_components.fixed_bandsplit_specs import FixedBandsplitSpecs # Import the base class
 
 import structlog
 import logging

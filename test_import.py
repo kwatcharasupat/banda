@@ -8,7 +8,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 try:
-    import banda.models.common_components.configs.bandsplit_configs._bandsplit_models as bandsplit_models
+    import banda.models.modules.configs.bandsplit_configs._bandsplit_models as bandsplit_models
     print("Successfully imported _bandsplit_models module!")
     if hasattr(bandsplit_models, 'ERBBandsplitSpecsConfig'):
         print("ERBBandsplitSpecsConfig found within _bandsplit_models module!")

@@ -21,8 +21,8 @@ from torch.nn.utils import weight_norm
 from omegaconf import DictConfig, OmegaConf
 import hydra.utils
 
-from banda.models.common_components.spectral_components.spectral_base import BandsplitSpecification, get_bandsplit_specs_factory
-from banda.models.common_components.configs.common_configs import BandsplitModuleConfig, STFTConfig
+from banda.models.modules.spectral_components.spectral_base import BandsplitSpecification, get_bandsplit_specs_factory
+from banda.models.modules.configs.common_configs import BandsplitModuleConfig, STFTConfig
 
 
 class NormFC(nn.Module):

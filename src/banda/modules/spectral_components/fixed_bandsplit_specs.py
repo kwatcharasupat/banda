@@ -6,14 +6,14 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-from banda.models.common_components.configs.bandsplit_configs._bandsplit_models import (
+from banda.models.modules.configs.bandsplit_configs._bandsplit_models import (
     FixedBandsplitSpecsConfig,
     VocalBandsplitSpecsConfig,
     BandDefinitionConfig,
     BandsplitType,
 )
-from banda.models.common_components.spectral_components.spectral_base import BandsplitSpecification # Corrected import
-from banda.models.common_components.spectral_components.bandsplit_registry import bandsplit_registry
+from banda.models.modules.spectral_components.spectral_base import BandsplitSpecification # Corrected import
+from banda.models.modules.spectral_components.bandsplit_registry import bandsplit_registry
 
 class FixedBandsplitSpecs(BandsplitSpecification):
     def __init__(self, nfft: int, fs: int, config: FixedBandsplitSpecsConfig, drop_dc_band: bool = False) -> None:

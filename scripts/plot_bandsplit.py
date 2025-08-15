@@ -4,10 +4,10 @@ import numpy as np
 import hydra
 from omegaconf import OmegaConf
 
-from banda.models.common_components.spectral_components.spectral_base import (
+from banda.models.modules.spectral_components.spectral_base import (
     BandsplitSpecification,
 )
-from banda.models.common_components.configs.bandsplit_configs._bandsplit_models import (
+from banda.models.modules.configs.bandsplit_configs._bandsplit_models import (
     MusicalBandsplitSpecsConfig,
     FixedBandsplitSpecsConfig,
     VocalBandsplitSpecsConfig,
@@ -17,7 +17,7 @@ from banda.models.common_components.configs.bandsplit_configs._bandsplit_models 
     BandsplitType,
     BANDSPLIT_CONFIG_MAP, # Import BANDSPLIT_CONFIG_MAP
 )
-from banda.models.common_components.spectral_components.bandsplit_registry import bandsplit_registry
+from banda.models.modules.spectral_components.bandsplit_registry import bandsplit_registry
 
 
 def plot_bandsplit_assignment(bandsplit_type: BandsplitType, nfft: int, fs: int, n_bands: int, drop_dc_band: bool = False):

@@ -26,7 +26,7 @@ from mambapy.vim import VMamba # Import VMamba for Vision Mamba
 
 from banda.utils.registry import MODELS_REGISTRY
 from banda.core.interfaces import BaseTimeFrequencyModel
-from banda.models.common_components.positional_embeddings import RotaryPositionalEmbedding2D # Import the new module
+from banda.models.modules.positional_embeddings import RotaryPositionalEmbedding2D # Import the new module
 
 from pydantic import BaseModel, ConfigDict, Field
 

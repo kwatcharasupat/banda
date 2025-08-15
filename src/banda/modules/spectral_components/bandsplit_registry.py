@@ -1,8 +1,8 @@
 from typing import Dict, Type, TYPE_CHECKING
-from banda.models.common_components.configs.bandsplit_configs._bandsplit_models import BandsplitType
+from banda.models.modules.configs.bandsplit_configs._bandsplit_models import BandsplitType
 
 if TYPE_CHECKING:
-    from banda.models.common_components.spectral_components.spectral_base import BandsplitSpecification
+    from banda.models.modules.spectral_components.spectral_base import BandsplitSpecification
 
 class BandsplitRegistry:
     _registry: Dict[BandsplitType, Type["BandsplitSpecification"]] = {}
