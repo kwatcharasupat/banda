@@ -16,6 +16,9 @@ import hydra
 from banda.data.batch_types import TorchInputAudioDict
 from banda.data.types import Identifier, NumPySourceDict
 
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 class _TransformConfig(BaseModel):
     model_config = {'arbitrary_types_allowed': True, 'extra': 'allow'}
@@ -41,13 +44,8 @@ class Transform:
         Returns:
             Transform: An instance of the Transform class.
         """
-        class_path = config._target_ # Use _target_
-        
-        # Extract kwargs from the 'config' field if it exists, otherwise from the top-level config
-        if hasattr(config, 'config') and isinstance(config.config, DictConfig):
-            kwargs = {k: v for k, v in config.config.items()}
-        else:
-            kwargs = {k: v for k, v in config.items() if k != '_target_'}
+        class_path = config['_target_'] # Use _target_
+        kwargs = {k: v for k, v in config['config'].items()}
 
         module_name, class_name = class_path.rsplit(".", 1)
         module = importlib.import_module(module_name)
@@ -170,7 +168,7 @@ class ComposePreMixTransforms(PreMixTransform):
     def __init__(self, transforms: List[Union[PreMixTransform, DictConfig]]) -> None:
         instantiated_transforms = []
         for transform_cfg in transforms:
-            if isinstance(transform_cfg, DictConfig):
+            if isinstance(transform_cfg, dict):
                 instantiated_transforms.append(Transform.from_config(transform_cfg))
             else:
                 instantiated_transforms.append(transform_cfg)
@@ -194,6 +192,11 @@ class ComposePreMixTransforms(PreMixTransform):
         return sources
 
 
+    @classmethod
+    def from_config(cls, config: DictConfig): # Change to DictConfig
+        return cls(config['transforms'])
+
+
 class ComposePostMixTransforms(PostMixTransform):
     """
     Compose multiple post-mix transformations into a single transformation.
@@ -205,7 +208,7 @@ class ComposePostMixTransforms(PostMixTransform):
     def __init__(self, transforms: List[Union[PostMixTransform, DictConfig]]) -> None:
         instantiated_transforms = []
         for transform_cfg in transforms:
-            if isinstance(transform_cfg, DictConfig):
+            if isinstance(transform_cfg, dict):
                 instantiated_transforms.append(Transform.from_config(transform_cfg))
             else:
                 instantiated_transforms.append(transform_cfg)
@@ -227,3 +230,8 @@ class ComposePostMixTransforms(PostMixTransform):
         for transform in self.transforms:
             audio_dict = transform(audio_dict=audio_dict, identifier=identifier)
         return audio_dict
+    
+    
+    @classmethod
+    def from_config(cls, config: DictConfig): 
+        return cls(config['transforms'])

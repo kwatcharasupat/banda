@@ -45,7 +45,7 @@ class ChunkIdentifier(BaseModel):
         track_id (str): Unique track identifier.
     """
 
-    chunk_index: int
+    chunk_index: int = -1
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -58,7 +58,7 @@ class Identifier(BaseModel):
         Any fields can be added dynamically.
     """
 
-    chunk_identifier: Optional[ChunkIdentifier] = None
+    chunk_identifier: Optional[ChunkIdentifier] = ChunkIdentifier()
 
     model_config = ConfigDict(extra="allow")
 

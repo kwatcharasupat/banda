@@ -1,0 +1,73 @@
+# Dataset configuration for MUSDB18HQ
+# This configuration is designed to be used with Hydra's multirun feature.
+
+train:
+
+  dataloader:
+    batch_size: 8
+    shuffle: true
+    num_workers: 0
+    pin_memory: true
+    drop_last: false
+
+  dataset:
+    _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    split: train
+
+    dataset_connector:
+      _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+      config:
+        split: train
+        data_root: "$DATA_ROOT/musdb18hq/intermediates/npz" # Path relative to DATA_ROOT
+
+    fs: 44100
+    premix_transform:
+      _target_: banda.data.augmentations.base.ComposePreMixTransforms
+      transforms:
+      - _target_: banda.data.augmentations.random_chunk.RandomChunkingTransform
+        config:
+          chunk_size_seconds: 3.0
+          fs: 44100
+          align_sources: false
+      - _target_: banda.data.augmentations.time_domain.Gain
+        config:
+          min_gain_db: -6
+          max_gain_db: 6.0
+    postmix_transform:
+      _target_: banda.data.augmentations.base.ComposePostMixTransforms
+      transforms:
+      - _target_: banda.data.augmentations.time_domain.NormalizeAudio
+        config:
+          target_rms_db: -27
+
+val:
+  dataloader:
+    batch_size: 8
+    shuffle: false
+    num_workers: 4
+    pin_memory: true
+    drop_last: false
+
+  dataset:
+    _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+    split: val
+    dataset_connector:
+      _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+      config:
+        split: val
+        data_root: "$DATA_ROOT/musdb18hq/intermediates/npz" # Path relative to DATA_ROOT
+    fs: 44100
+    premix_transform:
+      _target_: banda.data.augmentations.base.ComposePreMixTransforms
+      transforms:
+      - _target_: banda.data.augmentations.random_chunk.DeterminsticChunkingTransform
+        config:
+          chunk_size_seconds: 3.0
+          hop_size_seconds: 3.0
+          fs: 44100
+    postmix_transform:
+      _target_: banda.data.augmentations.base.ComposePostMixTransforms
+      transforms:
+      - _target_: banda.data.augmentations.time_domain.NormalizeAudio
+        config:
+          target_rms_db: -27

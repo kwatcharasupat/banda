@@ -52,7 +52,6 @@ class SeparationTask(pl.LightningModule):
         Setup hook called before training, validation, or testing.
         Used to move loss and metric handlers to the correct device.
         """
-        print(f"SeparationTask.setup called with stage: {stage}")
         if self.trainer.accelerator == "mps":
             logger.debug(f"setup: Moving loss_handler to {self.device}")
             self.loss_handler.to(self.device)
@@ -136,7 +135,7 @@ class SeparationTask(pl.LightningModule):
         """
         Configures the optimizer for training.
         """
-        optimizer_class = hydra.utils.get_class(self.optimizer_config._target_)
-        optimizer_params = {k: v for k, v in self.optimizer_config.model_dump().items() if k != "_target_"}
+        optimizer_class = hydra.utils.get_class(self.optimizer_config.target_)
+        optimizer_params = {k: v for k, v in self.optimizer_config.model_dump().items() if k != "target_"}
         optimizer = optimizer_class(self.parameters(), **optimizer_params)
         return optimizer

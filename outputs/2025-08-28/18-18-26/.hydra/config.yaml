@@ -1,0 +1,122 @@
+project_root: ${oc.env:PROJECT_ROOT,.}
+experiment_name: bandit_musdb18hq_test
+seed: 42
+log_level: INFO
+paths:
+  output_dir: ${hydra.run.dir}
+  log_dir: ${hydra.run.dir}/logs
+  data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data}
+loss:
+- _target_: SpectralMSELoss
+  name: SpectralMSELoss
+  weight: 1.0
+  params: null
+metrics:
+- _target_: SignalNoiseRatio
+  name: snr
+  params: {}
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.001
+trainer:
+  _target_: pytorch_lightning.Trainer
+  max_epochs: 5
+  accelerator: auto
+  devices: auto
+  log_every_n_steps: 50
+  precision: 32
+data:
+  train:
+    dataloader:
+      batch_size: 8
+      shuffle: true
+      num_workers: 4
+      pin_memory: true
+      drop_last: false
+    dataset:
+      _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+      split: train
+      dataset_connector:
+        _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: train
+          data_root: $DATA_ROOT/musdb18hq/intermediates/npz
+      fs: 44100
+      premix_transform:
+        _target_: banda.data.augmentations.base.ComposePreMixTransforms
+        transforms:
+        - _target_: banda.data.augmentations.random_chunk.RandomChunkingTransform
+          config:
+            chunk_size_seconds: 3.0
+            fs: 44100
+            align_sources: true
+        - _target_: banda.data.augmentations.time_domain.Gain
+          config:
+            min_gain_db: -6
+            max_gain_db: 6.0
+      postmix_transform:
+        _target_: banda.data.augmentations.base.ComposePostMixTransforms
+        transforms:
+        - _target_: banda.data.augmentations.time_domain.NormalizeAudio
+          config:
+            target_rms_db: -27
+  val:
+    dataloader:
+      batch_size: 8
+      shuffle: false
+      num_workers: 4
+      pin_memory: true
+      drop_last: false
+    dataset:
+      _target_: banda.data.datasets.musdb18hq.MUSDB18HQDataset
+      split: val
+      dataset_connector:
+        _target_: banda.data.datasets.musdb18hq.MUSDB18Connector
+        config:
+          split: val
+          data_root: $DATA_ROOT/musdb18hq/intermediates/npz
+      fs: 44100
+      premix_transform: null
+      postmix_transform: null
+logger:
+  _target_: lightning.pytorch.loggers.wandb.WandbLogger
+  project: banda
+  name: ${experiment.name}
+  save_dir: ${paths.output_dir}
+  offline: false
+  id: null
+  version: null
+  log_model: true
+model:
+  _target_: banda.models.core_models.bandit_separator.Bandit
+  stft_config:
+    _target_: banda.models.common_components.spectral_components.spectral_base.STFTConfig
+    n_fft: 2048
+    hop_length: 512
+    win_length: 2048
+    window: hann
+    center: true
+    pad_mode: constant
+    freeze_parameters: true
+  bandsplit_module_config:
+    _target_: banda.models.common_components.spectral_components.bandsplit.BandsplitModuleConfig
+    emb_dim: 128
+    input_channels: 2
+  mask_estimation_config:
+    _target_: banda.models.common_components.mask_estimation.mask_estimation_modules.MaskEstimationConfig
+    emb_dim: 128
+    output_channels: 2
+  time_frequency_model_config:
+    _target_: banda.models.common_components.time_frequency_models.tf_models.RNNTFModelConfig
+    n_modules: 8
+    emb_dim: 128
+    dropout: 0.0
+    rnn_type: GRU
+    bidirectional: true
+    rnn_dim: 256
+    max_seq_len_bands: null
+    max_seq_len_time: null
+  input_channels: 2
+  output_channels: 2
+  hidden_features: 256
+  num_sources: 4

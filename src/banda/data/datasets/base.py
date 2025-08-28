@@ -7,25 +7,24 @@
 
 import os
 import warnings
-from abc import abstractmethod
-from abc import ABC
 from typing import (
     Generic,
     List,
     Optional,
     Dict,
-    Any,
-    Type, # Added Type import
+    Any, # Added Type import
 )
 
 import numpy as np
 import structlog
+import torch
 import torchaudio as ta
 from pydantic import BaseModel, Field
 from omegaconf import DictConfig
-import importlib
 
 from banda.data.augmentations.base import (
+    ComposePostMixTransforms,
+    ComposePreMixTransforms,
     PostMixTransform,
     PreMixTransform,
     IdentityPostMixTransform,
@@ -33,7 +32,8 @@ from banda.data.augmentations.base import (
     TransformConfig,
     Transform
 )
-from banda.data.datamodule import DatasetConnectorConfig
+from banda.data.connectors.base import DatasetConnector
+from banda.data.datamodule import DataSplitConfig, DatasetConfig
 from banda.data.types import (
     GenericIdentifier,
     NumPySourceDict,
@@ -54,111 +54,6 @@ class NonWavFileWarning(Warning):
     """
     Warning for non-WAV file extensions.
     """
-
-class DatasetConnector(ABC, Generic[GenericIdentifier]):
-    """
-    Abstract base class for dataset connectors.
-
-    Dataset connectors are responsible for providing metadata and file paths
-    for a specific dataset split.
-    """
-
-    def __init__(self, *, split: str, data_root: str) -> None:
-        """
-        Initializes the DatasetConnector.
-
-        Args:
-            split (str): The dataset split (e.g., "train", "test", "validation").
-            data_root (str): The root directory where the dataset files are stored.
-        """
-        self.split: str = split
-        self.data_root: str = data_root
-
-    @abstractmethod
-    def _get_stem_path(self, *, stem: str, identifier: GenericIdentifier) -> str:
-        """
-        Abstract method to get the file path for a specific stem of a track.
-
-        Args:
-            stem (str): The name of the stem (e.g., "vocals", "bass", "mixture").
-            identifier (GenericIdentifier): The unique identifier for the track.
-
-        Returns:
-            str: The absolute path to the stem's audio file.
-        """
-        raise NotImplementedError
-
-    def get_identifier(self, index: int) -> GenericIdentifier:
-        """
-        Abstract method to get the identifier for a track at a given index.
-
-        Args:
-            index (int): The index of the track.
-
-        Returns:
-            GenericIdentifier: The unique identifier for the track.
-        """
-        return self.identifiers[index]
-
-    @property
-    @abstractmethod
-    def identifiers(self) -> List[GenericIdentifier]:
-        """
-        Abstract property to get the list of identifiers for the dataset.
-
-        Returns:
-            List[GenericIdentifier]: A list of unique identifiers for all tracks in the dataset.
-        """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def n_tracks(self) -> int:
-        """
-        Abstract property to get the number of tracks in the dataset.
-
-        Returns:
-            int: The total number of tracks in the dataset.
-        """
-        raise NotImplementedError
-
-    @classmethod
-    def from_config(cls, config: DatasetConnectorConfig) -> "DatasetConnector":
-        """
-        Create a dataset connector instance from a configuration object.
-
-        This method dynamically loads the specified dataset connector class
-        and initializes it with the provided configuration.
-
-        Args:
-            config (DictConfig): A DictConfig object containing the
-                                 `target_` (class path) and `config` (parameters)
-                                 for the dataset connector.
-
-        Returns:
-            DatasetConnector: An instance of the specified dataset connector.
-
-        Raises:
-            AttributeError: If the specified class or module cannot be found.
-            TypeError: If the configuration parameters do not match the connector's constructor.
-        """
-
-        if isinstance(config, dict):
-            config = DatasetConnectorConfig(**config)
-
-        assert isinstance(config, DatasetConnectorConfig), type(config)
-
-        class_path: str = config.target_ # Kept _target_ here as it's from Hydra config        
-        kwargs: Dict[str, Any] = config.model_dump(exclude=["target_"])
-
-        # Expand environment variables in data_root if present
-        if 'data_root' in kwargs:
-            kwargs['data_root'] = os.path.expandvars(kwargs['data_root'])
-        module_name, class_name = class_path.rsplit(".", 1)
-        module = importlib.import_module(module_name)
-        connector_cls: Type["DatasetConnector"] = getattr(module, class_name)
-
-        return connector_cls.from_config(**kwargs)
 
 class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
     """
@@ -220,11 +115,11 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
         self.allow_resampling: bool = allow_resampling
         self.mixture_stem_key: str = mixture_stem_key or self.__DEFAULT_MIXTURE_STEM_KEY__
         self.auto_load_mixture: bool = auto_load_mixture
- 
+
         self.premix_transform: PreMixTransform = (
             premix_transform or IdentityPreMixTransform()
         )
-        self.post_mix_transform: PostMixTransform = (
+        self.postmix_transform: PostMixTransform = (
             postmix_transform or IdentityPostMixTransform()
         )
  
@@ -259,12 +154,14 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
  
         if audio_dict.mixture is None:
             raise ValueError("Mixture audio cannot be None for AudioBatch.")
- 
-        return AudioBatch(
+
+        batch = AudioBatch(
             audio=audio_dict.model_dump(),
             metadata={"identifier": identifier.model_dump(), "sources": audio_dict.sources}
-        )
- 
+        ).model_dump()
+
+        return batch
+        
     def get_stem(self, *, stem: str, identifier: GenericIdentifier) -> np.ndarray:
         """
         Retrieves the audio data for a specific stem of a track.
@@ -327,7 +224,7 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
             np.ndarray: The loaded and potentially resampled audio data.
                 Shape: (channels, samples)
         """
-        data: Any = np.load(path, mmap_mode="r")
+        data: Any = np.load(os.path.expanduser(os.path.expandvars(path)), mmap_mode="r")
         audio: np.ndarray = data[requested_stem] # Shape: (channels, samples)
         fs: int = data["fs"]
  
@@ -496,7 +393,7 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
         else:
             mixture = None
  
-        return self.post_mix_transform(
+        return self.postmix_transform(
             audio_dict=TorchInputAudioDict.from_numpy(
                 mixture=mixture,
                 sources=sources,
@@ -527,7 +424,7 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
     @classmethod
     def from_config(
         cls,
-        config: DictConfig,
+        config: DatasetConfig,
     ) -> "SourceSeparationDataset":
         """
         Creates a SourceSeparationDataset instance from a configuration object.
@@ -542,32 +439,58 @@ class SourceSeparationDataset(BaseDataset, Generic[GenericIdentifier]):
         dataset_connector: DatasetConnector[GenericIdentifier] = DatasetConnector.from_config(config.dataset_connector)
  
         premix_transform: Optional[Transform] = None
-        if config.get("premix_transform") is not None:
-            premix_transform = Transform.from_config(config.premix_transform)
+        if config.premix_transform is not None:
+            premix_transform = ComposePreMixTransforms.from_config(config.premix_transform)
  
         postmix_transform: Optional[Transform] = None
-        if config.get("postmix_transform") is not None:
-            postmix_transform = Transform.from_config(config.postmix_transform)
- 
-        split: str = config.get("split")
-        fs: int = config.get("fs")
-        recompute_mixture: bool = config.get("recompute_mixture", True)
-        auto_load_mixture: bool = config.get("auto_load_mixture", True)
-        allowed_extensions: Optional[List[str]] = config.get("allowed_extensions", None)
-        allow_resampling: bool = config.get("allow_resampling", False)
-        mixture_stem_key: Optional[str] = config.get("mixture_stem_key", None)
- 
+        if config.postmix_transform is not None:
+            postmix_transform = ComposePostMixTransforms.from_config(config.postmix_transform)
+
+        split: str = config.split
+        fs: int = config.fs
+
         kwargs: Dict[str, Any] = {
             "split": split,
             "dataset_connector": dataset_connector,
             "fs": fs,
             "premix_transform": premix_transform,
             "postmix_transform": postmix_transform,
-            "recompute_mixture": recompute_mixture,
-            "auto_load_mixture": auto_load_mixture,
-            "allowed_extensions": allowed_extensions,
-            "allow_resampling": allow_resampling,
-            "mixture_stem_key": mixture_stem_key,
         }
  
         return cls(**kwargs)
+
+
+class DeterministicChunkedSourceSeparationDataset(SourceSeparationDataset):
+    
+    
+    def __getitem__(self, index: int) -> AudioBatch:
+        """
+        Retrieves a processed audio batch for a given index.
+
+        Args:
+            index (int): The index of the track to retrieve.
+
+        Returns:
+            AudioBatch: A Pydantic model containing the mixture audio and metadata.
+                The `audio` field will have shape (batch_size, channels, samples).
+
+        Raises:
+            ValueError: If the mixture audio cannot be obtained.
+        """
+        identifier: GenericIdentifier = self.get_identifier(index)
+        
+        stems_to_load: List[str] = ["vocals", "bass", "drums", "other"]
+ 
+        audio_dict: TorchInputAudioDict = self.get_audio_dict(stems=stems_to_load, identifier=identifier)
+ 
+        if audio_dict.mixture is None:
+            raise ValueError("Mixture audio cannot be None for AudioBatch.")
+
+        batch = AudioBatch(
+            audio=audio_dict.model_dump(),
+            metadata={"identifier": identifier.model_dump(), "sources": audio_dict.sources}
+        ).model_dump()
+
+        return batch
+    
+    

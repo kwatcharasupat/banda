@@ -1,22 +1,26 @@
 name: banda
 channels:
-  - pytorch
-  - nvidia
-  - conda-forge
+- pytorch
+- nvidia
+- conda-forge
 dependencies:
-  - python=3.12
-  - pytorch
-  - pytorch-lightning
-  - hydra-core
-  - pydantic
-  - torchaudio
-  - numpy
-  - structlog
-  - torchmetrics
-  - pip
-  - pip:
-    - omegaconf
-    - ray[default]
-    - soundfile
+- python=3.12
+- pytorch
+- pytorch-lightning
+- hydra-core
+- pydantic
+- torchaudio
+- numpy
+- structlog
+- torchmetrics
+- pip
+- pip:
+  - omegaconf
+  - ray[default]
+  - soundfile
+  - wandb
+
 variables:
-  DATA_ROOT: "/Users/kwatcharasupat/personal/data"
+  DATA_ROOT: "~/Documents/data"
+  HYDRA_FULL_ERROR: "1"
+  PROJECT_ROOT: "~/Documents/projects/banda"

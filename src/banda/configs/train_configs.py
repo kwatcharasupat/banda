@@ -3,7 +3,7 @@ from typing import Optional, Union, Dict, Any, List
 from omegaconf import DictConfig # Import DictConfig
 
 # Import all referenced Pydantic configs directly
-from banda.data.datamodule import DatasetConfig, DataModuleConfig # Import DataModuleConfig
+from banda.data.datamodule import DataSplitConfig, DataModuleConfig # Import DataModuleConfig
 from banda.losses.loss_handler import LossConfig
 from banda.metrics.metric_handler import MetricsConfig
 # OptimizerConfig, LoggerConfig, TrainerConfig are defined in this file, so no import needed for them

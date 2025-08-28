@@ -1,0 +1,32 @@
+{
+  "os": "Linux-6.8.0-78-generic-x86_64-with-glibc2.39",
+  "python": "CPython 3.12.11",
+  "startedAt": "2025-08-28T14:11:53.906048Z",
+  "args": [
+    "-cn",
+    "bandit-musdb18hq"
+  ],
+  "program": "/home/kwatchar3/projects/banda/scripts/train.py",
+  "codePath": "scripts/train.py",
+  "codePathLocal": "scripts/train.py",
+  "git": {
+    "remote": "https://github.com/kwatcharasupat/banda.git",
+    "commit": "06cdd2e2b34ad176e1702a2c7d06c7a5b73bcb73"
+  },
+  "email": "kwatcharasupat@gatech.edu",
+  "root": "outputs/2025-08-28/14-11-53",
+  "host": "deepnet4.music.gatech.edu",
+  "executable": "/home/kwatchar3/anaconda3/envs/banda/bin/python",
+  "cpu_count": 24,
+  "cpu_count_logical": 32,
+  "disk": {
+    "/": {
+      "total": "3935709487104",
+      "used": "2975908134912"
+    }
+  },
+  "memory": {
+    "total": "134795247616"
+  },
+  "writerId": "c7cfr7qon15cm29xzc52l83yaeacj3x7"
+}

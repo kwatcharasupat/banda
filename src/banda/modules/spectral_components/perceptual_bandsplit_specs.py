@@ -317,7 +317,6 @@ class TriangularBarkBandsplitSpecification(PerceptualBandsplitSpecification):
         m_max = hz_to_bark(torch.tensor(self.max_freq_for_bands)).item()
         m_pts = torch.linspace(m_min, m_max, self.n_bands + 2)
         f_pts = bark_to_hz(m_pts)
-        print(f_pts)
         logger.debug(f"TriangularBarkBandsplitSpecification: generated f_pts: {f_pts}")
         return f_pts
 

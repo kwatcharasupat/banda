@@ -1,0 +1,11 @@
+- _target_: banda.losses.separation_loss_handler.SeparationLossHandler
+  name: multi_resolution_stft_loss
+  weight: 1.0
+  params:
+    _target_: banda.losses.multi_resolution_l1_snr.MultiResolutionSTFTLoss
+    n_ffts: [ 2048, 512 ]
+    hop_lengths: [ 512, 128 ]
+    win_lengths: [ 2048, 512 ]
+    mag_weight: 1.0
+    phase_weight: 0.0 # Set to >0 to include phase loss
+    log_scale: False

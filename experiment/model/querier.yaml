@@ -1,7 +1,0 @@
-
-_target_: banda.models.query_models.querier.Querier
-input_channels: 2
-output_channels: 2
-hidden_features: 256
-num_sources: 4 # vocals, bass, drums, other
-query_features: 128 # Example query feature dimension

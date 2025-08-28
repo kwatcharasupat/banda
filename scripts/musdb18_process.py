@@ -19,7 +19,7 @@ from omegaconf import DictConfig, OmegaConf
 from tqdm.contrib.concurrent import process_map
 from tqdm import tqdm
 
-from src.banda.utils.audio_utils import load_audio
+from banda.utils.audio_utils import load_audio
 
 logger = structlog.get_logger()
 
@@ -55,7 +55,7 @@ def process_track(args: Tuple[str, str, str, DictConfig, List[str]]) -> None:
     
     logger.info(f"Processing track: {track_title} from {original_split} to {new_split}")
 
-    output_dir = os.path.join(cfg.output_path, new_split)
+    output_dir = os.path.expanduser(os.path.join(cfg.output_path, new_split))
     os.makedirs(output_dir, exist_ok=True)
 
     output_npz_path = os.path.join(output_dir, f"{track_title}.npz")
@@ -120,7 +120,7 @@ def validate_track(args: Tuple[str, str, DictConfig, List[str]]) -> bool:
     elif os.path.exists(os.path.join(original_base_path, "test", track_title)):
         npz_split = "test"
 
-    npz_file_path = os.path.join(cfg.output_path, npz_split, f"{track_title}.npz")
+    npz_file_path = os.path.expanduser(os.path.join(cfg.output_path, npz_split, f"{track_title}.npz"))
     
     if not os.path.exists(npz_file_path):
         logger.error(f"NPZ file not found for {track_title} at {npz_file_path}")
@@ -228,8 +228,8 @@ def npzify_musdb18(cfg: DictConfig) -> None:
     Performs the preprocessing step: converts raw MUSDB18HQ WAV files to NPZ format.
     """
     logger.info("Starting preprocessing step (npzify)...")
-    input_base_path = cfg.input_path
-    output_base_path = cfg.output_path
+    input_base_path = os.path.expanduser(cfg.input_path)
+    output_base_path = os.path.expanduser(cfg.output_path)
     stems_to_process = cfg.stems_to_process if cfg.stems_to_process else DEFAULT_STEMS
 
     track_paths = []
@@ -266,8 +266,8 @@ def validate_musdb18(cfg: DictConfig) -> None:
     Performs the validation step: compares preprocessed NPZ files with original WAV files.
     """
     logger.info("Starting validation step...")
-    input_base_path = cfg.input_path
-    output_base_path = cfg.output_path
+    input_base_path = os.path.expanduser(cfg.input_path)
+    output_base_path = os.path.expanduser(cfg.input_path)
     stems_to_process = cfg.stems_to_process if cfg.stems_to_process else DEFAULT_STEMS
 
     track_titles_to_validate = set()
@@ -303,7 +303,7 @@ def validate_musdb18(cfg: DictConfig) -> None:
         logger.info("All tracks validated successfully!")
 
 
-@hydra.main(config_path="../src/banda/configs/preprocess", config_name="musdb18_hq", version_base="1.3")
+@hydra.main(config_path="../configs/preprocess", config_name="musdb18_hq", version_base="1.3")
 def main(cfg: DictConfig) -> None:
     logger.info(
         "Running MUSDB18 processing script with the following config:\n"
