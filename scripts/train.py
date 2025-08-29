@@ -36,23 +36,6 @@ from banda.data.datamodule import DataSplitConfig # Import Pydantic configs
 
 @hydra.main(config_path="../experiment", version_base="1.3") # Point to the top-level config.yaml
 def train(cfg: DictConfig) -> None:
-    """
-    Main training function for the banda project.
-
-    This function orchestrates the entire training process:
-    1. Configures logging and sets up the output directory.
-    2. Sets the random seed for reproducibility.
-    3. Instantiates the DataModule, Model, Loss Function, and Lightning Task
-       based on the provided Hydra configuration.
-    4. Sets up the PyTorch Lightning Trainer with callbacks and logger.
-     5. Initiates model training and testing.
-
-    Args:
-        cfg (DictConfig): The Hydra configuration object containing all
-                          parameters for data, model, loss, metrics, and trainer.
-    """
-    # Print the entire configuration as requested by the user
-    print(f"Full Hydra Configuration:\n{OmegaConf.to_yaml(cfg)}")
 
     # Convert the DictConfig to a plain Python dictionary without resolving interpolations
     # This prevents Pydantic from trying to resolve interpolations prematurely

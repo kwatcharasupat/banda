@@ -1,0 +1,50 @@
+---
+# This file contains the taxonomy of instruments used in the MoisesDB dataset.
+# Taken from https://github.com/moises-ai/moises-db/blob/1fbc5c784e24c6f0eb826d7ee782b53a5964b9b6/moisesdb/defaults.py
+---
+instruments:
+  vocals:
+    - lead_male_singer
+    - lead_female_singer
+    - human_choir
+    - background_vocals
+    - other_vocals
+  bass:
+    - bass_guitar
+    - bass_synthesizer
+    - contrabass_double_bass
+    - tuba
+    - bassoon
+  drums:
+    - snare_drum
+    - toms
+    - kick_drum
+    - cymbals
+    - overheads
+    - full_acoustic_drumkit
+    - drum_machine
+    - hihat
+  other: ["fx", "click_track"]
+  guitar:
+    - clean_electric_guitar
+    - distorted_electric_guitar
+    - lap_steel_guitar_or_slide_guitar
+    - acoustic_guitar
+  other_plucked: ["other_plucked"]
+  percussion: ["atonal_percussion", "pitched_percussion"]
+  piano: ["grand_piano", "electric_piano"]
+  other_keys:
+    - organ_electric_organ
+    - synth_pad
+    - synth_lead
+    - other_sounds
+  bowed_strings:
+    - violin
+    - viola
+    - cello
+    - violin_section
+    - viola_section
+    - cello_section
+    - string_section
+    - other_strings
+  wind: ["brass", "flutes", "reeds", "other_wind"]

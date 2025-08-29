@@ -1,24 +1,58 @@
-#  Copyright (c) 2025 by Karn Watcharasupat and contributors. All rights reserved.
-#  This project is dual-licensed:
-#  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
-#     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
-#  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
-#
-#
-
 from abc import abstractmethod
 from typing import Dict, Optional, TypeVar
-
 import numpy as np
-import numpy.typing as npt
-import torch
 from pydantic import BaseModel, ConfigDict
+import torch
+import numpy.typing as npt
 
 TorchSourceDict = Dict[str, torch.Tensor]
 """Dictionary mapping source names to PyTorch tensors."""
 
 NumPySourceDict = Dict[str, np.ndarray]
 """Dictionary mapping source names to NumPy arrays."""
+
+
+class TorchInputAudioDict(BaseModel):
+    """
+    Data structure for input audio in PyTorch format.
+
+    Attributes:
+        mixture (torch.Tensor): Mixture audio tensor of shape (channels, samples).
+        sources (TorchSourceDict): Dictionary of source audio tensors.
+    """
+
+    mixture: Optional[torch.Tensor]
+    sources: TorchSourceDict
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @classmethod
+    def from_numpy(
+        cls,
+        *,
+        mixture: Optional[np.ndarray],
+        sources: NumPySourceDict,
+        float_dtype: torch.dtype = torch.float32,
+    ) -> "TorchInputAudioDict":
+        """
+        Create a TorchInputAudioDict from NumPy arrays.
+
+        Args:
+            mixture (np.ndarray): Mixture audio array of shape (channels, samples).
+            sources (NumPySourceDict): Dictionary of source audio arrays.
+
+        Returns:
+            TorchInputAudioDict: Instance with tensors converted from NumPy arrays.
+        """
+        return cls(
+            mixture=torch.from_numpy(mixture).to(dtype=float_dtype)
+            if mixture is not None
+            else None,
+            sources={
+                key: torch.from_numpy(value).to(dtype=float_dtype)
+                for key, value in sources.items()
+            },
+        )
 
 
 class NumPyInputAudioDict(BaseModel):
@@ -45,7 +79,7 @@ class ChunkIdentifier(BaseModel):
         track_id (str): Unique track identifier.
     """
 
-    chunk_index: int = -1
+    chunk_index: int
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -58,7 +92,7 @@ class Identifier(BaseModel):
         Any fields can be added dynamically.
     """
 
-    chunk_identifier: Optional[ChunkIdentifier] = ChunkIdentifier()
+    chunk_identifier: Optional[ChunkIdentifier] = None
 
     model_config = ConfigDict(extra="allow")
 
@@ -83,6 +117,4 @@ NPFloatArray = npt.NDArray[np.floating]
 
 NPComplexArray = npt.NDArray[np.complexfloating]
 """Type alias for NumPy arrays with complex floating-point elements."""
-
-# Common source separation stems
 __VDBO__ = ["vocals", "bass", "drums", "other"]
