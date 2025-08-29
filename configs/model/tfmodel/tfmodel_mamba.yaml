@@ -1,9 +1,0 @@
-_target_: banda.models.common_components.time_frequency_models.tf_models.MambaTimeFreqModule
-n_modules: 4
-emb_dim: 128 # Changed from 256 to 128
-dropout: 0.0
-d_state: 16
-d_conv: 4
-expand: 2
-max_seq_len_bands: 256
-max_seq_len_time: 512

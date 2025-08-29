@@ -1,9 +1,0 @@
-_target_: banda.models.common_components.time_frequency_models.tf_models.SeqBandModellingModule
-
-# Time-Frequency Model Configuration
-n_modules: 12
-emb_dim: 128 # Added emb_dim
-rnn_dim: 256
-bidirectional: True
-rnn_type: "GRU" # Set to GRU as requested
-dropout: 0.0 # Changed from tf_dropout to dropout

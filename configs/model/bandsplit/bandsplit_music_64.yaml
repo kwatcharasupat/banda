@@ -1,8 +1,0 @@
-# @package _group_
-
-_target_: banda.models.common_components.configs.common_configs.BandsplitModuleConfig
-
-band_specs:
-  _target_: banda.models.common_components.configs.bandsplit_configs.MusicalBandsplitSpecsConfig
-  bandsplit_type: musical
-  n_bands: 64

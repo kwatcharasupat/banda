@@ -1,5 +1,0 @@
-# @package _global_
-_target_: omegaconf.OmegaConf.load
-_args_:
-  - ${project_root}/src/banda/configs/bandsplit/fixed_bands/vocal.yaml
-version: "7"

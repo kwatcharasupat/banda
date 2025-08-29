@@ -1,9 +1,0 @@
-_target_: banda.models.common_components.time_frequency_models.tf_models.SeqBandModellingModule
-
-# Time-Frequency Model Configuration
-n_modules: 12
-emb_dim: 128
-rnn_dim: 256
-bidirectional: True
-rnn_type: "LSTM" # Changed to LSTM
-tf_dropout: 0.0

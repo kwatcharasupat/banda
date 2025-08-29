@@ -1,8 +1,0 @@
-defaults:
-- bandit-default # Inherit from the generic model default
-
-_target_: banda.models.core_models.bandit_separator.Bandit
-input_channels: 2
-output_channels: 2
-hidden_features: 256
-num_sources: 4
