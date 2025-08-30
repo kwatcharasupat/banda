@@ -1,0 +1,56 @@
+data:
+  train:
+    datasource:
+    - cls: MUSDB18HQDatasource
+      params:
+        split: train
+    dataset:
+      cls: RandomChunkDataset
+      params:
+        n_channels: 2
+        fs: 44100
+        chunk_size_seconds: 6.0
+        allow_autolooping: true
+    dataloader:
+      batch_size: 32
+      num_workers: 4
+      shuffle: true
+      drop_last: false
+      pin_memory: true
+  val:
+    datasource:
+    - cls: MUSDB18HQ
+      params:
+        split: val
+    dataset:
+      cls: DeterministicChunkDataset
+      params:
+        n_channels: 2
+        fs: 44100
+        chunk_size_seconds: 6.0
+        allow_autolooping: false
+    dataloader:
+      batch_size: 32
+      num_workers: 4
+      shuffle: true
+      drop_last: false
+      pin_memory: true
+  test:
+    datasource:
+    - cls: MUSDB18HQ
+      params:
+        split: test
+    dataset:
+      cls: FullTrackDataset
+      params:
+        n_channels: 2
+        fs: 44100
+        allow_autolooping: false
+    dataloader:
+      batch_size: 32
+      num_workers: 4
+      shuffle: true
+      drop_last: false
+      pin_memory: true
+logger: {}
+seed: 42

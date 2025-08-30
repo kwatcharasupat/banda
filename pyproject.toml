@@ -16,8 +16,9 @@ dependencies = [
     "structlog",
     "torchmetrics",
     "soundfile",
+    "audiomentations"
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 readme = "README.md"
 license = { file = "LICENSE" }
 

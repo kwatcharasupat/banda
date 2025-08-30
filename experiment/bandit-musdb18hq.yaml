@@ -1,22 +1,9 @@
 defaults:
-- _self_
-- loss: mse
-- metrics: default
-- optimizer: default
-- trainer: default
 - data: musdb18hq
 - logger: wandb
-- model: bandit-mus64
+- _self_
 
-project_root: ${oc.env:PROJECT_ROOT,.}
-experiment_name: bandit_musdb18hq_test
 seed: 42
-log_level: INFO
-
-paths:
-  output_dir: ${hydra.run.dir}
-  log_dir: ${hydra.run.dir}/logs
-  data_root: ${oc.env:DATA_ROOT,/Users/kwatcharasupat/personal/data}
 
 hydra:
   searchpath:
