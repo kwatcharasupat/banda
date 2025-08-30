@@ -24,7 +24,7 @@ class Normalizer(nn.Module):
     def _dbrms(self, x: torch.Tensor) -> torch.Tensor:
         
         x = torch.flatten(x, start_dim=1)
-        rms = torch.sqrt(x.pow(2).mean(dim=-1, keepdim=True))
+        rms = torch.sqrt(x.pow(2).mean(dim=-1))
         dbrms = 20 * torch.log10(
             rms + self.config.eps 
         )
@@ -34,8 +34,13 @@ class Normalizer(nn.Module):
         
         with torch.no_grad():
             dbrms, rms = self._dbrms(x)
+            print(x.shape, rms.shape)
+            
             if self.config.dbrms_threshold is not None:
-                if dbrms < self.config.dbrms_threshold:
-                    return x
-
-            return x / rms
+                return torch.where(
+                    (dbrms < self.config.dbrms_threshold)[:, None, None],
+                    x,
+                    x / rms[:, None, None]
+                )
+                
+            return x / rms[:, None, None]

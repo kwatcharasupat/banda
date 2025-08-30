@@ -16,6 +16,7 @@ from typing import Dict, Any, List, Tuple, Optional
 import structlog
 
 from banda.data.base import SourceSeparationDataModule
+from banda.models.masking.dummy import DummyMaskingModel
 
 logger = structlog.get_logger(__name__)
 
@@ -29,10 +30,13 @@ def train(config: DictConfig) -> None:
     pl.seed_everything(config.seed, workers=True)
     
     datamodule = SourceSeparationDataModule(config=config.data)
-    
-    
+
+    model = DummyMaskingModel(config=config.model)
+
     for item in datamodule.train_dataloader():
         print(item)
+        out = model(item)
+        print(out)
         break
     
     for item in datamodule.val_dataloader():

@@ -1,0 +1,15 @@
+spectrogram:
+  n_fft: 2048
+  hop_length: 512
+  win_length: 2048
+  window: "hann"
+
+normalization:
+  eps: 1e-6
+  dbrms_threshold: -60
+
+stems:
+- vocals
+- drums
+- bass
+- others

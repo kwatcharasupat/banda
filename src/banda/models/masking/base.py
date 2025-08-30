@@ -1,4 +1,6 @@
 from typing import Dict
+
+from omegaconf import DictConfig
 from banda.data.item import SourceSeparationBatch
 from banda.models.base import BaseRegisteredModel
 
@@ -26,6 +28,8 @@ class _BaseMaskingModel(BaseRegisteredModel):
 
         masks : Dict[str, torch.Tensor] = self._inner_model(specs_normalized, batch=batch)
         batch = self.apply_masks(masks, specs_unnormalized, batch=batch)
+        
+        return batch
 
     def apply_masks(self, masks: Dict[str, torch.Tensor], specs_unnormalized: torch.Tensor, batch: SourceSeparationBatch) -> SourceSeparationBatch:
         estimates = {}

@@ -1,4 +1,5 @@
 defaults:
+- model: dummy
 - data: musdb18hq
 - logger: wandb
 - _self_
