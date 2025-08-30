@@ -18,4 +18,5 @@ class SourceSeparationItem(BaseModel, Generic[ArrayType]):
     sources: Dict[str, MultiDomainSignal[ArrayType]]
     estimates: Dict[str, MultiDomainSignal[ArrayType]] | None
     
+SourceSeparationBatch = SourceSeparationItem[torch.Tensor]
     
