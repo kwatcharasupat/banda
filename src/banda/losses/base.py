@@ -1,7 +1,10 @@
 
 
 
+from typing import Dict
 from omegaconf import DictConfig
+from pydantic import BaseModel, ConfigDict
+import torch
 from torch.nn.modules.loss import _Loss
 
 class LossRegistry(type):
@@ -27,3 +30,10 @@ class BaseRegisteredLoss(_Loss, metaclass=LossRegistry):
         super().__init__()
         
         self.config = config
+        
+
+class LossDict(BaseModel):
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+    
+    total_loss: torch.Tensor
+    loss_contrib: Dict[str, torch.Tensor | float]  = {}

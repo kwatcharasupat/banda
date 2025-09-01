@@ -14,7 +14,7 @@ class STFTParams(BaseModel):
     hop_length: int | None
     pad: int | None = 0
     window_fn: str | Callable | None = "hann"
-    power: float | None = 2
+    power: float | None = None
     normalized: bool | str | None = "window"
     wkwargs: dict | None = None
     center: bool | None = True

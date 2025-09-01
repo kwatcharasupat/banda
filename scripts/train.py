@@ -9,16 +9,30 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import pytorch_lightning as pl
 import pytorch_lightning.callbacks as pl_callbacks
+from pytorch_lightning.loggers.wandb import WandbLogger
 import torch
 import hydra.utils
 from typing import Dict, Any, List, Tuple, Optional
 
 import structlog
 
-from banda.data.base import SourceSeparationDataModule
+from banda.data.base import DataConfig, SourceSeparationDataModule
+from banda.losses.handler import LossHandler, LossHandlerConfig
 from banda.models.masking.dummy import DummyMaskingModel
+from banda.system.base import SourceSeparationSystem
+from banda.utils import BaseConfig
+
 
 logger = structlog.get_logger(__name__)
+
+
+torch.set_float32_matmul_precision('high')
+
+class TrainingConfig(BaseConfig):
+    seed: int 
+    data: DataConfig
+    model: DictConfig
+    loss: LossHandlerConfig
 
 @hydra.main(config_path="../experiment", version_base="1.3") # Point to the top-level config.yaml
 def train(config: DictConfig) -> None:
@@ -26,22 +40,34 @@ def train(config: DictConfig) -> None:
     logger.info(
         "Config: ", config=config
     )
-    
+
+    config : TrainingConfig = TrainingConfig.model_validate(config)
+
     pl.seed_everything(config.seed, workers=True)
     
     datamodule = SourceSeparationDataModule(config=config.data)
 
     model = DummyMaskingModel(config=config.model)
+    
+    loss = LossHandler(config=config.loss)
+    
+    
+    system = SourceSeparationSystem(
+        model=model,
+        loss_handler=loss,
+        optimizer_config=config.optimizer
+    )
 
-    for item in datamodule.train_dataloader():
-        print(item)
-        out = model(item)
-        print(out)
-        break
-    
-    for item in datamodule.val_dataloader():
-        print(item)
-        break
-    
+    trainer = pl.Trainer(
+        callbacks=[
+            pl_callbacks.ModelCheckpoint(monitor="val/loss"),
+            pl_callbacks.EarlyStopping(monitor="val/loss", patience=5),
+        ],
+        logger=WandbLogger(project="banda", log_model=True)
+    )
+
+
+    trainer.fit(system, datamodule=datamodule)
+
 if __name__ == "__main__":
     train()

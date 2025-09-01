@@ -7,6 +7,10 @@ from banda.data.datasources.base import BaseRegisteredDatasource, TrackIdentifie
 from banda.data.item import SourceSeparationItem
 from banda.utils import WithClassConfig, BaseConfig
 
+import structlog 
+
+logger = structlog.get_logger(__name__)
+
 class DatasetParams(BaseConfig):
     n_channels: int
     fs: int
@@ -64,7 +68,7 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
 
     def _resolve_index(self, index: int) -> tuple[int, int]:
         
-        if index > self.total_size:
+        if index >= self.total_size:
             if not self.config.allow_autolooping:
                 raise IndexError("Index out of bounds")
             index = index % self.total_size
@@ -72,6 +76,9 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
         datasource_index = np.searchsorted(self.cumulative_sizes, index, side='right')
         base_index = self.cumulative_sizes[datasource_index - 1] if datasource_index > 0 else 0
         item_index = index - base_index
+        
+        # logger.info(f"Flat idx = {index}, total size = {self.total_size}, Datasource idx = {datasource_index}, item idx = {item_index}")
+        
         return datasource_index, item_index
     
     

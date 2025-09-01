@@ -1,0 +1,1 @@
+{"epoch":0,"train/loss/L1SNRLoss":25.478805541992188,"train/loss/L1SNRLoss/vocals":5.509665489196777,"_wandb":{"runtime":129},"_timestamp":1.7567520256025755e+09,"train/loss/L1SNRLoss/other":5.10572624206543,"trainer/global_step":99,"train/loss/L1SNRLoss/bass":8.60698127746582,"_step":1,"_runtime":129,"train/loss/L1SNRLoss/drums":6.25643253326416}

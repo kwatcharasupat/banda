@@ -2,6 +2,8 @@ defaults:
 - model: dummy
 - data: musdb18hq
 - logger: wandb
+- loss: l1snr
+- optimizer: adam
 - _self_
 
 seed: 42

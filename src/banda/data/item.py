@@ -29,6 +29,6 @@ class SourceSeparationItem(BaseModel, Generic[ArrayType]):
     mixture: ValidatedMultiDomainSignal[ArrayType] | None
     sources: Dict[str, ValidatedMultiDomainSignal[ArrayType]]
     estimates: Dict[str, ValidatedMultiDomainSignal[ArrayType]] | None
-    
+
 SourceSeparationBatch = SourceSeparationItem[torch.Tensor]
     

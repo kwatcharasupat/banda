@@ -34,7 +34,6 @@ class Normalizer(nn.Module):
         
         with torch.no_grad():
             dbrms, rms = self._dbrms(x)
-            print(x.shape, rms.shape)
             
             if self.config.dbrms_threshold is not None:
                 return torch.where(

@@ -1,0 +1,4 @@
+optimizer:
+  cls: Adam
+  params:
+    init_lr: 1e-3

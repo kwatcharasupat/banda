@@ -25,6 +25,11 @@ class _BaseMaskingModel(BaseRegisteredModel):
             batch : SourceSeparationBatch = self.normalizer(batch)
             specs_unnormalized : torch.Tensor = self.stft(batch.mixture["audio"])
             specs_normalized : torch.Tensor = self.stft(batch.mixture["audio/normalized"])
+            
+            for key in batch.sources:
+                source = batch.sources[key]["audio"]
+                source_specs = self.stft(source)
+                batch.sources[key]["spectrogram"] = source_specs
 
         masks : Dict[str, torch.Tensor] = self._inner_model(specs_normalized, batch=batch)
         batch = self.apply_masks(masks, specs_unnormalized, batch=batch)
