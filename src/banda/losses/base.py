@@ -7,6 +7,14 @@ from pydantic import BaseModel, ConfigDict
 import torch
 from torch.nn.modules.loss import _Loss
 
+from banda.utils import BaseConfig, WithClassConfig
+
+class LossParams(BaseConfig):
+    pass
+class LossConfig(WithClassConfig[LossParams]):
+    weight: float
+    name: str | None = None
+    
 class LossRegistry(type):
     
     # from https://charlesreid1.github.io/python-patterns-the-registry.html
@@ -29,7 +37,7 @@ class BaseRegisteredLoss(_Loss, metaclass=LossRegistry):
                  config: DictConfig):
         super().__init__()
         
-        self.config = config
+        self.config = LossParams.model_validate(config)
         
 
 class LossDict(BaseModel):

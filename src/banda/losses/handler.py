@@ -5,20 +5,12 @@ import torch
 from torch.nn.modules.loss import _Loss
 
 from banda.data.item import SourceSeparationBatch
-from pydantic import BaseModel, ConfigDict
 
-from banda.losses.base import BaseRegisteredLoss, LossDict, LossRegistry
-from banda.utils import BaseConfig, WithClassConfig
+from banda.losses.base import BaseRegisteredLoss, LossConfig, LossDict, LossRegistry
+from banda.utils import BaseConfig
 
-class LossParams(BaseConfig):
-    pass
-class LossConfig(WithClassConfig[LossParams]):
-    weight: float
-    name: str | None = None
-    
 class LossHandlerConfig(BaseConfig):
     losses: List[LossConfig]
-
 
 class LossHandler(_Loss):
     def __init__(self, *, 

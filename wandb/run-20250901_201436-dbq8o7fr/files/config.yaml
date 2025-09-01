@@ -1,0 +1,81 @@
+_wandb:
+    value:
+        cli_version: 0.21.1
+        e:
+            3hdnlrypxkzgnno27asuez28ycvh7kgz:
+                args:
+                    - -cn
+                    - bandit-musdb18hq
+                codePath: scripts/train.py
+                codePathLocal: scripts/train.py
+                cpu_count: 24
+                cpu_count_logical: 32
+                cudaVersion: "12.4"
+                disk:
+                    /:
+                        total: "3935709487104"
+                        used: "3016875110400"
+                email: kwatcharasupat@gatech.edu
+                executable: /home/kwatchar3/anaconda3/envs/banda/bin/python
+                git:
+                    commit: 667a59d0597dde943feadcc910e0ab02dc1ecb72
+                    remote: https://github.com/kwatcharasupat/banda.git
+                gpu: NVIDIA GeForce RTX 4090
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ada
+                      cudaCores: 16384
+                      memoryTotal: "25757220864"
+                      name: NVIDIA GeForce RTX 4090
+                      uuid: GPU-0ad3aef7-e370-4c11-1e4e-c1fdd7d26c86
+                host: deepnet4.music.gatech.edu
+                memory:
+                    total: "134795247616"
+                os: Linux-6.8.0-79-generic-x86_64-with-glibc2.39
+                program: /home/kwatchar3/projects/banda/scripts/train.py
+                python: CPython 3.12.11
+                root: .
+                startedAt: "2025-09-01T20:14:36.111677Z"
+                writerId: 3hdnlrypxkzgnno27asuez28ycvh7kgz
+        m:
+            - "1": trainer/global_step
+              "6":
+                - 3
+              "7": []
+            - "2": '*'
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.12.11
+        t:
+            "1":
+                - 1
+                - 5
+                - 9
+                - 11
+                - 41
+                - 49
+                - 50
+                - 53
+                - 71
+                - 103
+            "2":
+                - 1
+                - 5
+                - 9
+                - 11
+                - 41
+                - 49
+                - 50
+                - 53
+                - 71
+                - 103
+            "3":
+                - 7
+                - 66
+            "4": 3.12.11
+            "5": 0.21.1
+            "6": 4.55.4
+            "12": 0.21.1
+            "13": linux-x86_64

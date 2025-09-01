@@ -13,14 +13,15 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 import torch
 import hydra.utils
 from typing import Dict, Any, List, Tuple, Optional
-
+from torch import nn
 import structlog
 
 from banda.data.base import DataConfig, SourceSeparationDataModule
 from banda.losses.handler import LossHandler, LossHandlerConfig
+from banda.models.base import ModelRegistry
 from banda.models.masking.dummy import DummyMaskingModel
 from banda.system.base import SourceSeparationSystem
-from banda.utils import BaseConfig
+from banda.utils import BaseConfig, WithClassConfig
 
 
 logger = structlog.get_logger(__name__)
@@ -31,8 +32,18 @@ torch.set_float32_matmul_precision('high')
 class TrainingConfig(BaseConfig):
     seed: int 
     data: DataConfig
-    model: DictConfig
+    model: WithClassConfig[BaseConfig]
     loss: LossHandlerConfig
+
+def _build_model(config: WithClassConfig[BaseConfig]) -> nn.Module:
+    cls_str = config.cls
+    
+    cls = ModelRegistry.get_registry().get(cls_str, None)
+
+    if cls is None:
+        raise ValueError(f"Unknown model class: {cls_str}. Available classes are: {list(ModelRegistry.get_registry().keys())}")
+
+    return cls(config=config.params)
 
 @hydra.main(config_path="../experiment", version_base="1.3") # Point to the top-level config.yaml
 def train(config: DictConfig) -> None:
@@ -47,10 +58,9 @@ def train(config: DictConfig) -> None:
     
     datamodule = SourceSeparationDataModule(config=config.data)
 
-    model = DummyMaskingModel(config=config.model)
+    model = _build_model(config=config.model)
     
     loss = LossHandler(config=config.loss)
-    
     
     system = SourceSeparationSystem(
         model=model,
@@ -63,7 +73,8 @@ def train(config: DictConfig) -> None:
             pl_callbacks.ModelCheckpoint(monitor="val/loss"),
             pl_callbacks.EarlyStopping(monitor="val/loss", patience=5),
         ],
-        logger=WandbLogger(project="banda", log_model=True)
+        logger=WandbLogger(project="banda", log_model=True),
+        gradient_clip_val=2.0
     )
 
 

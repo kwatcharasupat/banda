@@ -46,5 +46,5 @@ class _BaseMaskingModel(BaseRegisteredModel):
         batch.estimates = estimates
         return batch
     
-    def _inner_model(self, specs_normalized: torch.Tensor, batch: SourceSeparationBatch) -> Dict[str, torch.Tensor]:
+    def _inner_model(self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch) -> Dict[str, torch.Tensor]:
         raise NotImplementedError

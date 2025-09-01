@@ -16,7 +16,8 @@ dependencies = [
     "structlog",
     "torchmetrics",
     "soundfile",
-    "audiomentations"
+    "audiomentations",
+    "spafe"
 ]
 requires-python = ">=3.12"
 readme = "README.md"

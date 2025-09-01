@@ -1,5 +1,5 @@
 defaults:
-- model: dummy
+- model: bandit-mus64
 - data: musdb18hq
 - logger: wandb
 - loss: l1snr

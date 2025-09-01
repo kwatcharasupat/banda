@@ -27,7 +27,7 @@ class DummyMaskingModel(_BaseMaskingModel):
             }
         )
 
-    def _inner_model(self, specs_normalized: torch.Tensor, batch: SourceSeparationBatch) -> Dict[str, torch.Tensor]:
+    def _inner_model(self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch) -> Dict[str, torch.Tensor]:
         
         batch_size, n_channels, n_freq, n_time = specs_normalized.shape
         specs_normalized = torch.reshape(specs_normalized, (batch_size * n_channels, n_freq, n_time)).abs()

@@ -10,3 +10,13 @@ losses:
   params:
     domain: "spectrogram"
     eps: 1e-3
+
+- cls: DecibelMatchLoss
+  weight: 1.0
+  params:
+    eps: 1e-6
+    adaptive: true
+    min_weight: 0.1
+    max_weight: 1.0
+    min_db: -60
+    max_below_true: 12
