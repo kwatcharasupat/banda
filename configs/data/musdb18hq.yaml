@@ -35,7 +35,7 @@ train:
             p: 0.10
 
   dataloader:
-    batch_size: 32
+    batch_size: 8
     num_workers: 16
     shuffle: true
     drop_last: False
@@ -80,7 +80,7 @@ test:
       allow_autolooping: false
 
   dataloader:
-    batch_size: 32
+    batch_size: 8
     num_workers: 4
     shuffle: true
     drop_last: False
