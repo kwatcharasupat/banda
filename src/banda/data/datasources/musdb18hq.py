@@ -32,9 +32,9 @@ class MUSDB18HQDatasource(BaseRegisteredDatasource):
 
     def _load_tracks(self) -> List[TrackIdentifier]:
 
-        datasource_path = Path(os.getenv("DATA_ROOT"), self.DATASOURCE_ID, "intermediates", "npz", self.config.split)
+        datasource_path = Path(os.getenv("DATA_ROOT"), self.DATASOURCE_ID, "intermediates", "npz", self.config.split).expanduser()
         if not datasource_path.exists():
-            canonical_path = Path(os.getenv("DATA_ROOT"), self.DATASOURCE_ID, "canonical")
+            canonical_path = Path(os.getenv("DATA_ROOT"), self.DATASOURCE_ID, "canonical").expanduser()
             if canonical_path.exists():
                 raise RuntimeError(f"Canonical path {canonical_path} exists, but intermediate path {datasource_path} does not. Please run the preprocessing step.")
             else:
