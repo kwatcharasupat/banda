@@ -8,6 +8,19 @@ defaults:
 - trainer: default
 - _self_
 
+stems:
+- vocals
+- drums
+- bass
+- other
+
+model:
+  params:
+    stems: ${stems}
+
+metrics:
+  stems: ${stems}
+
 seed: 42
 
 hydra:
