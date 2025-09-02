@@ -35,6 +35,7 @@ class TrainingConfig(BaseConfig):
     data: DataConfig
     model: WithClassConfig[BaseConfig]
     loss: LossHandlerConfig
+    trainer: BaseConfig
 
 def _build_model(config: WithClassConfig[BaseConfig]) -> nn.Module:
     cls_str = config.cls
@@ -78,8 +79,7 @@ def train(config: DictConfig) -> None:
             # pl_callbacks.EarlyStopping(monitor="val/loss", patience=5, verbose=True, check_finite=False),
         ],
         logger=WandbLogger(project="banda", log_model=True),
-        gradient_clip_val=2.0,
-        max_epochs=100,
+        **config.trainer.model_dump()
     )
     
     trainer.logger.log_hyperparams(config.model_dump())
