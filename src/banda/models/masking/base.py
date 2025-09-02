@@ -41,7 +41,7 @@ class _BaseMaskingModel(BaseRegisteredModel):
         for key, mask in masks.items():
             estimates[key] = {}
             estimates[key]["spectrogram"] = specs_unnormalized * mask
-            estimates[key]["audio"] = self.stft.inverse(estimates[key]["spectrogram"])
+            estimates[key]["audio"] = self.stft.inverse(estimates[key]["spectrogram"], length=batch.mixture["audio"].shape[-1])
             
         batch.estimates = estimates
         return batch

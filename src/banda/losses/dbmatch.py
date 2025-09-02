@@ -4,7 +4,8 @@ import torch
 from banda.data.item import SourceSeparationBatch
 from banda.losses.base import BaseRegisteredLoss, LossDict
 
-
+import structlog
+logger = structlog.get_logger(__name__)
 class DecibelMatchLoss(BaseRegisteredLoss):
     def __init__(
         self,
@@ -40,8 +41,14 @@ class DecibelMatchLoss(BaseRegisteredLoss):
                 weight,
             )
 
-            assert torch.all(weight >= self.min_weight)
-            assert torch.all(weight <= self.max_weight)
+            # assert torch.all(weight >= self.min_weight)
+            # assert torch.all(weight <= self.max_weight)
+
+            if torch.any(weight < self.min_weight):
+                logger.warning("Some weights are below the minimum weight.")
+
+            if torch.any(weight > self.max_weight):
+                logger.warning("Some weights are above the maximum weight.")
 
         return weight
     

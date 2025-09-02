@@ -170,7 +170,7 @@ class NormMLP(BaseNormMLP):
 
         batch, n_time, _ = mb.shape
 
-        logger.info("shape", shape=mb.shape, dtype=mb.dtype, in_channels=self.in_channels, bandwidth=self.bandwidth, reim=self.reim)
+        # logger.info("shape", shape=mb.shape, dtype=mb.dtype, in_channels=self.in_channels, bandwidth=self.bandwidth, reim=self.reim)
 
         mb = mb.reshape(
             batch, n_time, self.in_channels, self.bandwidth, self.reim

@@ -18,6 +18,7 @@ import structlog
 
 from banda.data.base import DataConfig, SourceSeparationDataModule
 from banda.losses.handler import LossHandler, LossHandlerConfig
+from banda.metrics.handler import MetricHandler
 from banda.models.base import ModelRegistry
 from banda.models.masking.dummy import DummyMaskingModel
 from banda.system.base import SourceSeparationSystem
@@ -62,9 +63,12 @@ def train(config: DictConfig) -> None:
     
     loss = LossHandler(config=config.loss)
     
+    metric = MetricHandler(config=config.metrics)
+    
     system = SourceSeparationSystem(
         model=model,
         loss_handler=loss,
+        metric_handler=metric,
         optimizer_config=config.optimizer
     )
 

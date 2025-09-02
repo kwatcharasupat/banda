@@ -58,7 +58,6 @@ class RandomChunkDataset(_ChunkDataset):
         config = RandomChunkDatasetParams.model_validate(config)
         super().__init__(datasources=datasources, config=config)
         
-        
     
     def _cache_sizes(self):
         self.chunk_size_samples = int(self.config.chunk_size_seconds * self.config.fs)
@@ -83,7 +82,8 @@ class RandomChunkDataset(_ChunkDataset):
             chunked_audio = self._chunk_item_random(audio)
             
             if self.premix_augmentation is not None:
-                chunked_audio = self.premix_augmentation(chunked_audio)
+                # logger.info("Applying augmentation!")
+                chunked_audio = self.premix_augmentation(chunked_audio, sample_rate=self.config.fs)
 
             item_dict.sources[source]["audio"] = chunked_audio
 
@@ -204,7 +204,7 @@ class DeterministicChunkDataset(_ChunkDataset):
             chunked_audio = self._chunk_item(audio, start_sample, pad=True)
             
             if self.premix_augmentation is not None:
-                chunked_audio = self.premix_augmentation(chunked_audio)
+                chunked_audio = self.premix_augmentation(chunked_audio, sample_rate=self.config.fs)
 
             item_dict.sources[source]["audio"] = chunked_audio
 

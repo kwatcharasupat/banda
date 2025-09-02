@@ -3,7 +3,8 @@ defaults:
 - data: musdb18hq
 - logger: wandb
 - loss: l1snr
-- optimizer: adam
+- metrics: default
+- optimizer: adamw
 - _self_
 
 seed: 42

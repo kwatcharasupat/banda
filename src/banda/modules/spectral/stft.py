@@ -40,5 +40,5 @@ class Spectrogram(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.stft(x)
 
-    def inverse(self, x: torch.Tensor) -> torch.Tensor:
-        return self.istft(x)
+    def inverse(self, x: torch.Tensor, length: int  | None = None) -> torch.Tensor:
+        return self.istft(x, length=length)

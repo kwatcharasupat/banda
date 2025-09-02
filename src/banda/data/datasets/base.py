@@ -105,7 +105,4 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
             self.premix_augmentation = Compose(config=augmentation_config)
         else:
             self.premix_augmentation = None
-
-
-        self.premix_augmentation = None
         

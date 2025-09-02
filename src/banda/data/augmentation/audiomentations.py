@@ -7,12 +7,15 @@ from banda.data.augmentation.base import AugmentationParams, BaseRegisteredAugme
 
 class Gain(BaseRegisteredAugmentation, _Gain):
     def __init__(self, *, config: AugmentationParams):
-        super().__init__(config=config)
+        BaseRegisteredAugmentation.__init__(self, config=config)
+        _Gain.__init__(self, **config.model_dump())
 
 class Shift(BaseRegisteredAugmentation, _Shift):
     def __init__(self, *, config: AugmentationParams):
-        super().__init__(config=config)
+        BaseRegisteredAugmentation.__init__(self, config=config)
+        _Shift.__init__(self, **config.model_dump())
 
 class PolarityInversion(BaseRegisteredAugmentation, _PolarityInversion):
     def __init__(self, *, config: AugmentationParams):
-        super().__init__(config=config)
+        BaseRegisteredAugmentation.__init__(self, config=config)
+        _PolarityInversion.__init__(self, **config.model_dump())
