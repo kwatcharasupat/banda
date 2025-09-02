@@ -19,20 +19,20 @@ train:
           params:
             min_gain_db: -6
             max_gain_db: 6.0
-            p: 0.5
-        - cls: Shift
-          params:
-            min_shift: -0.5
-            max_shift: 0.5
-            shift_unit: "fraction"
-            rollover: True
-            p: 0.5
+            p: 1.0
+        # - cls: Shift
+        #   params:
+        #     min_shift: -0.5
+        #     max_shift: 0.5
+        #     shift_unit: "fraction"
+        #     rollover: True
+        #     p: 0.5
         - cls: PolarityInversion
           params:
             p: 0.5
-        - cls: RandomDrop
-          params:
-            p: 0.10
+        # - cls: RandomDrop
+        #   params:
+        #     p: 0.10
 
   dataloader:
     batch_size: 8

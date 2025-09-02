@@ -1,10 +1,16 @@
 optimizer:
   cls: Adam
   params:
-    lr: 1e-2
+    lr: 1e-3
+    weight_decay: 0.0
     fused: True
 scheduler:
-  cls: StepLR
-  kwargs:
-    step_size: 2
-    gamma: 0.98
+  # cls: StepLR
+  # params:
+  #   step_size: 2
+  #   gamma: 0.98
+  cls: LinearLR
+  params:
+    start_factor: 0.1
+    end_factor: 0.0
+    total_iters: 5

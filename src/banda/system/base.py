@@ -105,7 +105,7 @@ class SourceSeparationSystem(pl.LightningModule):
 
         scheduler_config = self.optimizer_config.scheduler
         scheduler_cls = getattr(torch.optim.lr_scheduler, scheduler_config.cls)
-        scheduler_kwargs = scheduler_config.kwargs
+        scheduler_kwargs = scheduler_config.params
 
         scheduler = scheduler_cls(optimizer, **scheduler_kwargs)
 
@@ -113,7 +113,7 @@ class SourceSeparationSystem(pl.LightningModule):
 
     def _log_loss(self, loss_dict: LossDict, mode: Literal["train", "val", "test", "predict"]):
 
-        prefix = f"{mode}/"
+        prefix = f"{mode}"
         on_step = mode == "train"
         on_epoch = mode != "train"
         
@@ -125,7 +125,7 @@ class SourceSeparationSystem(pl.LightningModule):
         
         self.log_dict(prog_bar_loss, on_step=True, prog_bar=True, logger=False)
 
-        loss_contrib_dict = {f"{prefix}/{key}": value for key, value in loss_dict.loss_contrib.items()}
+        loss_contrib_dict = {f"{prefix}/loss/{key}": value for key, value in loss_dict.loss_contrib.items()}
 
         self.log_dict(loss_contrib_dict, on_step=on_step, on_epoch=on_epoch, prog_bar=False)
         
@@ -133,10 +133,13 @@ class SourceSeparationSystem(pl.LightningModule):
         self.log(name=f"{mode}/loss", value=loss_dict.total_loss, on_step=on_step, on_epoch=on_epoch, prog_bar=False, logger=True)
 
     def _log_metric(self, metric_dict: dict, mode: Literal["train", "val", "test", "predict"]):
-        prefix = f"{mode}/"
+        prefix = f"{mode}"
         on_step = mode == "train"
         on_epoch = mode != "train"
+        
+        if mode == "train":
+            self.log_dict(metric_dict, on_step=True, on_epoch=False, prog_bar=True, logger=False)
 
-        metric_dict = {f"{prefix}metric/{key}": value for key, value in metric_dict.items()}
+        metric_dict = {f"{prefix}/metric/{key}": value for key, value in metric_dict.items()}
 
         self.log_dict(metric_dict, on_step=on_step, on_epoch=on_epoch, prog_bar=False)

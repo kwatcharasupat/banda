@@ -89,7 +89,7 @@ class BaseNormMLP(nn.Module):
 
 
         return nn.Sequential(
-            weight_norm(
+            (
                 nn.Linear(
                     in_features=self.mlp_dim,
                     out_features=self.bandwidth * self.in_channels * self.reim * 2,
@@ -273,9 +273,10 @@ class BaseMaskEstimationModule(nn.Module):
 
             # safeguard against NaN
             if torch.any(torch.isnan(mb)):
-                mb = torch.view_as_complex(
-                    torch.nan_to_num(torch.view_as_real(mb), nan=0.0)
-                )
+                # mb = torch.view_as_complex(
+                #     torch.nan_to_num(torch.view_as_real(mb), nan=0.0)
+                # )
+                raise ValueError("NaN detected in mask estimation")
 
             masks.append(mb)
 

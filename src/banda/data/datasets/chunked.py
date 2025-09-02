@@ -95,8 +95,9 @@ class RandomChunkDataset(_ChunkDataset):
     def _chunk_item_random(self, audio: np.ndarray) -> np.ndarray:
         _, n_samples = audio.shape
         start_time = np.random.randint(0, max(1, n_samples - self.chunk_size_samples))
-        return self._chunk_item(audio, start_time)
+        out = self._chunk_item(audio, start_time)
 
+        return out
     
 class DeterministicChunkDataset(_ChunkDataset):
     def __init__(self, *, 

@@ -1,0 +1,44 @@
+{
+  "os": "Linux-6.8.0-79-generic-x86_64-with-glibc2.39",
+  "python": "CPython 3.12.11",
+  "startedAt": "2025-09-02T20:56:49.471215Z",
+  "args": [
+    "-cn",
+    "bandit-musdb18hq"
+  ],
+  "program": "/home/kwatchar3/projects/banda/scripts/train.py",
+  "codePath": "scripts/train.py",
+  "codePathLocal": "scripts/train.py",
+  "git": {
+    "remote": "https://github.com/kwatcharasupat/banda.git",
+    "commit": "b0f49867d1534f214718e0f332a6f011e6595a4c"
+  },
+  "email": "kwatcharasupat@gatech.edu",
+  "root": ".",
+  "host": "deepnet4.music.gatech.edu",
+  "executable": "/home/kwatchar3/anaconda3/envs/banda/bin/python",
+  "cpu_count": 24,
+  "cpu_count_logical": 32,
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "3935709487104",
+      "used": "3055304138752"
+    }
+  },
+  "memory": {
+    "total": "134795247616"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 4090",
+      "memoryTotal": "25757220864",
+      "cudaCores": 16384,
+      "architecture": "Ada",
+      "uuid": "GPU-0ad3aef7-e370-4c11-1e4e-c1fdd7d26c86"
+    }
+  ],
+  "cudaVersion": "12.4",
+  "writerId": "f8hm3xew81in5tt59v346wihss1jfs29"
+}
