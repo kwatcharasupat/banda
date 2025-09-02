@@ -117,7 +117,13 @@ class SourceSeparationSystem(pl.LightningModule):
         on_step = mode == "train"
         on_epoch = mode != "train"
         
-        self.log_dict(loss_dict.loss_contrib, on_step=True, prog_bar=True, logger=False)
+        prog_bar_loss = {
+            k: v
+            for k, v in loss_dict.loss_contrib.items()
+            if "/" not in k
+        }
+        
+        self.log_dict(prog_bar_loss, on_step=True, prog_bar=True, logger=False)
 
         loss_contrib_dict = {f"{prefix}/{key}": value for key, value in loss_dict.loss_contrib.items()}
 

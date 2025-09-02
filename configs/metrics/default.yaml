@@ -1,5 +1,9 @@
 metrics:
 - cls: SignalNoiseRatio
   params: {}
+- cls: PredDecibel
+  params: {}
+- cls: TargetDecibel
+  params: {}
 
 stems: null

@@ -1,7 +1,7 @@
 optimizer:
   cls: Adam
   params:
-    lr: 1e-3
+    lr: 1e-2
     fused: True
 scheduler:
   cls: StepLR

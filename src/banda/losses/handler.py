@@ -58,6 +58,9 @@ class LossHandler(_Loss):
             
             name = loss_config.name if loss_config.name is not None else cls_str
 
+            if name in losses:
+                raise ValueError(f"Loss '{name}' is already registered. Use `name` to specify a unique name.")
+
             loss = cls(config=loss_config.params)
             losses[name] = loss
             weights[name] = weight

@@ -53,19 +53,22 @@ class L1SNRLoss(BaseRegisteredLoss):
         )
 
     def _loss_func(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-        batch_size = y_pred.shape[0]
-
+        y_pred = y_pred.flatten(start_dim=1)
+        y_true = y_true.flatten(start_dim=1)
+        
         if torch.is_complex(y_pred):
             y_pred = torch.view_as_real(y_pred)
             y_true = torch.view_as_real(y_true)
-
-        y_pred = y_pred.reshape(batch_size, -1)
-        y_true = y_true.reshape(batch_size, -1)
-
-        l1_error = torch.mean(torch.abs(y_pred - y_true), dim=-1)
-        l1_true = torch.mean(torch.abs(y_true), dim=-1)
+        else:
+            y_pred = y_pred.unsqueeze(-1)
+            y_true = y_true.unsqueeze(-1)
+            
+        l1_error = torch.mean(torch.abs(y_pred - y_true), dim=-2)
+        l1_true = torch.mean(torch.abs(y_true), dim=-2)
 
         snr = 20.0 * torch.log10((l1_true + self.eps) / (l1_error + self.eps))
 
+        snr = snr.sum(dim=-1)
+        
         return -torch.mean(snr)
     
