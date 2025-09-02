@@ -74,13 +74,16 @@ def train(config: DictConfig) -> None:
 
     trainer = pl.Trainer(
         callbacks=[
-            pl_callbacks.ModelCheckpoint(monitor="val/loss"),
-            pl_callbacks.EarlyStopping(monitor="val/loss", patience=5),
+            pl_callbacks.ModelCheckpoint(monitor="val/loss", save_last=True, save_on_exception=True, every_n_epochs=1, save_top_k=3, mode="min"),
+            # pl_callbacks.EarlyStopping(monitor="val/loss", patience=5, verbose=True, check_finite=False),
         ],
         logger=WandbLogger(project="banda", log_model=True),
-        gradient_clip_val=2.0
+        gradient_clip_val=2.0,
+        max_epochs=100,
     )
-
+    
+    trainer.logger.log_hyperparams(config.model_dump())
+    trainer.logger.save()
 
     trainer.fit(system, datamodule=datamodule)
 

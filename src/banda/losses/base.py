@@ -10,7 +10,8 @@ from torch.nn.modules.loss import _Loss
 from banda.utils import BaseConfig, WithClassConfig
 
 class LossParams(BaseConfig):
-    pass
+    domain: str = "audio"
+    
 class LossConfig(WithClassConfig[LossParams]):
     weight: float
     name: str | None = None

@@ -27,5 +27,5 @@ class FixedStemBandit(BaseBandit):
             stem: self.mask_estim[stem](tf_outs)
             for stem in self.config.stems
         }
-        
+
         return masks

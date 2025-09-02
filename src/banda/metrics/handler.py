@@ -72,5 +72,5 @@ class MetricHandler(nn.Module):
         
         with torch.no_grad():
 
-            for key in batch.estimates:
+            for key in self.metric_collection:
                 self.metric_collection[key].update(batch.estimates[key]["audio"], batch.sources[key]["audio"])

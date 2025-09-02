@@ -3,7 +3,7 @@ from typing import Dict, List, Tuple
 from omegaconf import DictConfig
 import torch
 from torch.nn.modules.loss import _Loss
-
+from torch import nn
 from banda.data.item import SourceSeparationBatch
 
 from banda.losses.base import BaseRegisteredLoss, LossConfig, LossDict, LossRegistry
@@ -26,9 +26,9 @@ class LossHandler(_Loss):
         loss_contribs = {}
         total_loss = 0.0
 
-        for name, (loss, weight) in self.losses.items():
+        for name, loss in self.losses.items():
             loss_val : LossDict = loss(batch)
-            total_loss += loss_val.total_loss * weight
+            total_loss += loss_val.total_loss * self.weights[name]
 
             with torch.no_grad():
                 loss_contribs[name] = loss_val.total_loss
@@ -44,7 +44,8 @@ class LossHandler(_Loss):
 
     def _build_losses(self):
         
-        losses :  Dict[str, Tuple[BaseRegisteredLoss, float]] = {}
+        losses  = {}
+        weights = {}
 
         for loss_config in self.config.losses:
 
@@ -58,6 +59,8 @@ class LossHandler(_Loss):
             name = loss_config.name if loss_config.name is not None else cls_str
 
             loss = cls(config=loss_config.params)
-            losses[name] = (loss, weight)
+            losses[name] = loss
+            weights[name] = weight
 
-        self.losses = losses
+        self.losses = nn.ModuleDict(losses)
+        self.weights = weights

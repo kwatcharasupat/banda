@@ -225,7 +225,6 @@ class BaseMaskEstimationModule(nn.Module):
         in_channels: Optional[int],
         hidden_activation: str = "Tanh",
         hidden_activation_kwargs: Optional[Dict] = None,
-        complex_mask: bool = True,
         norm_mlp_cls: Type[nn.Module] = NormMLP,
         norm_mlp_kwargs: Optional[Dict] = None,
     ) -> None:
@@ -312,7 +311,6 @@ class OverlappingMaskEstimationModule(BaseMaskEstimationModule):
         mlp_dim: int,
         hidden_activation: str = "Tanh",
         hidden_activation_kwargs: Optional[Dict] = None,
-        complex_mask: bool = True,
         norm_mlp_cls: Type[nn.Module] = NormMLP,
         norm_mlp_kwargs: Optional[Dict] = None,
     ) -> None:
@@ -324,7 +322,6 @@ class OverlappingMaskEstimationModule(BaseMaskEstimationModule):
             in_channels=in_channels,
             hidden_activation=hidden_activation,
             hidden_activation_kwargs=hidden_activation_kwargs,
-            complex_mask=complex_mask,
             norm_mlp_cls=norm_mlp_cls,
             norm_mlp_kwargs=norm_mlp_kwargs,
         )

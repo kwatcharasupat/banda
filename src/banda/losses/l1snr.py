@@ -4,6 +4,7 @@ import torch
 from banda.data.item import SourceSeparationBatch
 from banda.losses.base import BaseRegisteredLoss, LossDict
 
+import torchaudio as ta
 
 class L1SNRLoss(BaseRegisteredLoss):
     def __init__(self, *, 
@@ -11,8 +12,16 @@ class L1SNRLoss(BaseRegisteredLoss):
                  ) -> None:
         super().__init__(config=config)
         self.eps = self.config.eps
-        self.domain = self.config.domain
-
+        
+        if "spectrogram/" in self.config.domain:
+            self.stft = ta.transforms.Spectrogram(
+                n_fft=self.config.n_fft,
+                win_length=self.config.n_fft,
+                hop_length=self.config.n_fft//4,
+            )
+        else:
+            self.stft = None
+        
     def forward(self, batch: SourceSeparationBatch) -> LossDict:
 
         losses = {}
@@ -21,8 +30,19 @@ class L1SNRLoss(BaseRegisteredLoss):
         sources = batch.sources
 
         for key in estimates.keys():
-            estimate = estimates[key][self.domain]
-            source = sources[key][self.domain]
+            
+            if "spectrogram/" in self.config.domain:
+                domain = "audio"
+            else:
+                domain = self.config.domain    
+                
+            estimate = estimates[key][domain]
+            source = sources[key][domain]
+
+            if self.stft is not None:
+                estimate = self.stft(estimate)
+                source = self.stft(source)
+
             losses[key] = self._loss_func(estimate, source)
 
         total_loss = sum(losses.values())
@@ -48,3 +68,4 @@ class L1SNRLoss(BaseRegisteredLoss):
         snr = 20.0 * torch.log10((l1_true + self.eps) / (l1_error + self.eps))
 
         return -torch.mean(snr)
+    

@@ -1,0 +1,10 @@
+optimizer:
+  cls: Adam
+  params:
+    lr: 1e-3
+    fused: True
+scheduler:
+  cls: StepLR
+  kwargs:
+    step_size: 2
+    gamma: 0.98

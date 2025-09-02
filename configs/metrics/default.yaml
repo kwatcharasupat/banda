@@ -3,6 +3,7 @@ metrics:
   params: {}
 stems:
 - vocals
-- drums
-- bass
-- other
+
+# - drums
+# - bass
+# - other

@@ -1,0 +1,14 @@
+defaults:
+- model: bandit-mus64-vocals
+- data: musdb18hq
+- logger: wandb
+- loss: l1snr
+- metrics: default
+- optimizer: adamw
+- _self_
+
+seed: 42
+
+hydra:
+  searchpath:
+  - file:///home/kwatchar3/projects/banda/configs

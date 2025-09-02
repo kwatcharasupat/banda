@@ -2,6 +2,7 @@ optimizer:
   cls: AdamW
   params:
     lr: 1e-3
+    fused: True
 scheduler:
   cls: StepLR
   kwargs:

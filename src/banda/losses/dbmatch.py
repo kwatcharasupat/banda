@@ -20,6 +20,8 @@ class DecibelMatchLoss(BaseRegisteredLoss):
         self.max_weight = self.config.max_weight
         self.min_db = self.config.min_db
         self.max_below_true = self.config.max_below_true
+        
+        self.domain = "audio"
 
     def compute_weight(self, db_pred: torch.Tensor, db_true: torch.Tensor):
         with torch.no_grad():
@@ -29,7 +31,7 @@ class DecibelMatchLoss(BaseRegisteredLoss):
             )
             db_pred_to_true = db_true - db_pred
 
-            ratio = torch.clamp(db_pred_to_true / db_true_to_floor, 0.0, 1.0)
+            ratio = torch.clamp(db_pred_to_true / (db_true_to_floor + 1.0e-12), 0.0, 1.0)
 
             weight = self.min_weight + (self.max_weight - self.min_weight) * ratio
 
@@ -44,11 +46,16 @@ class DecibelMatchLoss(BaseRegisteredLoss):
             # assert torch.all(weight >= self.min_weight)
             # assert torch.all(weight <= self.max_weight)
 
-            if torch.any(weight < self.min_weight):
-                logger.warning("Some weights are below the minimum weight.")
+            if not torch.all(weight >= self.min_weight) or not torch.all(weight <= self.max_weight):
+                # logger.warning("Some weights are below the minimum weight.")
+                logger.error(
+                    "Some weights are below the minimum weight.",
+                    db_true=db_true,
+                    db_pred=db_pred,
+                    weight=weight
+                )
+                raise ValueError()
 
-            if torch.any(weight > self.max_weight):
-                logger.warning("Some weights are above the maximum weight.")
 
         return weight
     
@@ -76,22 +83,18 @@ class DecibelMatchLoss(BaseRegisteredLoss):
         batch_size = y_pred.shape[0]
 
         y_pred = y_pred.reshape(batch_size, -1)
-        y_true = y_true.reshape(batch_size, -1)
-
-        db_true = 10.0 * torch.log10(
-            self.eps + torch.mean(torch.square(torch.abs(y_true)), dim=-1)
-        )
         db_pred = 10.0 * torch.log10(
             self.eps + torch.mean(torch.square(torch.abs(y_pred)), dim=-1)
         )
         
-        if self.adaptive:
+        with torch.no_grad():
+            y_true = y_true.reshape(batch_size, -1)
+            db_true = 10.0 * torch.log10(
+                self.eps + torch.mean(torch.square(torch.abs(y_true)), dim=-1)
+            )
             weights = self.compute_weight(db_pred, db_true)
-        else:
-            weights = 1.0
 
         diff = torch.abs(db_pred - db_true)
-
         loss = torch.mean(weights * diff)
 
         return loss
