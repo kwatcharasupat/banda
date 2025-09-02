@@ -36,6 +36,7 @@ class TrainingConfig(BaseConfig):
     model: WithClassConfig[BaseConfig]
     loss: LossHandlerConfig
     trainer: BaseConfig
+    ckpt_path: str | None = None
 
 def _build_model(config: WithClassConfig[BaseConfig]) -> nn.Module:
     cls_str = config.cls
@@ -85,7 +86,7 @@ def train(config: DictConfig) -> None:
     trainer.logger.log_hyperparams(config.model_dump())
     trainer.logger.save()
 
-    trainer.fit(system, datamodule=datamodule)
+    trainer.fit(system, datamodule=datamodule, ckpt_path=config.ckpt_path)
 
 if __name__ == "__main__":
     train()

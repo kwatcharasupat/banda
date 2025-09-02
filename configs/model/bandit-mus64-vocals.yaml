@@ -28,8 +28,4 @@ params:
     mlp_dim: 256
     in_channels: ${..bandsplit.in_channels}
 
-  stems:
-  - vocals
-  # - drums
-  # - bass
-  # - other
+  stems: null

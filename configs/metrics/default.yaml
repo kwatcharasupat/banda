@@ -1,9 +1,5 @@
 metrics:
 - cls: SignalNoiseRatio
   params: {}
-stems:
-- vocals
 
-# - drums
-# - bass
-# - other
+stems: null
