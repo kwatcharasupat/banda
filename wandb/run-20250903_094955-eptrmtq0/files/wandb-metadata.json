@@ -1,0 +1,98 @@
+{
+  "os": "Linux-5.14.0-503.40.1.el9_5.x86_64-x86_64-with-glibc2.34",
+  "python": "CPython 3.12.11",
+  "startedAt": "2025-09-03T13:49:55.673863Z",
+  "args": [
+    "-cn",
+    "bandit-musdb18hq-dbm"
+  ],
+  "program": "/storage/ice1/4/1/kwatchar3/banda/scripts/train.py",
+  "codePath": "scripts/train.py",
+  "codePathLocal": "scripts/train.py",
+  "git": {
+    "remote": "https://github.com/kwatcharasupat/banda.git",
+    "commit": "9e883b2ebf4da40e6aa47863f8a713b8cd52b3fa"
+  },
+  "email": "kwatcharasupat@gatech.edu",
+  "root": ".",
+  "host": "atl1-1-01-005-15-0.pace.gatech.edu",
+  "executable": "/home/hice1/kwatchar3/.conda/envs/banda/bin/python",
+  "cpu_count": 64,
+  "cpu_count_logical": 64,
+  "gpu": "NVIDIA A100 80GB PCIe",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "53619982336",
+      "used": "23085953024"
+    }
+  },
+  "memory": {
+    "total": "540286980096"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA A100 80GB PCIe",
+      "memoryTotal": "85899345920",
+      "cudaCores": 6912,
+      "architecture": "Ampere",
+      "uuid": "GPU-2e7f3d27-b0c2-2801-90ae-17c77fa7a87f"
+    }
+  ],
+  "cudaVersion": "12.9",
+  "slurm": {
+    "conf": "/var/lib/slurm/slurmd/conf-cache/slurm.conf",
+    "cpu_bind": "quiet,mask_cpu:0x000000000000FFFF",
+    "cpu_bind_list": "0x000000000000FFFF",
+    "cpu_bind_type": "mask_cpu:",
+    "cpu_bind_verbose": "quiet",
+    "cpus_on_node": "16",
+    "distribution": "cyclic",
+    "gpus_on_node": "1",
+    "gtids": "0",
+    "job_cpus_per_node": "16",
+    "job_end_time": "1756950245",
+    "job_gid": "2626",
+    "job_id": "2892410",
+    "job_name": "python",
+    "job_nodelist": "atl1-1-01-005-15-0",
+    "job_partition": "pace-gpu",
+    "job_start_time": "1756907044",
+    "job_uid": "1108741",
+    "job_user": "kwatchar3",
+    "jobid": "2892410",
+    "launch_node_ipaddr": "172.27.147.235",
+    "localid": "0",
+    "mem_per_cpu": "16384",
+    "mpi_type": "pmix_v4",
+    "nnodes": "1",
+    "nodeid": "0",
+    "nodelist": "atl1-1-01-005-15-0",
+    "nprocs": "1",
+    "ntasks": "1",
+    "oom_kill_step": "0",
+    "pmix_mapping_serv": "(vector,(0,1,1))",
+    "pmix_tmpdir": "/tmp",
+    "pmixp_abort_agent_port": "39813",
+    "prio_process": "0",
+    "procid": "0",
+    "root": "/opt/slurm/current",
+    "script_context": "prolog_task",
+    "srun_comm_host": "172.27.147.235",
+    "srun_comm_port": "45737",
+    "step_gpus": "0",
+    "step_id": "1",
+    "step_launcher_port": "45737",
+    "step_nodelist": "atl1-1-01-005-15-0",
+    "step_num_nodes": "1",
+    "step_num_tasks": "1",
+    "step_tasks_per_node": "1",
+    "stepid": "1",
+    "task_pid": "3754889",
+    "tasks_per_node": "1",
+    "topology_addr": "atl1-1-01-005-15-0",
+    "topology_addr_pattern": "node",
+    "umask": "0022"
+  },
+  "writerId": "4hov4rdm2wltlm4k54t2eptzn5bfw5jd"
+}

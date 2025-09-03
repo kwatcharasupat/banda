@@ -1,0 +1,205 @@
+_wandb:
+    value:
+        cli_version: 0.21.3
+        e:
+            hd3hqdofjoh9cfoc2cthhxak8yob2sfh:
+                args:
+                    - -cn
+                    - bandit-musdb18hq
+                codePath: scripts/train.py
+                codePathLocal: scripts/train.py
+                cpu_count: 64
+                cpu_count_logical: 64
+                cudaVersion: "12.9"
+                disk:
+                    /:
+                        total: "53619982336"
+                        used: "23076057088"
+                email: kwatcharasupat@gatech.edu
+                executable: /home/hice1/kwatchar3/.conda/envs/banda/bin/python
+                git:
+                    commit: b0f49867d1534f214718e0f332a6f011e6595a4c
+                    remote: https://github.com/kwatcharasupat/banda.git
+                gpu: NVIDIA A40
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 10752
+                      memoryTotal: "48305799168"
+                      name: NVIDIA A40
+                      uuid: GPU-cd6731aa-0dfb-2a3a-3267-d574b99b0c86
+                host: atl1-1-01-005-9-0.pace.gatech.edu
+                memory:
+                    total: "540286955520"
+                os: Linux-5.14.0-503.40.1.el9_5.x86_64-x86_64-with-glibc2.34
+                program: /storage/ice1/4/1/kwatchar3/banda/scripts/train.py
+                python: CPython 3.12.11
+                root: .
+                slurm:
+                    job_id: "2889169"
+                    mpi_type: pmix_v4
+                    root: /opt/slurm/current
+                startedAt: "2025-09-02T17:49:10.563182Z"
+                writerId: hd3hqdofjoh9cfoc2cthhxak8yob2sfh
+        m:
+            - "1": trainer/global_step
+              "6":
+                - 3
+              "7": []
+            - "2": '*'
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.12.11
+        t:
+            "1":
+                - 1
+                - 9
+                - 50
+                - 53
+                - 103
+            "2":
+                - 1
+                - 9
+                - 50
+                - 53
+                - 103
+            "3":
+                - 7
+                - 66
+            "4": 3.12.11
+            "5": 0.21.3
+            "12": 0.21.3
+            "13": linux-x86_64
+ckpt_path:
+    value: null
+data:
+    value:
+        predict: null
+        test:
+            dataloader:
+                batch_size: 8
+                drop_last: false
+                num_workers: 4
+                pin_memory: true
+                shuffle: true
+            dataset:
+                cls: FullTrackDataset
+                params:
+                    allow_autolooping: false
+                    fs: 44100
+                    n_channels: 2
+                    premix_augmentation: null
+            datasource:
+                - cls: MUSDB18HQDatasource
+                  params:
+                    split: test
+        train:
+            dataloader:
+                batch_size: 8
+                drop_last: false
+                num_workers: 16
+                pin_memory: true
+                prefetch_factor: 4
+                shuffle: true
+            dataset:
+                cls: RandomChunkDataset
+                params:
+                    allow_autolooping: true
+                    chunk_size_seconds: 6
+                    fs: 44100
+                    max_dataset_size: 8192
+                    n_channels: 2
+                    premix_augmentation:
+                        augmentations:
+                            - cls: Gain
+                              params:
+                                max_gain_db: 6
+                                min_gain_db: -6
+                                p: 0.5
+                            - cls: Shift
+                              params:
+                                max_shift: 0.5
+                                min_shift: -0.5
+                                p: 0.5
+                                rollover: true
+                                shift_unit: fraction
+                            - cls: PolarityInversion
+                              params:
+                                p: 0.5
+                            - cls: RandomDrop
+                              params:
+                                p: 0.1
+                        num_transforms: null
+                        p: 1
+                        shuffle: true
+            datasource:
+                - cls: MUSDB18HQDatasource
+                  params:
+                    split: train
+        val:
+            dataloader:
+                batch_size: 8
+                drop_last: false
+                num_workers: 16
+                pin_memory: true
+                shuffle: false
+            dataset:
+                cls: DeterministicChunkDataset
+                params:
+                    allow_autolooping: false
+                    chunk_size_seconds: 6
+                    fs: 44100
+                    hop_size_seconds: 6
+                    max_dataset_size: 1024
+                    n_channels: 2
+                    premix_augmentation: null
+            datasource:
+                - cls: MUSDB18HQDatasource
+                  params:
+                    load_duration: true
+                    split: val
+logger:
+    value: '{}'
+loss:
+    value:
+        losses:
+            - cls: L1SNRLoss
+              name: l1snr-time
+              params:
+                domain: audio
+                eps: 0.001
+              weight: 1
+            - cls: L1SNRLoss
+              name: l1snr-tf
+              params:
+                domain: spectrogram
+                eps: 0.001
+              weight: 1
+metrics:
+    value: '{''metrics'': [{''cls'': ''SignalNoiseRatio'', ''params'': {}}, {''cls'': ''PredDecibel'', ''params'': {}}, {''cls'': ''TargetDecibel'', ''params'': {}}], ''stems'': ''${stems}''}'
+model:
+    value:
+        cls: FixedStemBandit
+        params:
+            bandsplit: '{''n_bands'': 64, ''in_channels'': 2, ''emb_dim'': 128}'
+            mask_estim: '{''emb_dim'': ''${..bandsplit.emb_dim}'', ''mlp_dim'': 256, ''in_channels'': ''${..bandsplit.in_channels}''}'
+            normalization: '{''eps'': 1e-06, ''dbrms_threshold'': -60}'
+            spectrogram: '{''n_fft'': 2048, ''hop_length'': 512, ''win_length'': 2048, ''window'': ''hann'', ''fs'': 44100}'
+            stems:
+                - vocals
+                - drums
+                - bass
+                - other
+            tf_model: '{''n_modules'': 8, ''rnn_type'': ''GRU'', ''emb_dim'': ''${..bandsplit.emb_dim}'', ''rnn_dim'': 256, ''bidirectional'': True}'
+optimizer:
+    value: '{''optimizer'': {''cls'': ''Adam'', ''params'': {''lr'': 0.01, ''fused'': True}}, ''scheduler'': {''cls'': ''StepLR'', ''kwargs'': {''step_size'': 2, ''gamma'': 0.98}}}'
+seed:
+    value: 42
+stems:
+    value: '[''vocals'', ''drums'', ''bass'', ''other'']'
+trainer:
+    value:
+        gradient_clip_val: 5
+        max_epochs: 100
