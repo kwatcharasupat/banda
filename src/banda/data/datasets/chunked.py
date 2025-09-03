@@ -14,9 +14,21 @@ class ChunkDatasetParams(DatasetParams):
 class RandomChunkDatasetParams(ChunkDatasetParams):
     max_dataset_size: int
 
+    min_dbrms: float = -48
+    dbrms_thresh_step: float = -3
+    max_trial: int = 4
+
 class DeterministicChunkDatasetParams(ChunkDatasetParams):
     hop_size_seconds: float
     max_dataset_size: int | None = None
+    
+    
+def _dbrms(x: np.ndarray, eps: float = 1e-12) -> float:
+    
+    if np.std(x) == 0:
+        return -np.inf
+
+    return 10 * np.log10(np.mean(np.square(x)) + eps)
     
 class _ChunkDataset(BaseRegisteredDataset):
     def __init__(self, *, 
@@ -51,6 +63,9 @@ class _ChunkDataset(BaseRegisteredDataset):
         return out
 
 class RandomChunkDataset(_ChunkDataset):
+    
+    config: RandomChunkDatasetParams
+    
     def __init__(self, *, 
                  datasources: list[BaseRegisteredDatasource],
                  config: DatasetParams):
@@ -92,13 +107,21 @@ class RandomChunkDataset(_ChunkDataset):
 
         return item_dict
     
-    def _chunk_item_random(self, audio: np.ndarray) -> np.ndarray:
+    def _chunk_item_random(self, audio: np.ndarray, *, trial_counter: int = 0) -> np.ndarray:
         _, n_samples = audio.shape
         start_time = np.random.randint(0, max(1, n_samples - self.chunk_size_samples))
         out = self._chunk_item(audio, start_time)
+        
+        if trial_counter > self.config.max_trial:
+            return out
 
-        return out
-    
+        dbrms = _dbrms(out)
+        thresh = self.config.min_dbrms + self.config.dbrms_thresh_step * trial_counter
+        if dbrms < thresh:
+            return out
+
+        return self._chunk_item_random(audio, trial_counter=trial_counter + 1)
+
 class DeterministicChunkDataset(_ChunkDataset):
     def __init__(self, *, 
                  datasources: list[BaseRegisteredDatasource],
