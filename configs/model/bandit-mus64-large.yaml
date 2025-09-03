@@ -1,0 +1,31 @@
+cls: FixedStemBandit
+params:
+  spectrogram:
+    n_fft: 2048
+    hop_length: 512
+    win_length: 2048
+    window: "hann"
+    fs: 44100
+
+  normalization:
+    eps: 1e-6
+    dbrms_threshold: -60
+
+  bandsplit:
+    n_bands: 64
+    in_channels: 2
+    emb_dim: 256
+
+  tf_model:
+    n_modules: 8
+    rnn_type: GRU
+    emb_dim: ${..bandsplit.emb_dim}
+    rnn_dim: 512
+    bidirectional: true
+
+  mask_estim:
+    emb_dim: ${..bandsplit.emb_dim}
+    mlp_dim: 1024
+    in_channels: ${..bandsplit.in_channels}
+
+  stems: null
