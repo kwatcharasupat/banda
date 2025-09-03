@@ -90,7 +90,7 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
         audio_data = SourceSeparationItem(mixture=None, sources={}, estimates={})
         
         if ignore_stems is None:
-            ignore_stems = []
+            ignore_stems = ["mixture"]
         
         for source in npz_data.keys():
             

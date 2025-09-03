@@ -215,7 +215,7 @@ class DeterministicChunkDataset(_ChunkDataset):
         
         track_identifier = self.datasources[datasource_index][track_index]
 
-        item_dict = self._load_audio(track_identifier)
+        item_dict = self._load_audio(track_identifier, ignore_stems=['mixture'])
 
         start_sample = chunk_index * self.effective_hop_size_samples
         
