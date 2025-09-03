@@ -92,7 +92,7 @@ class BaseNormMLP(nn.Module):
             weight_norm(
                 nn.Linear(
                     in_features=self.mlp_dim,
-                    out_features=self.bandwidth * self.in_channels * self.reim * 2,
+                    out_features=self.bandwidth * self.in_channels * self.reim * self.glu_mult,
                 )
             ),
             nn.GLU(dim=-1),

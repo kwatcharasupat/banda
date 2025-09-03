@@ -2,7 +2,7 @@ optimizer:
   cls: AdamW
   params:
     lr: 1e-3
-    weight_decay: 1e-4
+    weight_decay: 0.0
     fused: True
 scheduler:
   cls: StepLR

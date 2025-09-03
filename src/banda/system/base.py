@@ -79,34 +79,11 @@ class SourceSeparationSystem(pl.LightningModule):
         optimizer_config = self.optimizer_config.optimizer
         cls = getattr(torch.optim, optimizer_config.cls)
         params = optimizer_config.params
-
-        # optimizer = cls(self.model.parameters(), **params)
-
-        no_decay_keywords = ["bias", "LayerNorm", "GroupNorm", "original1"]
-        decay_params = []
-        no_decay_params = []
-
-        for name, param in self.named_parameters():
-            if any(keyword in name for keyword in no_decay_keywords):
-                no_decay_params.append(param)
-            else:
-                decay_params.append(param)
-                
-        params = {
-            k: v for k, v in params.items() if k != "weight_decay"
-        }
-
-        optimizer = cls([
-                {"params": decay_params, "weight_decay": params.get("weight_decay", 1.0e-2)},
-                {"params": no_decay_params, "weight_decay": 0.0}
-            ],
-            **params
-        )
-
+        optimizer = cls(self.parameters(), **params)
+        
         scheduler_config = self.optimizer_config.scheduler
         scheduler_cls = getattr(torch.optim.lr_scheduler, scheduler_config.cls)
         scheduler_kwargs = scheduler_config.params
-
         scheduler = scheduler_cls(optimizer, **scheduler_kwargs)
 
         return [optimizer], [scheduler]
