@@ -4,7 +4,7 @@ defaults:
 - logger: wandb
 - loss: l1snr
 - metrics: default
-- optimizer: adamw
+- optimizer: adam
 - trainer: default
 - _self_
 
