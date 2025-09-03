@@ -17,12 +17,8 @@ class FixedStemBandit(BaseBandit):
         })
 
     def _inner_model(self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch):
-
-        # logger.info("Input spectrogram: ", shape=specs_normalized.shape, dtype=specs_normalized.dtype)
         band_embs = self.bandsplit(specs_normalized)
-        # logger.info("After bandsplit module: ", shape=band_embs.shape, dtype=band_embs.dtype)
         tf_outs = self.tf_model(band_embs)
-        # logger.info("After TF model: ", shape=tf_outs.shape, dtype=tf_outs.dtype)
         masks = {
             stem: self.mask_estim[stem](tf_outs)
             for stem in self.config.stems
