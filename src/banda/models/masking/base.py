@@ -19,9 +19,13 @@ class _BaseMaskingModel(BaseRegisteredModel):
 
     
     def forward(self, batch: dict) -> SourceSeparationBatch:
-        batch = SourceSeparationBatch.model_validate(batch)
-
         with torch.no_grad():
+            
+            batch = SourceSeparationBatch.model_validate(batch)
+            assert "mixture" not in batch.sources, "Mixture should not be in sources"
+            _mixture = sum(batch.sources[key]["audio"] for key in batch.sources)
+            assert torch.allclose(batch.mixture["audio"], _mixture, atol=1e-5), "Mixture does not match sum of sources"
+
             batch : SourceSeparationBatch = self.normalizer(batch)
             specs_unnormalized : torch.Tensor = self.stft(batch.mixture["audio"])
             specs_normalized : torch.Tensor = self.stft(batch.mixture["audio/normalized"])
@@ -31,8 +35,6 @@ class _BaseMaskingModel(BaseRegisteredModel):
                 source_specs = self.stft(source)
                 batch.sources[key]["spectrogram"] = source_specs
                 
-            _mixture = sum(batch.sources[key]["audio"] for key in batch.sources)
-            assert torch.allclose(batch.mixture["audio"], _mixture, atol=1e-5), "Mixture does not match sum of sources after normalization"
 
         with torch.set_grad_enabled(True):
             masks : Dict[str, torch.Tensor] = self._inner_model(specs_normalized, batch=batch)

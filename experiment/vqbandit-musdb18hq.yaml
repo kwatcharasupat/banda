@@ -1,5 +1,5 @@
 defaults:
-- model: bandit-mus64
+- model: vqbandit-mus64
 - data: musdb18hq
 - logger: wandb
 - loss: l1snr
@@ -8,11 +8,11 @@ defaults:
 - trainer: default
 - _self_
 
-stems: [ "vocals" ]
-# - vocals
-# - drums
-# - bass
-# - other
+stems:
+- vocals
+- drums
+- bass
+- other
 
 model:
   params:

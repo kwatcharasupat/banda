@@ -6,6 +6,6 @@ optimizer:
     fused: True
 scheduler:
   cls: StepLR
-  kwargs:
+  params:
     step_size: 2
     gamma: 0.98
