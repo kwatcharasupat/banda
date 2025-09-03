@@ -30,10 +30,14 @@ class _BaseMaskingModel(BaseRegisteredModel):
                 source = batch.sources[key]["audio"]
                 source_specs = self.stft(source)
                 batch.sources[key]["spectrogram"] = source_specs
+                
+            _mixture = sum(batch.sources[key]["audio"] for key in batch.sources)
+            assert torch.allclose(batch.mixture["audio"], _mixture, atol=1e-5), "Mixture does not match sum of sources after normalization"
 
-        masks : Dict[str, torch.Tensor] = self._inner_model(specs_normalized, batch=batch)
-        batch = self.apply_masks(masks, specs_unnormalized, batch=batch)
-        
+        with torch.set_grad_enabled(True):
+            masks : Dict[str, torch.Tensor] = self._inner_model(specs_normalized, batch=batch)
+            batch = self.apply_masks(masks, specs_unnormalized, batch=batch)
+
         return batch
 
     def apply_masks(self, masks: Dict[str, torch.Tensor], specs_unnormalized: torch.Tensor, batch: SourceSeparationBatch) -> SourceSeparationBatch:

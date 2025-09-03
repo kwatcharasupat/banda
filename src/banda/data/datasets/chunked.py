@@ -1,5 +1,8 @@
 
+from pathlib import Path
+from uuid import uuid4
 import numpy as np
+import torch
 from banda.data.datasets.base import BaseRegisteredDataset, DatasetParams
 from banda.data.datasources.base import BaseRegisteredDatasource, TrackIdentifier
 
@@ -8,6 +11,7 @@ from banda.data.item import SourceSeparationItem
 import structlog
 logger = structlog.get_logger(__name__)
 
+import torchaudio as ta
 class ChunkDatasetParams(DatasetParams):
     chunk_size_seconds: float
 
@@ -84,7 +88,7 @@ class RandomChunkDataset(_ChunkDataset):
         
         track_identifier = self._get_track_identifier(index)
         
-        item_dict = self._load_audio(track_identifier)
+        item_dict = self._load_audio(track_identifier, ignore_stems=['mixture'])
         chunked_item_dict = self._chunk_and_augment(item_dict)
 
         return chunked_item_dict.model_dump()
@@ -234,5 +238,18 @@ class DeterministicChunkDataset(_ChunkDataset):
 
         mixture = sum(item_dict.sources[source]["audio"] for source in item_dict.sources)
         item_dict.mixture = {"audio": mixture}
+        
+        # # write file out to check
+        
+        # if np.random.random() < 0.1:
+        #     uuid = uuid4()
+        #     output_dir = Path("check", "chunked", uuid.hex)
+        #     output_dir.mkdir(parents=True, exist_ok=True)
+        #     for stem in item_dict.sources:
+        #         ta.save(output_dir / f"{stem}.wav", torch.from_numpy(item_dict.sources[stem]["audio"]), self.config.fs)
+                
+        #     ta.save(output_dir / "mixture.wav", torch.from_numpy(item_dict.mixture["audio"]), self.config.fs)
+            
+        #     exit()
 
         return item_dict

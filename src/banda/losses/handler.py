@@ -30,10 +30,9 @@ class LossHandler(_Loss):
             loss_val : LossDict = loss(batch)
             total_loss += loss_val.total_loss * self.weights[name]
 
-            with torch.no_grad():
-                loss_contribs[name] = loss_val.total_loss
-                for k, v in loss_val.loss_contrib.items():
-                    loss_contribs[f"{name}/{k}"] = v
+            loss_contribs[name] = loss_val.total_loss
+            for k, v in loss_val.loss_contrib.items():
+                loss_contribs[f"{name}/{k}"] = v
 
         loss_dict = LossDict(
             total_loss=total_loss,

@@ -1,5 +1,6 @@
 
 
+import json
 import os
 import numpy as np
 from omegaconf import DictConfig
@@ -16,34 +17,61 @@ from torch.nn import functional as F
 
 from tqdm.contrib.concurrent import process_map
 
+import pandas as pd
 
-def process_track(path: Path, config: DictConfig):
+from typing import List
+
+from pydantic import BaseModel
+
+class TrackMetadata(BaseModel):
+    trackType: str
+    id: str
+    type: str
+    extension: str
+    has_bleed: bool
+
+class StemMetadata(BaseModel):
+    id: str
+    stemName: str
+    tracks: List[TrackMetadata]
+    
+class SongMetadata(BaseModel):
+    song: str
+    artist: str
+    genre: str
+    stems: List[StemMetadata]
+
+def process_track_coarse(path: Path, config: DictConfig):
     
     track_name = path.stem
     
-    if path.parent.name == "test":
-        output_split = "test"
-    else:
-        if path.name in config.validation_tracks:
-            output_split = "val"
-        else:
-            output_split = "train"
+    splits = pd.read_csv(Path(os.getenv("DATA_ROOT"), config.datasource_id, "splits.csv").expanduser()).set_index("song_id")
+    split = splits.loc[track_name, "split"]
 
-    logger.info("Processing track", track=path.name, split=output_split)
+    data_json_path = Path(path, "data.json")
     
+    with open(data_json_path, "r") as f:
+        data_json = json.load(f)
+        song_metadata = SongMetadata.model_validate(data_json)
+        
     data = {}
     
-    for stem_path in path.iterdir():
+    max_length = 0
         
-        if config.recompute_mixture and stem_path.stem == "mixture":
-            continue
-        
-        x, original_fs = ta.load(stem_path)
-
-        if original_fs != config.fs:
-            x = resample(x, original_fs, config.fs)
-
-        data[stem_path.stem] = x
+    for stem in song_metadata.stems:
+        stem_name = stem.stemName
+        stem_data = []
+        for track in stem.tracks:
+            track_path = Path(path, stem_name, f"{track.id}.{track.extension}")
+            x, original_fs = ta.load(track_path)
+            if original_fs != config.fs:
+                x = resample(x, original_fs, config.fs)
+            
+            max_length = max(max_length, x.shape[1])
+            stem_data.append(x)
+            
+        stem_data = [F.pad(x, (0, max_length - x.shape[1]), "constant", 0) for x in stem_data]
+        data[stem_name] = sum(stem_data)
 
     # recompute mixture
     if config.recompute_mixture:
@@ -58,7 +86,7 @@ def process_track(path: Path, config: DictConfig):
         
         data['mixture'] = sum(data.values())
 
-    output_path = Path(os.getenv("DATA_ROOT"), config.datasource_id, "intermediates", "npz", output_split, f"{track_name}.npz")
+    output_path = Path(os.getenv("DATA_ROOT"), config.datasource_id, "intermediates", "npz-coarse", split, f"{track_name}.npz")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     np.savez(
@@ -67,17 +95,20 @@ def process_track(path: Path, config: DictConfig):
         fs=config.fs
     )
 
-@hydra.main(config_path="../../configs/preprocess", config_name="musdb18hq")
+@hydra.main(config_path="../../configs/preprocess", config_name="moisesdb")
 def main(config: DictConfig):
 
     tracks = list(Path(os.getenv("DATA_ROOT"), config.datasource_id, "canonical").glob("*/*"))
     
-    process_map(
-        process_track,
-        tracks,
-        [config] * len(tracks),
-        max_workers=16
-    )
+    if config.mode == "coarse":
+        process_map(
+            process_track_coarse,
+            tracks,
+            [config] * len(tracks),
+            max_workers=16
+        )
+    else:
+        raise NotImplementedError(f"Mode {config.mode} not implemented.")
 
 if __name__ == "__main__":
     main()

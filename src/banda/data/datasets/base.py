@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 from omegaconf import DictConfig
 from torch.utils.data import Dataset
@@ -82,17 +83,31 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
         return datasource_index, item_index
     
     
-    def _load_audio(self, track_identifier: TrackIdentifier) -> SourceSeparationItem:
+    def _load_audio(self, track_identifier: TrackIdentifier, *, ignore_stems: List[str] | None = None, _load_mixture_into_sources: bool = False) -> SourceSeparationItem:
         
         npz_data = np.load(track_identifier.full_path, mmap_mode='r')
 
         audio_data = SourceSeparationItem(mixture=None, sources={}, estimates={})
         
+        if ignore_stems is None:
+            ignore_stems = []
+        
         for source in npz_data.keys():
             
             if source == "fs":
                 continue
+
+            if source in ignore_stems:
+                continue
             
+            if source == "mixture" and "mixture" not in ignore_stems:
+                logger.warning("Mixture is NOT being ignore and will be loaded into sources. Are you sure?. Set _load_mixture_into_sources=True to stop the autopause.")
+                if not _load_mixture_into_sources:
+                    confirmation = input("Type 'yes' to continue loading mixture into sources: ")
+                    if confirmation.lower() != 'yes':
+                        logger.info("Loading of mixture into sources has been cancelled.")
+                        continue
+
             audio_data.sources[source] = {"audio": npz_data[source]}
             
         return audio_data

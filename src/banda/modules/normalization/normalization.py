@@ -31,15 +31,13 @@ class Normalizer(nn.Module):
         return dbrms, rms
         
     def _normalize(self, x: torch.Tensor) -> torch.Tensor:
+        dbrms, rms = self._dbrms(x)
         
-        with torch.no_grad():
-            dbrms, rms = self._dbrms(x)
+        if self.config.dbrms_threshold is not None:
+            return torch.where(
+                (dbrms < self.config.dbrms_threshold)[:, None, None],
+                x,
+                x / rms[:, None, None]
+            )
             
-            if self.config.dbrms_threshold is not None:
-                return torch.where(
-                    (dbrms < self.config.dbrms_threshold)[:, None, None],
-                    x,
-                    x / rms[:, None, None]
-                )
-                
-            return x / rms[:, None, None]
+        return x / rms[:, None, None]

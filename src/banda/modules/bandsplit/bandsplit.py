@@ -44,7 +44,7 @@ class NormFC(nn.Module):
 
         self.combined = nn.Sequential(
             nn.LayerNorm(norm_in),
-            (nn.Linear(fc_in, emb_dim)),
+            weight_norm(nn.Linear(fc_in, emb_dim)),
         )
 
     def forward(self, xb: torch.Tensor) -> torch.Tensor:
