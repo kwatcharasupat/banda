@@ -31,7 +31,7 @@ losses:
 
 # - cls: DecibelMatchLoss
 #   name: dbm
-#   weight: 1.0
+#   weight: 0.1
 #   params:
 #     eps: 1e-6
 #     adaptive: true

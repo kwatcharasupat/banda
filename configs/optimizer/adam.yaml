@@ -5,12 +5,12 @@ optimizer:
     weight_decay: 0.0
     fused: True
 scheduler:
-  # cls: StepLR
-  # params:
-  #   step_size: 2
-  #   gamma: 0.98
-  cls: LinearLR
+  cls: StepLR
   params:
-    start_factor: 0.1
-    end_factor: 0.0
-    total_iters: 5
+    step_size: 2
+    gamma: 0.98
+  # cls: LinearLR
+  # params:
+  #   start_factor: 0.1
+  #   end_factor: 0.0
+  #   total_iters: 5

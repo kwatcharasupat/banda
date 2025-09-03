@@ -25,7 +25,7 @@ params:
 
   mask_estim:
     emb_dim: ${..bandsplit.emb_dim}
-    mlp_dim: 256
+    mlp_dim: 512
     in_channels: ${..bandsplit.in_channels}
 
   stems: null
