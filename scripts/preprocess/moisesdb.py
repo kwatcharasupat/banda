@@ -10,6 +10,8 @@ from pathlib import Path
 import structlog
 logger = structlog.get_logger()
 
+import warnings
+
 import torchaudio as ta
 from torchaudio.functional import resample
 import torch
@@ -28,7 +30,7 @@ class TrackMetadata(BaseModel):
     id: str
     type: str
     extension: str
-    has_bleed: bool
+    has_bleed: bool | None
 
 class StemMetadata(BaseModel):
     id: str
@@ -42,11 +44,19 @@ class SongMetadata(BaseModel):
     stems: List[StemMetadata]
 
 def process_track_coarse(path: Path, config: DictConfig):
+    # warnings.filterwarnings("ignore", category=UserWarning, message=".*docs.pytorch.org*")
     
     track_name = path.stem
     
     splits = pd.read_csv(Path(os.getenv("DATA_ROOT"), config.datasource_id, "splits.csv").expanduser()).set_index("song_id")
-    split = splits.loc[track_name, "split"]
+    fold = splits.loc[track_name, "split"]
+    
+    if fold == 4:
+        split = "val"
+    elif fold == 5:
+        split = "test"
+    else:
+        split = "train"
 
     data_json_path = Path(path, "data.json")
     
@@ -63,7 +73,10 @@ def process_track_coarse(path: Path, config: DictConfig):
         stem_data = []
         for track in stem.tracks:
             track_path = Path(path, stem_name, f"{track.id}.{track.extension}")
-            x, original_fs = ta.load(track_path)
+            
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                x, original_fs = ta.load(track_path)
             if original_fs != config.fs:
                 x = resample(x, original_fs, config.fs)
             
@@ -86,7 +99,7 @@ def process_track_coarse(path: Path, config: DictConfig):
         
         data['mixture'] = sum(data.values())
 
-    output_path = Path(os.getenv("DATA_ROOT"), config.datasource_id, "intermediates", "npz-coarse", split, f"{track_name}.npz")
+    output_path = Path(os.getenv("DATA_ROOT"), config.datasource_id, "intermediates", "npz-coarse", str(split), f"{track_name}.npz")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     np.savez(
@@ -94,11 +107,24 @@ def process_track_coarse(path: Path, config: DictConfig):
         **{k: v.cpu().numpy() for k, v in data.items()},
         fs=config.fs
     )
+    
+    
 
 @hydra.main(config_path="../../configs/preprocess", config_name="moisesdb")
 def main(config: DictConfig):
 
     tracks = list(Path(os.getenv("DATA_ROOT"), config.datasource_id, "canonical").glob("*/*"))
+    
+    stems = set(
+        list(
+            path.stem
+            for track in tracks
+            for path in track.iterdir()
+            if path.is_dir()
+        )
+    )
+    print(stems)
+    exit()
     
     if config.mode == "coarse":
         process_map(

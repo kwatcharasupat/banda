@@ -1,3 +1,4 @@
+import random
 import torch
 from banda.data.item import SourceSeparationBatch
 from banda.models.masking.bandit.base import BaseBandit
@@ -23,13 +24,20 @@ class VectorDictQueryBandit(BaseBandit):
         
         
         self.mask_estim = self._build_mask_estim()
+        
+    
 
     def _inner_model(self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch):
         band_embs = self.bandsplit(specs_normalized) 
         tf_outs = self.tf_model(band_embs) # (batch, n_bands, n_time, emb_dim)
         
+        active_stems = random.choices(
+            self.config.stems,
+            k=self.config.max_simultaneous_stems
+        )
+
         masks = {}
-        for stem in self.config.stems:
+        for stem in active_stems:
             tf_adapted = self.adapt_query(tf_outs, stem=stem)
             masks[stem] = self.mask_estim(tf_adapted)
 

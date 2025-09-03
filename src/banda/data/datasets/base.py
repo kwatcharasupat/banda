@@ -19,6 +19,7 @@ class DatasetParams(BaseConfig):
     allow_autolooping: bool
     
     premix_augmentation: CompositionConfig | None = None
+    variable_sources: bool = False
 
 class DatasetConfig(WithClassConfig[DatasetParams]):
     pass
@@ -83,38 +84,31 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
         return datasource_index, item_index
     
     
-    def _load_audio(self, track_identifier: TrackIdentifier, *, ignore_stems: List[str] | None = None, _load_mixture_into_sources: bool = False) -> SourceSeparationItem:
+    def _load_audio(self, track_identifier: TrackIdentifier):
         
         npz_data = np.load(track_identifier.full_path, mmap_mode='r')
 
         audio_data = SourceSeparationItem(mixture=None, sources={}, estimates={})
-        
-        if ignore_stems is None:
-            ignore_stems = ["mixture"]
-        
-        for source in npz_data.keys():
-            
-            if source == "fs":
-                continue
 
-            if source in ignore_stems:
-                continue
-            
-            if source == "mixture" and "mixture" not in ignore_stems:
-                logger.warning("Mixture is NOT being ignore and will be loaded into sources. Are you sure?. Set _load_mixture_into_sources=True to stop the autopause.")
-                if not _load_mixture_into_sources:
-                    confirmation = input("Type 'yes' to continue loading mixture into sources: ")
-                    if confirmation.lower() != 'yes':
-                        logger.info("Loading of mixture into sources has been cancelled.")
-                        continue
+        for source, source_components in track_identifier.sources.items():
+            if source == "mixture":
+                logger.warning("Mixture is NOT being loaded into sources. Are you sure?.")
+                
+            if source not in npz_data and not self.config.variable_sources:
+                raise ValueError(f"Source '{source}' not found in audio data. Turn on `variable_sources` to deal with datasets with inconsistent sources.")
 
-            audio_data.sources[source] = {"audio": npz_data[source]}
-            
+            source_audios = []
+            for source_component in source_components:
+                source_audio = npz_data.get(source_component, None)
+                if source_audio is None and not self.config.variable_sources:
+                    raise ValueError(f"Source component '{source_component}' not found in audio data.")
+                source_audios.append(source_audio)
+
+            audio_data.sources[source] = {"audio": source_audios}
+
         return audio_data
-    
+
     def _build_augmentation(self):
-        
-        
         augmentation_config = self.config.premix_augmentation
         if augmentation_config is not None:
             self.premix_augmentation = Compose(config=augmentation_config)

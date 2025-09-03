@@ -1,7 +1,7 @@
 
 
 import os
-from typing import List, Literal
+from typing import Dict, List, Literal
 
 import numpy as np
 from pydantic import BaseModel
@@ -17,7 +17,12 @@ MUSDB18Stem = Literal["vocals", "drums", "bass", "other"]
 class MUSDB18HQDatasourceParams(DatasourceParams):
     split: str
     load_duration: bool = False
-    stems: List[MUSDB18Stem] = ["vocals", "drums", "bass", "other"]
+    stems: Dict[str, List[MUSDB18Stem]] = {
+        "vocals": ["vocals"],
+        "drums": ["drums"],
+        "bass": ["bass"],
+        "other": ["other"]
+    }
 
 
 class MUSDB18HQDatasource(BaseRegisteredDatasource):
@@ -52,7 +57,7 @@ class MUSDB18HQDatasource(BaseRegisteredDatasource):
 
     def _get_duration_samples(self, path: Path) -> int:
         data = np.load(path, mmap_mode='r')
-        return data[self.config.stems[0]].shape[1]
+        return data[list(self.config.stems.keys())[0]].shape[1]
 
     def __len__(self):
         return len(self.tracks)

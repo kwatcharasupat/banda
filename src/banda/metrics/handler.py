@@ -71,6 +71,7 @@ class MetricHandler(nn.Module):
     def update(self, batch: SourceSeparationBatch):
         
         with torch.no_grad():
-
-            for key in self.metric_collection:
-                self.metric_collection[key].update(batch.estimates[key]["audio"], batch.sources[key]["audio"])
+            for key in batch.estimates:
+                estimate = batch.estimates[key]["audio"]
+                source = batch.sources[key]["audio"] 
+                self.metric_collection[key].update(estimate, source)

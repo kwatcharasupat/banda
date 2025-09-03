@@ -9,17 +9,21 @@ defaults:
 - _self_
 
 stems:
-- vocals
-- drums
-- bass
-- other
+  vocals:
+  - vocals
+  drums:
+  - drums
+  bass:
+  - bass
+  other:
+  - 'other'
 
 model:
   params:
-    stems: ${stems}
+    stems: [ 'vocals', 'drums', 'bass', 'other' ]
 
 metrics:
-  stems: ${stems}
+  stems: ${..model.params.stems}
 
 seed: 42
 

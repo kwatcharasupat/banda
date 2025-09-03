@@ -1,3 +1,4 @@
+from typing import Dict, List
 from pydantic import BaseModel
 from torch.utils.data import Dataset
 
@@ -12,6 +13,7 @@ class DatasourceConfig(WithClassConfig[DatasourceParams]):
 class TrackIdentifier(BaseModel):
     full_path: str
     duration_samples: int | None = None
+    sources: Dict[str, List[str]] | None = None
 
 class DatasourceRegistry(type):
     

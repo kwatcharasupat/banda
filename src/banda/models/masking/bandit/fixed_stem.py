@@ -1,3 +1,4 @@
+import random
 import torch
 from banda.data.item import SourceSeparationBatch
 from banda.models.masking.bandit.base import BaseBandit
@@ -19,9 +20,15 @@ class FixedStemBandit(BaseBandit):
     def _inner_model(self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch):
         band_embs = self.bandsplit(specs_normalized)
         tf_outs = self.tf_model(band_embs)
+
+        active_stems = random.choices(
+            self.config.stems,
+            k=self.config.max_simultaneous_stems
+        )
+        
         masks = {
             stem: self.mask_estim[stem](tf_outs)
-            for stem in self.config.stems
+            for stem in active_stems
         }
 
         return masks
