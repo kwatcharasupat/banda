@@ -18,9 +18,9 @@ class ChunkDatasetParams(DatasetParams):
 class RandomChunkDatasetParams(ChunkDatasetParams):
     max_dataset_size: int
 
-    min_dbrms: float = -48
-    dbrms_thresh_step: float = -3
-    max_trial: int = 4
+    min_dbrms: float = -36
+    dbrms_thresh_step: float = -1.2
+    max_trial: int = 20
 
 class DeterministicChunkDatasetParams(ChunkDatasetParams):
     hop_size_seconds: float
