@@ -52,7 +52,8 @@ class _ChunkDataset(BaseRegisteredDataset):
         track_identifier = self.datasources[datasource_index][item_index]
         return track_identifier
     
-    def _chunk_item(self, audio: np.ndarray, start_sample: int, *, pad: bool = False) -> np.ndarray:
+    def _chunk_item(self, audio: np.ndarray | None, start_sample: int, *, pad: bool = False) -> np.ndarray:
+        
         end_sample = start_sample + self.chunk_size_samples
         out = audio[:, start_sample:end_sample]
 
@@ -88,7 +89,7 @@ class RandomChunkDataset(_ChunkDataset):
         
         track_identifier = self._get_track_identifier(index)
         
-        item_dict = self._load_audio(track_identifier, ignore_stems=['mixture'])
+        item_dict = self._load_audio(track_identifier)
         chunked_item_dict = self._chunk_and_augment(item_dict)
 
         return chunked_item_dict.model_dump()
@@ -98,13 +99,17 @@ class RandomChunkDataset(_ChunkDataset):
         
         for source in item_dict.sources:
             audio = item_dict.sources[source]["audio"]
-            chunked_audio = self._chunk_item_random(audio)
             
-            if self.premix_augmentation is not None:
-                # logger.info("Applying augmentation!")
-                chunked_audio = self.premix_augmentation(chunked_audio, sample_rate=self.config.fs)
+            if audio is None or len(audio) == 0:
+                item_dict.sources[source]["audio"]  = np.zeros(shape=(self.config.n_channels, self.chunk_size_samples), dtype=np.float32)
+                continue
 
-            item_dict.sources[source]["audio"] = chunked_audio
+            chunked_audio = [self._chunk_item_random(audio_component) for audio_component in audio]
+
+            if self.premix_augmentation is not None:
+                chunked_audio = [self.premix_augmentation(chunked_audio_component, sample_rate=self.config.fs) for chunked_audio_component in chunked_audio]
+
+            item_dict.sources[source]["audio"] = sum(chunked_audio)
 
         mixture = sum(item_dict.sources[source]["audio"] for source in item_dict.sources)
         item_dict.mixture = {"audio": mixture}
@@ -215,7 +220,7 @@ class DeterministicChunkDataset(_ChunkDataset):
         
         track_identifier = self.datasources[datasource_index][track_index]
 
-        item_dict = self._load_audio(track_identifier, ignore_stems=['mixture'])
+        item_dict = self._load_audio(track_identifier)
 
         start_sample = chunk_index * self.effective_hop_size_samples
         
@@ -229,27 +234,22 @@ class DeterministicChunkDataset(_ChunkDataset):
         """
         for source in item_dict.sources:
             audio = item_dict.sources[source]["audio"]
-            chunked_audio = self._chunk_item(audio, start_sample, pad=True)
+            if audio is None or len(audio) == 0:
+                item_dict.sources[source]["audio"] = np.zeros(shape=(self.config.n_channels, self.chunk_size_samples), dtype=np.float32)
+                continue
+
+            chunked_audio = [self._chunk_item(audio_component , start_sample, pad=True) for audio_component  in audio]
             
             if self.premix_augmentation is not None:
-                chunked_audio = self.premix_augmentation(chunked_audio, sample_rate=self.config.fs)
-
-            item_dict.sources[source]["audio"] = chunked_audio
+                chunked_audio = [
+                    self.premix_augmentation(chunked_audio_component, sample_rate=self.config.fs)
+                    for chunked_audio_component in chunked_audio
+                ]
+                
+        
+            item_dict.sources[source]["audio"] = sum(chunked_audio)
 
         mixture = sum(item_dict.sources[source]["audio"] for source in item_dict.sources)
         item_dict.mixture = {"audio": mixture}
-        
-        # # write file out to check
-        
-        # if np.random.random() < 0.1:
-        #     uuid = uuid4()
-        #     output_dir = Path("check", "chunked", uuid.hex)
-        #     output_dir.mkdir(parents=True, exist_ok=True)
-        #     for stem in item_dict.sources:
-        #         ta.save(output_dir / f"{stem}.wav", torch.from_numpy(item_dict.sources[stem]["audio"]), self.config.fs)
-                
-        #     ta.save(output_dir / "mixture.wav", torch.from_numpy(item_dict.mixture["audio"]), self.config.fs)
-            
-        #     exit()
 
         return item_dict

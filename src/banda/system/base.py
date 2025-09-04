@@ -26,17 +26,15 @@ class SourceSeparationSystem(pl.LightningModule):
         self.metric_handler = metric_handler
         self.optimizer_config = optimizer_config
         
-    def on_train_batch_start(self, batch, batch_idx):
-        self.metric_handler.reset()
-        
-    def on_train_batch_end(self, outputs, batch, batch_idx):
-        self.metric_handler.reset()
 
     def training_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         batch, total_loss =  self.common_step(batch, mode="train")
 
+        self.metric_handler.reset()
         self.metric_handler.update(batch)
         metric_dict = self.metric_handler.compute()
+        self.metric_handler.reset()
+        
         self._log_metric(metric_dict=metric_dict, mode="train")
 
         return total_loss
@@ -46,9 +44,7 @@ class SourceSeparationSystem(pl.LightningModule):
 
     def validation_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
         batch, total_loss =  self.common_step(batch, mode="val")
-
         self.metric_handler.update(batch)
-
         return total_loss
     
     def on_validation_epoch_end(self):

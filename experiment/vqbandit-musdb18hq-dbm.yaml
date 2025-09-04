@@ -8,18 +8,12 @@ defaults:
 - trainer: default
 - _self_
 
-stems:
-- vocals
-- drums
-- bass
-- other
-
 model:
   params:
-    stems: ${stems}
+    stems: [ 'vocals', 'drums', 'bass', 'other' ]
 
 metrics:
-  stems: ${stems}
+  stems: ${..model.params.stems}
 
 seed: 42
 
