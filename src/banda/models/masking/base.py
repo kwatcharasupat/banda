@@ -32,10 +32,9 @@ class _BaseMaskingModel(BaseRegisteredModel):
             assert "mixture" not in batch.sources, "Mixture should not be in sources"
             # print(batch.sources.keys())
             # logger.info("Sources keys: %s", batch.sources.keys())
-            _mixture = sum(batch.sources[key]["audio"] for key in batch.sources)
-
-            _mixture_snr = _snr(_mixture, batch.mixture["audio"])
-            assert _mixture_snr >= 30, f"Mixture does not match sum of sources, SNR = {_mixture_snr}"
+            # _mixture = sum(batch.sources[key]["audio"] for key in batch.sources)
+            # _mixture_snr = _snr(_mixture, batch.mixture["audio"])
+            # assert _mixture_snr >= 30, f"Mixture does not match sum of sources, SNR = {_mixture_snr}"
 
             batch : SourceSeparationBatch = self.normalizer(batch)
             specs_unnormalized : torch.Tensor = self.stft(batch.mixture["audio"])

@@ -13,11 +13,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 MoisesDBStem = Literal['other_keys', 'bass', 'guitar', 'percussion', 'wind', 'bowed_strings', 'drums', 'other_plucked', 'piano', 'other', 'vocals']
-
-class MoisesDBDatasourceParams(DatasourceParams):
-    split: str
-    load_duration: bool = False
-    stems: Dict[str, List[MoisesDBStem]] = {
+MoisesDBStemShortCut = {'_moises_vdbo': {
         "other_keys": ["other_keys"],
         "bass": ["bass"],
         "guitar": ["guitar"],
@@ -29,7 +25,14 @@ class MoisesDBDatasourceParams(DatasourceParams):
         "piano": ["piano"],
         "other": ["other"],
         "vocals": ["vocals"]
-    }
+    }}
+
+
+
+class MoisesDBDatasourceParams(DatasourceParams):
+    split: str
+    load_duration: bool = False
+    stems: Dict[str, List[MoisesDBStem]] | str = MoisesDBStemShortCut['_moises_vdbo']
 
 
 class MoisesDBDatasource(BaseRegisteredDatasource):
@@ -38,6 +41,9 @@ class MoisesDBDatasource(BaseRegisteredDatasource):
     
     def __init__(self, *, config: DatasourceParams):
         super().__init__(config=config)
+        
+        if self.config.stems in MoisesDBStemShortCut:
+            self.config.stems = MoisesDBStemShortCut[self.config.stems]
         self.config = MoisesDBDatasourceParams.model_validate(config)
         logger.info("Loading tracks for MoisesDB with", config=config)
         self.tracks = self._load_tracks()

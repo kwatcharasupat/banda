@@ -99,9 +99,9 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
 
             source_audios = []
             for source_component in source_components:
-                source_audio = npz_data.get(source_component, None)
-                if source_audio is None and not self.config.variable_sources:
-                    raise ValueError(f"Source component '{source_component}' not found in audio data.")
+                if source_component not in npz_data and not self.config.variable_sources:
+                    raise ValueError(f"Source component '{source_component}' not found in audio data. Turn on `variable_sources` to deal with datasets with inconsistent sources.")
+                source_audio = npz_data[source_component]
                 source_audios.append(source_audio)
 
             audio_data.sources[source] = {"audio": source_audios}

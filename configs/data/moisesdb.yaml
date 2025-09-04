@@ -3,6 +3,7 @@ train:
   - cls: MoisesDBDatasource
     params:
       split: train
+      stems: _moises_vdbo
 
   dataset:
     cls: RandomChunkDataset
@@ -50,6 +51,8 @@ val:
     params:
       split: val
       load_duration: true
+      stems: _moises_vdbo
+
 
   dataset:
     cls: DeterministicChunkDataset

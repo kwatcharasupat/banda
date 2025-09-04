@@ -8,16 +8,6 @@ defaults:
 - trainer: default
 - _self_
 
-stems:
-  vocals:
-  - vocals
-  drums:
-  - drums
-  bass:
-  - bass
-  other:
-  - 'other'
-
 model:
   params:
     stems: [ 'vocals', 'drums', 'bass', 'other' ]
