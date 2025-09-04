@@ -1,1 +1,0 @@
-{"val//L1SNRLoss":4.068153381347656,"_step":1,"_wandb":{"runtime":124},"val//DecibelMatchLoss/vocals":NaN,"val/loss":NaN,"val/metric/vocals/SignalNoiseRatio":-23.798019409179688,"trainer/global_step":31,"_timestamp":1.7567821808610384e+09,"epoch":1,"_runtime":124,"val//L1SNRLoss/vocals":4.068153381347656,"val//DecibelMatchLoss":NaN}
