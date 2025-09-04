@@ -100,7 +100,7 @@ class RandomChunkDataset(_ChunkDataset):
         for source in item_dict.sources:
             audio = item_dict.sources[source]["audio"]
             
-            if audio is None:
+            if audio is None or len(audio) == 0:
                 item_dict.sources[source]["audio"]  = np.zeros(shape=(self.config.n_channels, self.chunk_size_samples), dtype=np.float32)
                 continue
 
@@ -245,7 +245,8 @@ class DeterministicChunkDataset(_ChunkDataset):
                     self.premix_augmentation(chunked_audio_component, sample_rate=self.config.fs)
                     for chunked_audio_component in chunked_audio
                 ]
-
+                
+        
             item_dict.sources[source]["audio"] = sum(chunked_audio)
 
         mixture = sum(item_dict.sources[source]["audio"] for source in item_dict.sources)

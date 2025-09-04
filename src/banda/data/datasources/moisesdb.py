@@ -41,10 +41,11 @@ class MoisesDBDatasource(BaseRegisteredDatasource):
     
     def __init__(self, *, config: DatasourceParams):
         super().__init__(config=config)
+        self.config = MoisesDBDatasourceParams.model_validate(config)
         
         if self.config.stems in MoisesDBStemShortCut:
             self.config.stems = MoisesDBStemShortCut[self.config.stems]
-        self.config = MoisesDBDatasourceParams.model_validate(config)
+            
         logger.info("Loading tracks for MoisesDB with", config=config)
         self.tracks = self._load_tracks()
 

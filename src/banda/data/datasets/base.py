@@ -94,17 +94,16 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
             if source == "mixture":
                 logger.warning("Mixture is NOT being loaded into sources. Are you sure?.")
                 
-            if source not in npz_data and not self.config.variable_sources:
-                raise ValueError(f"Source '{source}' not found in audio data. Turn on `variable_sources` to deal with datasets with inconsistent sources.")
-
             source_audios = []
             for source_component in source_components:
-                if source_component not in npz_data and not self.config.variable_sources:
-                    raise ValueError(f"Source component '{source_component}' not found in audio data. Turn on `variable_sources` to deal with datasets with inconsistent sources.")
+                if source_component not in npz_data:
+                    if not self.config.variable_sources:
+                        raise ValueError(f"Source component '{source_component}' not found in audio data. Turn on `variable_sources` to deal with datasets with inconsistent sources.")
+                    continue 
                 source_audio = npz_data[source_component]
                 source_audios.append(source_audio)
 
-            audio_data.sources[source] = {"audio": source_audios}
+            audio_data.sources[source] = {"audio": source_audios }
 
         return audio_data
 
