@@ -13,7 +13,8 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 MoisesDBStem = Literal['other_keys', 'bass', 'guitar', 'percussion', 'wind', 'bowed_strings', 'drums', 'other_plucked', 'piano', 'other', 'vocals']
-MoisesDBStemShortCut = {'_moises_vdbo': {
+MoisesDBStemShortCut = {
+    '_moises_coarse': {
         "other_keys": ["other_keys"],
         "bass": ["bass"],
         "guitar": ["guitar"],
@@ -25,7 +26,14 @@ MoisesDBStemShortCut = {'_moises_vdbo': {
         "piano": ["piano"],
         "other": ["other"],
         "vocals": ["vocals"]
-    }}
+    },
+    '_moises_vdbo': {
+        "vocals": ["vocals"],
+        "drums": ["drums"],
+        "bass": ["bass"],
+        "other": ["other_keys", "guitar", "percussion", "wind", "bowed_strings", "other_plucked", "piano", "other"]
+    }
+}
 
 
 
