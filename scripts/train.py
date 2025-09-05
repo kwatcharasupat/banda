@@ -80,7 +80,7 @@ def train(config: DictConfig) -> None:
             # pl_callbacks.EarlyStopping(monitor="val/loss", patience=5, verbose=True, check_finite=False),
             pl_callbacks.ModelSummary(max_depth=2),
         ],
-        logger=WandbLogger(project="banda", log_model='all'),
+        logger=WandbLogger(project="banda", log_model=True),
         **config.trainer.model_dump()
     )
     
