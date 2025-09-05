@@ -1,0 +1,5 @@
+srun python scripts/train.py -cn bandit-musdb18hq-nodbm
+srun python scripts/train.py -cn bandit-moisesdb-nodbm
+srun python scripts/train.py -cn bandit-both-nodbm
+srun python scripts/train.py -cn bandit-musdb18hq-nodbm-vocals
+srun python scripts/train.py -cn bandit-musdb18hq-nodbm-bass

@@ -2,7 +2,7 @@ defaults:
 - model: bandit-mus64
 - data: musdb18hq
 - logger: wandb
-- loss: l1snr-dbm
+- loss: l1snr
 - metrics: default
 - optimizer: adam
 - trainer: default
