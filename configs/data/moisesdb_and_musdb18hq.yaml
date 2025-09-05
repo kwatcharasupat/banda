@@ -3,6 +3,10 @@ train:
   - cls: MUSDB18HQDatasource
     params:
       split: train
+  - cls: MoisesDBDatasource
+    params:
+      split: train
+      stems: _moises_vdbo
 
   dataset:
     cls: RandomChunkDataset
@@ -12,6 +16,7 @@ train:
       chunk_size_seconds: 6.0
       allow_autolooping: true
       max_dataset_size: 8192
+      variable_sources: true
 
       premix_augmentation:
         augmentations:
@@ -48,6 +53,11 @@ val:
     params:
       split: val
       load_duration: true
+  - cls: MoisesDBDatasource
+    params:
+      split: val
+      stems: _moises_vdbo
+      load_duration: true
 
   dataset:
     cls: DeterministicChunkDataset
@@ -58,6 +68,7 @@ val:
       hop_size_seconds: 6.0
       allow_autolooping: false
       max_dataset_size: 1024
+      variable_sources: true
 
   dataloader:
     batch_size: 16
@@ -71,6 +82,10 @@ test:
   - cls: MUSDB18HQDatasource
     params:
       split: test
+  - cls: MoisesDBDatasource
+    params:
+      split: test
+      stems: _moises_vdbo
 
   dataset:
     cls: FullTrackDataset
@@ -78,6 +93,8 @@ test:
       n_channels: 2
       fs: 44100
       allow_autolooping: false
+
+      variable_sources: true
 
   dataloader:
     batch_size: 16
