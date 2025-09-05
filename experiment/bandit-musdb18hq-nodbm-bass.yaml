@@ -2,7 +2,7 @@ defaults:
 - model: bandit-mus64
 - data: musdb18hq
 - logger: wandb
-- loss: l1snr
+- loss: l1snr-dbm
 - metrics: default
 - optimizer: adam
 - trainer: default
@@ -10,7 +10,7 @@ defaults:
 
 model:
   params:
-    stems: [ 'vocals' ]
+    stems: [ 'bass' ]
 
 metrics:
   stems: ${..model.params.stems}

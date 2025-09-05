@@ -10,7 +10,7 @@ defaults:
 
 model:
   params:
-    stems: [ 'vocals' ]
+    stems: [ 'other' ]
 
 metrics:
   stems: ${..model.params.stems}
