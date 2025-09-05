@@ -126,7 +126,7 @@ class RandomChunkDataset(_ChunkDataset):
 
         dbrms = _dbrms(out)
         thresh = self.config.min_dbrms + self.config.dbrms_thresh_step * trial_counter
-        if dbrms < thresh:
+        if dbrms > thresh:
             return out
 
         return self._chunk_item_random(audio, trial_counter=trial_counter + 1)
