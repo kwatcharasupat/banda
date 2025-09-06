@@ -5,6 +5,7 @@
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 
 
+import random
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import pytorch_lightning as pl
@@ -23,7 +24,7 @@ from banda.models.base import ModelRegistry
 from banda.models.masking.dummy import DummyMaskingModel
 from banda.system.base import SourceSeparationSystem
 from banda.utils import BaseConfig, WithClassConfig
-
+from hydra.core.hydra_config import HydraConfig
 
 logger = structlog.get_logger(__name__)
 
@@ -73,14 +74,18 @@ def train(config: DictConfig) -> None:
         metric_handler=metric,
         optimizer_config=config.optimizer
     )
-
+    
+    random_number =  random.randint(0, 10000)
+    config_name = HydraConfig.get().job.config_name 
+    wandb_name = f"{config_name}-{random_number:04d}"
+    
     trainer = pl.Trainer(
         callbacks=[
             pl_callbacks.ModelCheckpoint(monitor="val/loss", save_last=True, save_on_exception=True, every_n_epochs=1, save_top_k=3, mode="min"),
             # pl_callbacks.EarlyStopping(monitor="val/loss", patience=5, verbose=True, check_finite=False),
             pl_callbacks.ModelSummary(max_depth=2),
         ],
-        logger=WandbLogger(project="banda", log_model=True),
+        logger=WandbLogger(project="banda", log_model=True, name=wandb_name),
         **config.trainer.model_dump()
     )
     
