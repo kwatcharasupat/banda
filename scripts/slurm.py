@@ -4,32 +4,31 @@ import os
 from pathlib import Path
 
 
+slurm_template =  """#!/bin/bash
+#SBATCH -J{job_name}                    
+#SBATCH -N1 --ntasks-per-node=1     
+#SBATCH --partition=ice-gpu
+#SBATCH --gres=gpu:A100:1              
+#SBATCH --cpu=16 --mem-per-cpu=16G     
+#SBATCH --time=16h                            
+#SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
+#SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
+#SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
+
+cd $SLURM_SUBMIT_DIR
+
+module load mamba
+mamba activate banda
+
+srun {command}
+"""
+
 def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_name: str | None = None):
     
     command = f"python scripts/train.py -cn {config_name}"
     
     if overrides is not None:
         command += f" {overrides}"
- 
- 
-    slurm_template =  """#!/bin/bash
-    #SBATCH -J{job_name}                    
-    #SBATCH -N1 --ntasks-per-node=1     
-    #SBATCH --partition=ice-gpu
-    #SBATCH --gres=gpu:A100:1              
-    #SBATCH --cpu=16 --mem-per-cpu=16G     
-    #SBATCH --time=16h                            
-    #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
-    #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
-    #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
-    
-    cd $SLURM_SUBMIT_DIR
-
-    module load mamba
-    mamba activate banda
-
-    srun {command}
-    """
     
     job_name = config_name.replace("/", "-").replace(".yaml", "") if job_name is None else job_name
     slurm_script = slurm_template.format(job_name=job_name, command=command)
@@ -41,7 +40,9 @@ def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_na
     
     with open(script_path, "w") as f:
         f.write(slurm_script)
-        
+
+    print(slurm_script)
+
     os.system(f"sbatch {script_path}")
 
 if __name__ == "__main__":
