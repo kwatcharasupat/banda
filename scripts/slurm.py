@@ -35,8 +35,8 @@ def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_na
     
     script_path = Path(f"./slurm/{job_name}.sbatch").absolute()
     print(f"Writing slurm script to {script_path}")
-    if os.path.exists(script_path):
-        raise ValueError(f"Slurm script {script_path} already exists. Please remove it or choose a different job name.")
+    # if os.path.exists(script_path):
+    #     raise ValueError(f"Slurm script {script_path} already exists. Please remove it or choose a different job name.")
     
     with open(script_path, "w") as f:
         f.write(slurm_script)
