@@ -16,4 +16,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-moisesdb-nodbm-vocals
+srun python scripts/train.py -cn bandit-moisesdb-nodbm-vocals "++ckpt_path='./banda/od3v3m1e/checkpoints/epoch=59-step=60419.ckpt'"
