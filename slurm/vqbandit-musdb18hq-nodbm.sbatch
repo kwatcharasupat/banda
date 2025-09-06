@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH -Jvqbandit-moisesdb-nodbm                    
+#SBATCH -Jvqbandit-musdb18hq-nodbm                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:1 # Request one GPU of any type
-#SBATCH --constraint="gpu_mem>=32G"        
+#SBATCH --constraint="mem-per-gpu>=32G"        
 #SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
