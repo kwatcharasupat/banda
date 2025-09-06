@@ -20,6 +20,8 @@ cd $SLURM_SUBMIT_DIR
 module load mamba
 mamba activate banda
 
+nvidia-smi
+
 srun {command}
 """
 
