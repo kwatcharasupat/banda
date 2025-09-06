@@ -12,8 +12,7 @@ def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_na
         command += f" {overrides}"
  
  
-    slurm_template =  """
-    #!/bin/bash
+    slurm_template =  """#!/bin/bash
     #SBATCH -J{job_name}                    
     #SBATCH -N1 --ntasks-per-node=1          
     #SBATCH --cpu=16 --mem-per-cpu=16G       
