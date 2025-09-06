@@ -18,7 +18,7 @@ def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_na
     #SBATCH --cpu=16 --mem-per-cpu=16G       
     #SBATCH --gres=gpu:A100:1        
     #SBATCH --time=16h                            
-    #SBATCH -oslurm-out/Report-%j.out                  # Combined output and error messages file
+    #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
     #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
     #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
     
