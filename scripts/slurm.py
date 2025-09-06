@@ -14,9 +14,10 @@ def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_na
  
     slurm_template =  """#!/bin/bash
     #SBATCH -J{job_name}                    
-    #SBATCH -N1 --ntasks-per-node=1          
-    #SBATCH --cpu=16 --mem-per-cpu=16G       
-    #SBATCH --gres=gpu:A100:1        
+    #SBATCH -N1 --ntasks-per-node=1     
+    #SBATCH --partition=ice-gpu
+    #SBATCH --gres=gpu:A100:1              
+    #SBATCH --cpu=16 --mem-per-cpu=16G     
     #SBATCH --time=16h                            
     #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
     #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
