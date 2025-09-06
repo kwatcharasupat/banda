@@ -10,7 +10,7 @@ slurm_template =  """#!/bin/bash
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:A100:1              
 #SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
-#SBATCH --time=16h                            
+#SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
 #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
 #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
