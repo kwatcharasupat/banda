@@ -212,3 +212,4 @@ wandb/
 outputs/
 wandb/
 outputs/
+slurm-out/
