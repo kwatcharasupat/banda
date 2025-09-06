@@ -16,4 +16,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn vqbandit-moisesdb-nodbm
+srun python scripts/train.py -cn vqbandit-musdb18hq-nodbm
