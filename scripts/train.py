@@ -16,7 +16,7 @@ import hydra.utils
 from typing import Dict, Any, List, Tuple, Optional
 from torch import nn
 import structlog
-
+from pytorch_lightning.utilities.seed import isolate_rng
 from banda.data.base import DataConfig, SourceSeparationDataModule
 from banda.losses.handler import LossHandler, LossHandlerConfig
 from banda.metrics.handler import MetricHandler
@@ -25,6 +25,8 @@ from banda.models.masking.dummy import DummyMaskingModel
 from banda.system.base import SourceSeparationSystem
 from banda.utils import BaseConfig, WithClassConfig
 from hydra.core.hydra_config import HydraConfig
+
+import time
 
 logger = structlog.get_logger(__name__)
 
@@ -75,7 +77,11 @@ def train(config: DictConfig) -> None:
         optimizer_config=config.optimizer
     )
     
-    random_number =  random.randint(0, 10000)
+    with isolate_rng(include_cuda=False):
+        linux_time = int(time.time())
+        random.seed(linux_time)
+        random_number =  random.randint(0, 10000)
+        
     config_name = HydraConfig.get().job.config_name 
     wandb_name = f"{config_name}-{random_number:04d}"
     
