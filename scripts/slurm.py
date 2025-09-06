@@ -16,15 +16,16 @@ def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_na
     #SBATCH -J{job_name}                    
     #SBATCH -N1 --ntasks-per-node=1          
     #SBATCH --cpu=16 --mem-per-cpu=16G       
-    #SBATCH --gres=gpu:V100:1 --mem-per-gpu=32G         
-    #SBATCH -t16h                            
-    #SBATCH -oReport-%j.out                  # Combined output and error messages file
+    #SBATCH --gres=gpu:A100:1        
+    #SBATCH --time=16h                            
+    #SBATCH -oslurm-out/Report-%j.out                  # Combined output and error messages file
     #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
     #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
+    
+    cd $SLURM_SUBMIT_DIR
 
     module load mamba
     mamba activate banda
-    cd scratch/banda
 
     srun {command}
     """
