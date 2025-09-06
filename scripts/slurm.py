@@ -1,6 +1,7 @@
 
 
 import os
+from pathlib import Path
 
 
 def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_name: str | None = None):
@@ -32,7 +33,7 @@ def make_slurm_and_submit(config_name: str, overrides: str | None = None, job_na
     job_name = config_name.replace("/", "-").replace(".yaml", "") if job_name is None else job_name
     slurm_script = slurm_template.format(job_name=job_name, command=command)
     
-    script_path = f"slurm/{job_name}.sbatch"
+    script_path = Path(f"./slurm/{job_name}.sbatch").absolute()
     if os.path.exists(script_path):
         raise ValueError(f"Slurm script {script_path} already exists. Please remove it or choose a different job name.")
     
