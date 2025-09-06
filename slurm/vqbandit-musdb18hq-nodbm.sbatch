@@ -3,7 +3,7 @@
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:1 # Request one GPU of any type
-#SBATCH --constraint="mem-per-gpu>=32G"        
+#SBATCH --constraint="V100-32GB,A40,MI210,L40S,A100-40GB,A100-80GB,H100,H200"
 #SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
