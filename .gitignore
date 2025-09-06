@@ -210,3 +210,5 @@ checkpoints/
 
 wandb/
 outputs/
+wandb/
+outputs/
