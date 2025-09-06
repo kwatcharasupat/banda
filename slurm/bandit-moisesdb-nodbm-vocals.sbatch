@@ -2,7 +2,8 @@
 #SBATCH -Jbandit-moisesdb-nodbm-vocals                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
-#SBATCH --gres=gpu:H100:1              
+#SBATCH --gres=gpu:1 # Request one GPU of any type
+#SBATCH --constraint="gpu_mem>=32G"        
 #SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
@@ -17,3 +18,4 @@ mamba activate banda
 nvidia-smi
 
 srun python scripts/train.py -cn bandit-moisesdb-nodbm-vocals "++ckpt_path='./banda/od3v3m1e/checkpoints/epoch=59-step=60419.ckpt'"
+
