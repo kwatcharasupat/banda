@@ -1,16 +1,18 @@
-
 from omegaconf import DictConfig
 import torch
 from banda.data.item import SourceSeparationBatch
 from banda.losses.base import BaseRegisteredLoss, LossDict
 
 import structlog
+
 logger = structlog.get_logger(__name__)
+
+
 class DecibelMatchLoss(BaseRegisteredLoss):
     def __init__(
         self,
         *,
-        config: DictConfig ,
+        config: DictConfig,
     ) -> None:
         super().__init__(config=config)
 
@@ -20,7 +22,7 @@ class DecibelMatchLoss(BaseRegisteredLoss):
         self.max_weight = self.config.max_weight
         self.min_db = self.config.min_db
         self.max_below_true = self.config.max_below_true
-        
+
         self.domain = "audio"
 
     def compute_weight(self, db_pred: torch.Tensor, db_true: torch.Tensor):
@@ -31,7 +33,9 @@ class DecibelMatchLoss(BaseRegisteredLoss):
             )
             db_pred_to_true = db_true - db_pred
 
-            ratio = torch.clamp(db_pred_to_true / (db_true_to_floor + 1.0e-12), 0.0, 1.0)
+            ratio = torch.clamp(
+                db_pred_to_true / (db_true_to_floor + 1.0e-12), 0.0, 1.0
+            )
 
             weight = self.min_weight + (self.max_weight - self.min_weight) * ratio
 
@@ -46,23 +50,23 @@ class DecibelMatchLoss(BaseRegisteredLoss):
             # assert torch.all(weight >= self.min_weight)
             # assert torch.all(weight <= self.max_weight)
 
-            if not torch.all(weight >= self.min_weight) or not torch.all(weight <= self.max_weight):
+            if not torch.all(weight >= self.min_weight) or not torch.all(
+                weight <= self.max_weight
+            ):
                 # logger.warning("Some weights are below the minimum weight.")
                 logger.error(
                     "Some weights are below the minimum weight.",
                     db_true=db_true,
                     db_pred=db_pred,
-                    weight=weight
+                    weight=weight,
                 )
                 raise ValueError()
 
-
         return weight
-    
-    def forward(self, batch: SourceSeparationBatch) -> LossDict:
 
+    def forward(self, batch: SourceSeparationBatch) -> LossDict:
         losses = {}
-        
+
         estimates = batch.estimates
         sources = batch.sources
 
@@ -73,20 +77,16 @@ class DecibelMatchLoss(BaseRegisteredLoss):
 
         total_loss = sum(losses.values())
 
-        return LossDict(
-            total_loss=total_loss,
-            loss_contrib=losses
-        )
+        return LossDict(total_loss=total_loss, loss_contrib=losses)
 
     def _loss_func(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-
         batch_size = y_pred.shape[0]
 
         y_pred = y_pred.reshape(batch_size, -1)
         db_pred = 10.0 * torch.log10(
             self.eps + torch.mean(torch.square(torch.abs(y_pred)), dim=-1)
         )
-        
+
         with torch.no_grad():
             y_true = y_true.reshape(batch_size, -1)
             db_true = 10.0 * torch.log10(

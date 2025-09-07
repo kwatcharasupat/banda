@@ -6,7 +6,13 @@ import numpy as np
 import torch
 from torchaudio import functional as taF
 
-from banda.modules.bandsplit.filterbanks import bark_filterbank, erb_filterbank, minibark_filterbank, musical_filterbank, triangular_bark_filterbank
+from banda.modules.bandsplit.filterbanks import (
+    bark_filterbank,
+    erb_filterbank,
+    minibark_filterbank,
+    musical_filterbank,
+    triangular_bark_filterbank,
+)
 
 
 def band_widths_from_specs(*, band_specs: List[Tuple[float, float]]) -> List[float]:
@@ -463,7 +469,9 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
         if f_max is None:
             f_max = fs / 2
 
-        self.filterbank = fbank_fn(n_bands=n_bands, fs=fs, f_min=f_min, f_max=f_max, n_freqs=self.max_index)
+        self.filterbank = fbank_fn(
+            n_bands=n_bands, fs=fs, f_min=f_min, f_max=f_max, n_freqs=self.max_index
+        )
 
         weight_per_bin = torch.sum(self.filterbank, dim=0, keepdim=True)  # (1, n_freqs)
         normalized_mel_fb = self.filterbank / weight_per_bin  # (n_mels, n_freqs)

@@ -1,4 +1,4 @@
-from typing import Callable, List, Literal
+from typing import List, Literal
 
 import torch
 from torch import nn
@@ -15,6 +15,7 @@ from banda.modules.utils import Transpose
 
 
 RNNType = Literal["RNN", "GRU", "LSTM"]
+
 
 class TimeFrequencyModellingModule(nn.Module):
     """
@@ -50,7 +51,6 @@ class ResidualRNN(nn.Module):
         rnn_dim: int,
         bidirectional: bool = True,
         rnn_type: RNNType = "GRU",
-       
     ) -> None:
         super().__init__()
 
@@ -63,7 +63,6 @@ class ResidualRNN(nn.Module):
             batch_first=True,
             bidirectional=bidirectional,
         )
-
 
         self.fc: nn.Module = weight_norm(
             nn.Linear(
@@ -86,7 +85,7 @@ class ResidualRNN(nn.Module):
         z0: torch.Tensor = torch.clone(z)
 
         z = self.norm(z)  # (batch, n_uncrossed, n_across, emb_dim)
-        
+
         batch, n_uncrossed, n_across, emb_dim = z.shape
 
         z = torch.reshape(z, (batch * n_uncrossed, n_across, emb_dim))
@@ -126,7 +125,6 @@ class RNNSeqBandModellingModule(TimeFrequencyModellingModule):
         rnn_dim: int = 256,
         bidirectional: bool = True,
         rnn_type: RNNType = "GRU",
-       
     ) -> None:
         super().__init__()
 

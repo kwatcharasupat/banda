@@ -7,27 +7,34 @@ from banda.models.base import BaseRegisteredModel
 import torch
 
 import structlog
-logger = structlog.get_logger(__name__)
+
 
 from banda.modules.normalization.normalization import Normalizer
 from banda.modules.spectral.stft import Spectrogram
 
-def _snr(estimate: torch.Tensor, source: torch.Tensor, eps: float=1e-8) -> torch.Tensor:
+
+logger = structlog.get_logger(__name__)
+
+
+def _snr(
+    estimate: torch.Tensor, source: torch.Tensor, eps: float = 1e-8
+) -> torch.Tensor:
     noise = estimate - source
-    return 10 * torch.log10((torch.mean(torch.square(torch.abs(source))) + eps) / (torch.mean(torch.square(torch.abs(noise))) + eps))
+    return 10 * torch.log10(
+        (torch.mean(torch.square(torch.abs(source))) + eps)
+        / (torch.mean(torch.square(torch.abs(noise))) + eps)
+    )
+
 
 class _BaseMaskingModel(BaseRegisteredModel):
-    
     def __init__(self, *, config: DictConfig):
         super().__init__(config=config)
-        
+
         self.normalizer = Normalizer(config=self.config.normalization)
         self.stft = Spectrogram(config=self.config.spectrogram)
 
-    
     def forward(self, batch: dict) -> SourceSeparationBatch:
         with torch.no_grad():
-            
             batch = SourceSeparationBatch.model_validate(batch)
             assert "mixture" not in batch.sources, "Mixture should not be in sources"
             # print(batch.sources.keys())
@@ -36,15 +43,18 @@ class _BaseMaskingModel(BaseRegisteredModel):
             # _mixture_snr = _snr(_mixture, batch.mixture["audio"])
             # assert _mixture_snr >= 30, f"Mixture does not match sum of sources, SNR = {_mixture_snr}"
 
-            batch : SourceSeparationBatch = self.normalizer(batch)
-            specs_unnormalized : torch.Tensor = self.stft(batch.mixture["audio"])
-            specs_normalized : torch.Tensor = self.stft(batch.mixture["audio/normalized"])
-                
+            batch: SourceSeparationBatch = self.normalizer(batch)
+            specs_unnormalized: torch.Tensor = self.stft(batch.mixture["audio"])
+            specs_normalized: torch.Tensor = self.stft(
+                batch.mixture["audio/normalized"]
+            )
 
         with torch.set_grad_enabled(True):
-            masks : Dict[str, torch.Tensor] = self._inner_model(specs_normalized, batch=batch)
+            masks: Dict[str, torch.Tensor] = self._inner_model(
+                specs_normalized, batch=batch
+            )
             batch = self.apply_masks(masks, specs_unnormalized, batch=batch)
-            
+
         with torch.no_grad():
             for key in batch.estimates:
                 # only compute this for stems with estimates to reduce the compute
@@ -54,15 +64,24 @@ class _BaseMaskingModel(BaseRegisteredModel):
 
         return batch
 
-    def apply_masks(self, masks: Dict[str, torch.Tensor], specs_unnormalized: torch.Tensor, batch: SourceSeparationBatch) -> SourceSeparationBatch:
+    def apply_masks(
+        self,
+        masks: Dict[str, torch.Tensor],
+        specs_unnormalized: torch.Tensor,
+        batch: SourceSeparationBatch,
+    ) -> SourceSeparationBatch:
         estimates = {}
         for key, mask in masks.items():
             estimates[key] = {}
             estimates[key]["spectrogram"] = specs_unnormalized * mask
-            estimates[key]["audio"] = self.stft.inverse(estimates[key]["spectrogram"], length=batch.mixture["audio"].shape[-1])
-            
+            estimates[key]["audio"] = self.stft.inverse(
+                estimates[key]["spectrogram"], length=batch.mixture["audio"].shape[-1]
+            )
+
         batch.estimates = estimates
         return batch
-    
-    def _inner_model(self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch) -> Dict[str, torch.Tensor]:
+
+    def _inner_model(
+        self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch
+    ) -> Dict[str, torch.Tensor]:
         raise NotImplementedError

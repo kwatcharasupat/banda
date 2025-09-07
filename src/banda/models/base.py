@@ -1,11 +1,8 @@
-
-
-
 from omegaconf import DictConfig
 from torch import nn
 
+
 class ModelRegistry(type):
-    
     # from https://charlesreid1.github.io/python-patterns-the-registry.html
 
     MODEL_REGISTRY = {}
@@ -21,9 +18,9 @@ class ModelRegistry(type):
     def get_registry(cls):
         return dict(cls.MODEL_REGISTRY)
 
+
 class BaseRegisteredModel(nn.Module, metaclass=ModelRegistry):
-    def __init__(self, *, 
-                 config: DictConfig):
+    def __init__(self, *, config: DictConfig):
         super().__init__()
-        
+
         self.config = config

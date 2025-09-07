@@ -12,6 +12,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
+
 class BaseNormMLP(nn.Module):
     """
     Base class for a normalized MLP module.
@@ -49,7 +50,7 @@ class BaseNormMLP(nn.Module):
         self.bandwidth = bandwidth
         self.in_channels = in_channels
 
-        self.reim = 2 
+        self.reim = 2
         self.glu_mult = 2
 
         self.emb_dim = emb_dim
@@ -87,12 +88,14 @@ class BaseNormMLP(nn.Module):
             nn.Module: Output layer.
         """
 
-
         return nn.Sequential(
             weight_norm(
                 nn.Linear(
                     in_features=self.mlp_dim,
-                    out_features=self.bandwidth * self.in_channels * self.reim * self.glu_mult,
+                    out_features=self.bandwidth
+                    * self.in_channels
+                    * self.reim
+                    * self.glu_mult,
                 )
             ),
             nn.GLU(dim=-1),
@@ -109,10 +112,8 @@ class BaseNormMLP(nn.Module):
         """
 
         norm = self._make_norm()
-        hidden = self._make_hidden(
-        )
-        output = self._make_output(
-        )
+        hidden = self._make_hidden()
+        output = self._make_output()
 
         return nn.Sequential(
             norm,
@@ -155,7 +156,7 @@ class NormMLP(BaseNormMLP):
             hidden_activation_kwargs=hidden_activation_kwargs,
         )
 
-        self.combined = self._make_combined(        )
+        self.combined = self._make_combined()
 
     def reshape_output(self, mb: torch.Tensor) -> torch.Tensor:
         """
@@ -315,7 +316,6 @@ class OverlappingMaskEstimationModule(BaseMaskEstimationModule):
         norm_mlp_cls: Type[nn.Module] = NormMLP,
         norm_mlp_kwargs: Optional[Dict] = None,
     ) -> None:
-
         super().__init__(
             band_specs=band_specs,
             emb_dim=emb_dim,

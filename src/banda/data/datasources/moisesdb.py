@@ -1,20 +1,34 @@
-
-
 import os
 from typing import Dict, List, Literal
 
 import numpy as np
-from pydantic import BaseModel
-from banda.data.datasources.base import BaseRegisteredDatasource, DatasourceParams, TrackIdentifier
+from banda.data.datasources.base import (
+    BaseRegisteredDatasource,
+    DatasourceParams,
+    TrackIdentifier,
+)
 
 from pathlib import Path
 
 import structlog
+
 logger = structlog.get_logger(__name__)
 
-MoisesDBStem = Literal['other_keys', 'bass', 'guitar', 'percussion', 'wind', 'bowed_strings', 'drums', 'other_plucked', 'piano', 'other', 'vocals']
+MoisesDBStem = Literal[
+    "other_keys",
+    "bass",
+    "guitar",
+    "percussion",
+    "wind",
+    "bowed_strings",
+    "drums",
+    "other_plucked",
+    "piano",
+    "other",
+    "vocals",
+]
 MoisesDBStemShortCut = {
-    '_moises_coarse': {
+    "_moises_coarse": {
         "other_keys": ["other_keys"],
         "bass": ["bass"],
         "guitar": ["guitar"],
@@ -25,65 +39,85 @@ MoisesDBStemShortCut = {
         "other_plucked": ["other_plucked"],
         "piano": ["piano"],
         "other": ["other"],
-        "vocals": ["vocals"]
+        "vocals": ["vocals"],
     },
-    '_moises_vdbo': {
+    "_moises_vdbo": {
         "vocals": ["vocals"],
         "drums": ["drums"],
         "bass": ["bass"],
-        "other": ["other_keys", "guitar", "percussion", "wind", "bowed_strings", "other_plucked", "piano", "other"]
-    }
+        "other": [
+            "other_keys",
+            "guitar",
+            "percussion",
+            "wind",
+            "bowed_strings",
+            "other_plucked",
+            "piano",
+            "other",
+        ],
+    },
 }
-
 
 
 class MoisesDBDatasourceParams(DatasourceParams):
     split: str
     load_duration: bool = False
-    stems: Dict[str, List[MoisesDBStem]] | str = MoisesDBStemShortCut['_moises_vdbo']
+    stems: Dict[str, List[MoisesDBStem]] | str = MoisesDBStemShortCut["_moises_vdbo"]
 
 
 class MoisesDBDatasource(BaseRegisteredDatasource):
-    
-    DATASOURCE_ID : str = "moisesdb"
-    
+    DATASOURCE_ID: str = "moisesdb"
+
     def __init__(self, *, config: DatasourceParams):
         super().__init__(config=config)
         self.config = MoisesDBDatasourceParams.model_validate(config)
-        
+
         if self.config.stems in MoisesDBStemShortCut:
             self.config.stems = MoisesDBStemShortCut[self.config.stems]
-            
+
         logger.info("Loading tracks for MoisesDB with", config=config)
         self.tracks = self._load_tracks()
 
     def _load_tracks(self) -> List[TrackIdentifier]:
-
-        datasource_path = Path(os.getenv("DATA_ROOT"), self.DATASOURCE_ID, "intermediates", "npz-coarse", self.config.split).expanduser()
+        datasource_path = Path(
+            os.getenv("DATA_ROOT"),
+            self.DATASOURCE_ID,
+            "intermediates",
+            "npz-coarse",
+            self.config.split,
+        ).expanduser()
         if not datasource_path.exists():
-            canonical_path = Path(os.getenv("DATA_ROOT"), self.DATASOURCE_ID, "canonical").expanduser()
+            canonical_path = Path(
+                os.getenv("DATA_ROOT"), self.DATASOURCE_ID, "canonical"
+            ).expanduser()
             if canonical_path.exists():
-                raise RuntimeError(f"Canonical path {canonical_path} exists, but intermediate path {datasource_path} does not. Please run the preprocessing step.")
+                raise RuntimeError(
+                    f"Canonical path {canonical_path} exists, but intermediate path {datasource_path} does not. Please run the preprocessing step."
+                )
             else:
-                raise RuntimeError(f"Datasource path {datasource_path} does not exist. Please download the MoisesDB dataset and set up the DATA_ROOT environment variable correctly.")
+                raise RuntimeError(
+                    f"Datasource path {datasource_path} does not exist. Please download the MoisesDB dataset and set up the DATA_ROOT environment variable correctly."
+                )
 
         tracks = [
             TrackIdentifier(
                 full_path=path.absolute().as_posix(),
                 sources=self.config.stems,
-                duration_samples=self._get_duration_samples(path) if self.config.load_duration else None
+                duration_samples=self._get_duration_samples(path)
+                if self.config.load_duration
+                else None,
             )
             for path in datasource_path.iterdir()
         ]
         return tracks
 
     def _get_duration_samples(self, path: Path) -> int:
-        data = np.load(path, mmap_mode='r')
+        data = np.load(path, mmap_mode="r")
         first_key = [k for k in data.keys() if k in self.config.stems][0]
         return data[first_key].shape[1]
 
     def __len__(self):
         return len(self.tracks)
-    
+
     def __getitem__(self, index):
         return self.tracks[index]

@@ -6,6 +6,7 @@ import torch
 
 ArrayType = TypeVar("ArrayType", torch.Tensor, np.ndarray)
 
+
 class MultiDomainSignal(Dict[str, ArrayType], Generic[ArrayType]):
     pass
 
@@ -16,19 +17,19 @@ def convert_to_multi_domain_signal(v):
         return MultiDomainSignal(v)
     return v
 
+
 # Create a custom type that applies the validator
 ValidatedMultiDomainSignal = Annotated[
-    MultiDomainSignal[ArrayType],
-    BeforeValidator(convert_to_multi_domain_signal)
+    MultiDomainSignal[ArrayType], BeforeValidator(convert_to_multi_domain_signal)
 ]
 
+
 class SourceSeparationItem(BaseModel, Generic[ArrayType]):
-    
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    
+
     mixture: ValidatedMultiDomainSignal[ArrayType] | None
     sources: Dict[str, ValidatedMultiDomainSignal[ArrayType]]
     estimates: Dict[str, ValidatedMultiDomainSignal[ArrayType]] | None
 
+
 SourceSeparationBatch = SourceSeparationItem[torch.Tensor]
-    

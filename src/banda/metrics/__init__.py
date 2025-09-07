@@ -1,1 +1,1 @@
-from .rms import PredDecibel, TargetDecibel # noqa
+from .rms import PredDecibel, TargetDecibel  # noqa

@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any, Callable
+from typing import List, Tuple
 
 import torch
 from torch import nn
@@ -32,15 +32,13 @@ class NormFC(nn.Module):
         emb_dim: int,
         bandwidth: int,
         in_channels: int,
-       
     ) -> None:
         super().__init__()
-        
+
         reim: int = 2
 
         norm_in: int = in_channels * bandwidth * reim
         fc_in: int = bandwidth * reim * in_channels
-
 
         self.combined = nn.Sequential(
             nn.LayerNorm(norm_in),
@@ -81,7 +79,6 @@ class BandSplitModule(nn.Module):
         in_channels: int,
         require_no_overlap: bool = False,
         require_no_gap: bool = True,
-       
     ) -> None:
         super().__init__()
 
@@ -104,7 +101,6 @@ class BandSplitModule(nn.Module):
                     emb_dim=emb_dim,
                     bandwidth=bw,
                     in_channels=in_channels,
-                    
                 )
                 for bw in self.band_widths
             ]

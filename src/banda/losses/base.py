@@ -1,6 +1,3 @@
-
-
-
 from typing import Dict
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict
@@ -9,15 +6,17 @@ from torch.nn.modules.loss import _Loss
 
 from banda.utils import BaseConfig, WithClassConfig
 
+
 class LossParams(BaseConfig):
     domain: str = "audio"
-    
+
+
 class LossConfig(WithClassConfig[LossParams]):
     weight: float
     name: str | None = None
-    
+
+
 class LossRegistry(type):
-    
     # from https://charlesreid1.github.io/python-patterns-the-registry.html
 
     LOSS_REGISTRY = {}
@@ -33,16 +32,16 @@ class LossRegistry(type):
     def get_registry(cls):
         return dict(cls.LOSS_REGISTRY)
 
+
 class BaseRegisteredLoss(_Loss, metaclass=LossRegistry):
-    def __init__(self, *, 
-                 config: DictConfig):
+    def __init__(self, *, config: DictConfig):
         super().__init__()
-        
+
         self.config = LossParams.model_validate(config)
-        
+
 
 class LossDict(BaseModel):
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
-    
+
     total_loss: torch.Tensor
-    loss_contrib: Dict[str, torch.Tensor | float]  = {}
+    loss_contrib: Dict[str, torch.Tensor | float] = {}

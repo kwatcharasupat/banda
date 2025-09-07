@@ -2,7 +2,6 @@ from torch import nn
 import torch
 
 
-
 class Transpose(nn.Module):
     def __init__(self, *, dim0: int, dim1: int) -> None:
         super().__init__()

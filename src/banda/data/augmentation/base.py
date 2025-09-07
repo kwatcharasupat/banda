@@ -1,17 +1,17 @@
-
-from typing import List
 from audiomentations.core.transforms_interface import BaseWaveformTransform
 
 from banda.utils import BaseConfig, WithClassConfig
 
+
 class AugmentationParams(BaseConfig):
     p: float
+
 
 class AugmentationConfig(WithClassConfig[AugmentationParams]):
     pass
 
+
 class AugmentationRegistry(type):
-    
     # from https://charlesreid1.github.io/python-patterns-the-registry.html
 
     AUGMENTATION_REGISTRY = {}
@@ -26,7 +26,8 @@ class AugmentationRegistry(type):
     @classmethod
     def get_registry(cls):
         return dict(cls.AUGMENTATION_REGISTRY)
-    
+
+
 class BaseRegisteredAugmentation(AugmentationRegistry, BaseWaveformTransform):
     def __init__(self, *, config: AugmentationParams):
         super().__init__(p=self.config.p)

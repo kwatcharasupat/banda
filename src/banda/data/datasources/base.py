@@ -4,19 +4,22 @@ from torch.utils.data import Dataset
 
 from banda.utils import WithClassConfig, BaseConfig
 
+
 class DatasourceParams(BaseConfig):
     pass
 
+
 class DatasourceConfig(WithClassConfig[DatasourceParams]):
     pass
+
 
 class TrackIdentifier(BaseModel):
     full_path: str
     duration_samples: int | None = None
     sources: Dict[str, List[str]] | None = None
 
+
 class DatasourceRegistry(type):
-    
     # from https://charlesreid1.github.io/python-patterns-the-registry.html
 
     DATASOURCE_REGISTRY = {}
@@ -31,6 +34,7 @@ class DatasourceRegistry(type):
     @classmethod
     def get_registry(cls):
         return dict(cls.DATASOURCE_REGISTRY)
+
 
 class BaseRegisteredDatasource(Dataset, metaclass=DatasourceRegistry):
     def __init__(self, *, config: DatasourceParams):
