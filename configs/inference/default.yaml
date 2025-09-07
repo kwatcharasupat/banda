@@ -1,0 +1,4 @@
+fs: 44100
+chunk_size_seconds: 6.0
+hop_size_seconds: 1.0
+inference_batch_size: 16

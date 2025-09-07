@@ -31,5 +31,7 @@ class SourceSeparationItem(BaseModel, Generic[ArrayType]):
     sources: Dict[str, ValidatedMultiDomainSignal[ArrayType]]
     estimates: Dict[str, ValidatedMultiDomainSignal[ArrayType]] | None
 
+    n_samples: torch.Tensor = torch.tensor(-1, dtype=torch.int64)
+
 
 SourceSeparationBatch = SourceSeparationItem[torch.Tensor]

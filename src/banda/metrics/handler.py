@@ -10,7 +10,7 @@ from banda.utils import BaseConfig
 from torchmetrics import MetricCollection
 
 
-class MetricHandlerConfig(BaseConfig):
+class MetricHandlerParams(BaseConfig):
     metrics: List[MetricConfig]
     stems: List[str]
 
@@ -18,7 +18,7 @@ class MetricHandlerConfig(BaseConfig):
 class MetricHandler(nn.Module):
     def __init__(self, *, config: DictConfig):
         super().__init__()
-        self.config = MetricHandlerConfig.model_validate(config)
+        self.config = MetricHandlerParams.model_validate(config)
 
         self._build_metrics()
 
