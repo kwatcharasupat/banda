@@ -94,9 +94,12 @@ class SourceSeparationDataModule(pl.LightningDataModule):
 
         return dataset
 
-
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        if self.trainer.training or self.trainer.validating:
+        if (
+            self.trainer.training
+            or self.trainer.validating
+            or self.trainer.sanity_checking
+        ):
             return super().transfer_batch_to_device(batch, device, dataloader_idx)
 
         # do not transfer to device during testing or predicting
