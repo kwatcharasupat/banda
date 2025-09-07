@@ -14,4 +14,4 @@ cd $SLURM_SUBMIT_DIR
 module load mamba
 mamba activate banda
 
-srun python scripts/train.py -cn bandit-musdb18hq-nodbm "++ckpt_path='./banda/5fl597wr/checkpoints/epoch=41-step=42978.ckpt'"
+srun python scripts/train.py -cn bandit-musdb18hq-nodbm "++ckpt_path='./banda/9a2nvu0c/checkpoints/epoch=84-step=86198.ckpt'"

@@ -2,7 +2,7 @@
 #SBATCH -Jbandit-musdb18hq-nodbm-vocals                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
-#SBATCH --gres=gpu:A100:1              
+#SBATCH --gres=gpu:1 --constraint="V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S"     
 #SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
@@ -16,4 +16,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-musdb18hq-nodbm-vocals "++ckpt_path='./banda/yy6v23k2/checkpoints/epoch=44-step=45433.ckpt'"
+srun python scripts/train.py -cn bandit-musdb18hq-nodbm-vocals "++ckpt_path='./banda/dt4d4qhz/checkpoints/epoch=88-step=90657.ckpt'"

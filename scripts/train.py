@@ -79,13 +79,13 @@ def train(config: DictConfig) -> None:
 
     metric = MetricHandler(config=config.metrics)
 
-    inference_handler = InferenceHandler(config=config.inference)
+    # inference_handler = InferenceHandler(config=config.inference)
 
     system = SourceSeparationSystem(
         model=model,
         loss_handler=loss,
         metric_handler=metric,
-        inference_handler=inference_handler,
+        # inference_handler=inference_handler,
         optimizer_config=config.optimizer,
     )
 
