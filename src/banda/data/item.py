@@ -33,7 +33,7 @@ class SourceSeparationItem(BaseModel, Generic[ArrayType]):
 
     n_samples: torch.Tensor | int = -1
 
-    full_path: str = ""
+    full_path: str | list | torch.Tensor = ""
 
 
 SourceSeparationBatch = SourceSeparationItem[torch.Tensor]
