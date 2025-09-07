@@ -1,3 +1,5 @@
+import gc
+import os
 from typing import Literal
 from omegaconf import DictConfig
 import pytorch_lightning as pl
@@ -10,6 +12,12 @@ from banda.losses.handler import LossHandler
 from banda.metrics.handler import MetricHandler
 from banda.models.base import BaseRegisteredModel
 from pytorch_lightning.loggers import WandbLogger
+from tqdm import tqdm
+
+import torchaudio as ta
+import structlog
+logger = structlog.get_logger(__name__)
+
 
 
 class SourceSeparationSystem(pl.LightningModule):
@@ -54,45 +62,118 @@ class SourceSeparationSystem(pl.LightningModule):
         metric_dict = self.metric_handler.compute()
         self._log_metric(metric_dict=metric_dict, mode="val")
 
-    def test_step(self, batch: dict, batch_idx: int, dataloader_idx: int):
+    def on_test_epoch_start(self):
+
+        self.test_metrics = []
+
+    def test_step(self, batch: dict, batch_idx: int, dataloader_idx: int=0):
         reconstructed_batch = self.inference_step(batch, batch_idx, dataloader_idx)
 
         self.metric_handler.reset()
         self.metric_handler.update(reconstructed_batch)
         metric_dict = self.metric_handler.compute()
 
-        logger: WandbLogger = self.logger
-        logger.log_table(
-            key=f"test/metrics/{batch_idx}",
-            columns=list(metric_dict.keys()),
-            data=[list(metric_dict.values())],
+        logger.info("Test metric", metric_dict=metric_dict)
+
+        self.test_metrics.append(
+            {
+                "batch_idx": batch_idx,
+                "full_path": reconstructed_batch.full_path[0]
+                **metric_dict
+            }
+        )
+        print(self.test_metrics)
+
+        self.log_dict(
+            metric_dict,
+            prog_bar=True,
+            logger=False,
+            on_step=True,
+            on_epoch=False
         )
 
-    def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: int):
+    def on_test_epoch_end(self):
+        
+        df = pd.DataFrame(self.test_metrics)
+        df = df.set_index("batch_idx")
+
+        logger : WandbLogger = self.logger
+        logger.log_table(key="test/metrics", dataframe=df)
+
+    def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: int=0):
         return self.inference_step(batch, batch_idx, dataloader_idx)
+    
+
+    def _try_inference(self, chunked_audio: torch.Tensor, inference_batch_size: int = None):
+
+        chunked_outputs = []
+        
+        for chunked_batch in self.inference_handler.to_inference_batch(chunked_audio=chunked_audio, inference_batch_size=inference_batch_size):
+            chunked_batch.mixture["audio"] = chunked_batch.mixture["audio"].to(self.device)
+            chunked_output = self.forward(chunked_batch)
+            chunked_outputs.append(
+                SourceSeparationBatch(
+                    mixture=None,
+                    sources={},
+                    estimates={
+                        source: {
+                            "audio": chunked_output.estimates[source]["audio"].cpu()
+                        }
+                        for source in chunked_output.estimates
+                    }
+                )
+            )
+            
+
+            chunked_output.estimates = {}
+            chunked_output.mixture = {}
+            torch.cuda.empty_cache()
+
+        return chunked_outputs
 
     def inference_step(
         self, batch: dict, batch_idx: int, dataloader_idx: int
     ) -> SourceSeparationBatch:
+        
         batch = SourceSeparationBatch.model_validate(batch)
+
         assert self.inference_handler is not None, "Inference handler is not set."
 
-        chunked_batches = self.inference_handler.chunk_batch(batch)
+        assert str(batch.mixture["audio"].device) == "cpu", f"mixture should be on cpu, but got {batch.mixture["audio"].device}"
 
-        chunked_outputs = []
-        for chunked_batch in chunked_batches:
-            chunked_batch.mixture["audio"] = chunked_batch.mixture["audio"].to(
-                self.device
-            )
-            chunked_output = self.forward(chunked_batch)
-            for source in chunked_output.estimates:
-                chunked_output.estimates[source]["audio"] = chunked_output.estimates[
-                    source
-                ]["audio"].cpu()
-            chunked_outputs.append(chunked_output)
+        chunked_audio, padded_samples = self.inference_handler.chunk_batch(batch)
+
+        chunked_outputs = None
+        inference_batch_size = self.inference_handler.inference_batch_size
+
+        while chunked_outputs is None:
+            try:
+               chunked_outputs = self._try_inference(chunked_audio, inference_batch_size=inference_batch_size)
+            except torch.cuda.OutOfMemoryError as e:
+                torch.cuda.empty_cache()
+
+                if inference_batch_size >= 48:
+                    inference_batch_size -= 8
+                elif inference_batch_size > 12:
+                    inference_batch_size -= 4
+                elif inference_batch_size > 4:
+                    inference_batch_size -= 2
+                else:
+                    inference_batch_size -= 1
+                
+                if inference_batch_size == 0:
+                    raise torch.cuda.OutOfMemoryError()
+                
+                logger.warning(
+                    f"The current batch size does not fit in memory. Trying {inference_batch_size}"
+                )
+
+        self.inference_handler.inference_batch_size = inference_batch_size
 
         reconstructed_batch = self.inference_handler.chunked_reconstruct(
-            chunked_outputs
+            chunked_outputs,
+            original_batch=batch,
+            padded_samples=padded_samples
         )
 
         return reconstructed_batch
@@ -107,7 +188,8 @@ class SourceSeparationSystem(pl.LightningModule):
         return batch, loss_dict.total_loss
 
     def forward(self, batch: dict | SourceSeparationBatch) -> SourceSeparationBatch:
-        batch = SourceSeparationBatch.model_validate(batch)
+        if not isinstance(batch, SourceSeparationBatch):
+            batch = SourceSeparationBatch.model_validate(batch)
         return self.model(batch)
 
     def configure_optimizers(self):

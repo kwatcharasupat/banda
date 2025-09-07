@@ -93,3 +93,11 @@ class SourceSeparationDataModule(pl.LightningDataModule):
         dataset = cls(datasources=datasources, config=params)
 
         return dataset
+
+
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        if self.trainer.training or self.trainer.validating:
+            return super().transfer_batch_to_device(batch, device, dataloader_idx)
+
+        # do not transfer to device during testing or predicting
+        return batch

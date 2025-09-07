@@ -6,7 +6,7 @@ defaults:
 - metrics: default
 - optimizer: adam
 - trainer: default
-# - inference: default
+- inference: default
 - _self_
 
 model:

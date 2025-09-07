@@ -99,6 +99,6 @@ test:
   dataloader:
     batch_size: 1
     num_workers: 4
-    shuffle: true
+    shuffle: false
     drop_last: False
     pin_memory: true

@@ -124,3 +124,17 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
             self.premix_augmentation = Compose(config=augmentation_config)
         else:
             self.premix_augmentation = None
+
+
+    def _get_track_identifier(self, index: int) -> TrackIdentifier:
+        datasource_index, item_index = self._resolve_index(index)
+
+        if datasource_index >= len(self.datasources):
+            logger.error(
+                f"Datasource index out of bounds: {datasource_index} >= {len(self.datasources)}, "
+                f"item index = {item_index}, total size = {self.total_size}, index = {index}, datasource = {datasource_index}"
+            )
+            raise IndexError("Index out of bounds")
+
+        track_identifier = self.datasources[datasource_index][item_index]
+        return track_identifier

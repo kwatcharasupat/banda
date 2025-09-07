@@ -56,11 +56,12 @@ class _BaseMaskingModel(BaseRegisteredModel):
             batch = self.apply_masks(masks, specs_unnormalized, batch=batch)
 
         with torch.no_grad():
-            for key in batch.estimates:
-                # only compute this for stems with estimates to reduce the compute
-                source = batch.sources[key]["audio"]
-                source_specs = self.stft(source)
-                batch.sources[key]["spectrogram"] = source_specs
+            if batch.sources:
+                for key in batch.estimates:
+                    # only compute this for stems with estimates to reduce the compute
+                    source = batch.sources[key]["audio"]
+                    source_specs = self.stft(source)
+                    batch.sources[key]["spectrogram"] = source_specs
 
         return batch
 

@@ -42,19 +42,6 @@ class _ChunkDataset(BaseRegisteredDataset):
     ):
         super().__init__(datasources=datasources, config=config)
 
-    def _get_track_identifier(self, index: int) -> TrackIdentifier:
-        datasource_index, item_index = self._resolve_index(index)
-
-        if datasource_index >= len(self.datasources):
-            logger.error(
-                f"Datasource index out of bounds: {datasource_index} >= {len(self.datasources)}, "
-                f"item index = {item_index}, total size = {self.total_size}, index = {index}, datasource = {datasource_index}"
-            )
-            raise IndexError("Index out of bounds")
-
-        track_identifier = self.datasources[datasource_index][item_index]
-        return track_identifier
-
     def _chunk_item(
         self, audio: np.ndarray | None, start_sample: int, *, pad: bool = False
     ) -> np.ndarray:

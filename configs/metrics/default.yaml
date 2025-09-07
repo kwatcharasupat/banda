@@ -1,6 +1,8 @@
 metrics:
 - cls: SignalNoiseRatio
   params: {}
+- cls: ScaleInvariantSignalNoiseRatio
+  params: {}
 - cls: PredDecibel
   params: {}
 - cls: TargetDecibel

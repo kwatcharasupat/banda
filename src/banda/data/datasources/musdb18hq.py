@@ -57,6 +57,8 @@ class MUSDB18HQDatasource(BaseRegisteredDatasource):
                 raise RuntimeError(
                     f"Datasource path {datasource_path} does not exist. Please download the MUSDB18HQ dataset and set up the DATA_ROOT environment variable correctly."
                 )
+            
+        paths = sorted(list(datasource_path.iterdir()))
 
         tracks = [
             TrackIdentifier(
@@ -66,7 +68,7 @@ class MUSDB18HQDatasource(BaseRegisteredDatasource):
                 if self.config.load_duration
                 else None,
             )
-            for path in datasource_path.iterdir()
+            for path in paths
         ]
         return tracks
 
