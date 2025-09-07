@@ -18,7 +18,8 @@ dependencies = [
     "soundfile",
     "audiomentations",
     "spafe",
-    "pre-commit"
+    "pre-commit",
+    "pandas"
 ]
 requires-python = ">=3.12"
 readme = "README.md"

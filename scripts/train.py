@@ -35,15 +35,16 @@ torch.set_float32_matmul_precision("high")
 
 class TrainingConfig(BaseConfig):
     seed: int
+
     data: DataConfig
     model: WithClassConfig[BaseConfig]
     loss: LossHandlerConfig
     metrics: MetricHandlerParams
-    inference: InferenceHandlerParams
+    inference: InferenceHandlerParams = None
 
     trainer: BaseConfig
-    ckpt_path: str | None = None
 
+    ckpt_path: str | None = None
     test_only: bool = False
 
 
