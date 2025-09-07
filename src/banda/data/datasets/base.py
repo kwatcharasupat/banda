@@ -88,12 +88,18 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
 
         return datasource_index, item_index
 
-    def _load_audio(self, track_identifier: TrackIdentifier):
+    def _load_audio(
+        self, track_identifier: TrackIdentifier, *, sources: list[str] = None
+    ):
         npz_data = np.load(track_identifier.full_path, mmap_mode="r")
 
         audio_data = SourceSeparationItem(mixture=None, sources={}, estimates={})
 
-        for source, source_components in track_identifier.sources.items():
+        if sources is None:
+            sources = list(track_identifier.sources.keys())
+
+        for source in sources:
+            source_components = track_identifier.sources[source]
             if source == "mixture":
                 logger.warning("Mixture is being loaded into sources. Are you sure?.")
 

@@ -1,6 +1,5 @@
 from typing import Literal
 from omegaconf import DictConfig
-import pandas as pd
 import pytorch_lightning as pl
 import torch
 

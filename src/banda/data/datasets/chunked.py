@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from banda.data.datasets.base import BaseRegisteredDataset, DatasetParams
 from banda.data.datasources.base import BaseRegisteredDatasource, TrackIdentifier
@@ -19,6 +20,8 @@ class RandomChunkDatasetParams(ChunkDatasetParams):
     min_dbrms: float = -36
     dbrms_thresh_step: float = -1.2
     max_trial: int = 20
+
+    cross_track_sampling: bool = False
 
 
 class DeterministicChunkDatasetParams(ChunkDatasetParams):
@@ -87,12 +90,41 @@ class RandomChunkDataset(_ChunkDataset):
         return self.config.max_dataset_size
 
     def __getitem__(self, index: int):
-        track_identifier = self._get_track_identifier(index)
+        if self.config.cross_track_sampling:
+            item_dict = self._load_cross_track(index)
+        else:
+            track_identifier = self._get_track_identifier(index)
+            item_dict = self._load_audio(track_identifier)
 
-        item_dict = self._load_audio(track_identifier)
         chunked_item_dict = self._chunk_and_augment(item_dict)
 
         return chunked_item_dict.model_dump()
+
+    def _load_cross_track(self, index: int) -> SourceSeparationItem[np.ndarray]:
+        track_identifier = self._get_track_identifier(index)
+        sources = list(track_identifier.sources.keys())
+
+        item_dict = self._load_audio(track_identifier, sources=[sources[0]])
+        n_sources = len(sources)
+
+        # logger.info(
+        #     f"Cross-track sampling: Loading {n_sources} sources from different tracks."
+        # )
+        # logger.info(f"First source: {sources[0]} from {track_identifier.full_path}")
+
+        for i in range(1, n_sources):
+            next_index = random.randint(0, self.total_size - 1)
+            next_track_identifier = self._get_track_identifier(next_index)
+            next_source = sources[i]
+            next_item_dict = self._load_audio(
+                next_track_identifier, sources=[next_source]
+            )
+            item_dict.sources[next_source] = next_item_dict.sources[next_source]
+            # logger.info(
+            #     f"Next source: {next_source} from {next_track_identifier.full_path}"
+            # )
+
+        return item_dict
 
     def _chunk_and_augment(
         self, item_dict: SourceSeparationItem[np.ndarray]

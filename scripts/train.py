@@ -17,7 +17,7 @@ from torch import nn
 import structlog
 from pytorch_lightning.utilities.seed import isolate_rng
 from banda.data.base import DataConfig, SourceSeparationDataModule
-from banda.inference.handler import InferenceHandler, InferenceHandlerParams
+from banda.inference.handler import InferenceHandlerParams
 from banda.losses.handler import LossHandler, LossHandlerConfig
 from banda.metrics.handler import MetricHandler, MetricHandlerParams
 from banda.models.base import ModelRegistry

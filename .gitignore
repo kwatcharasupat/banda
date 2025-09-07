@@ -210,6 +210,7 @@ checkpoints/
 
 wandb/
 outputs/
-wandb/
-outputs/
 slurm-out/
+
+outputs
+wandb
