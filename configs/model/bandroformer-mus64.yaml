@@ -17,13 +17,14 @@ params:
     emb_dim: 128
 
   tf_model:
-    cls: RNNSeqBandModellingModule
+    cls: RoFormerTFModel
     params:
       n_modules: 8
-      rnn_type: GRU
       emb_dim: ${...bandsplit.emb_dim}
-      rnn_dim: 256
-      bidirectional: true
+      n_heads: 8
+      hidden_dim: 256
+      dropout: 0.1
+      max_seq_len: 4096
 
   mask_estim:
     emb_dim: ${..bandsplit.emb_dim}

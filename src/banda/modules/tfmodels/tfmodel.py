@@ -1,5 +1,6 @@
 from typing import List, Literal
 
+from omegaconf import DictConfig
 import torch
 from torch import nn
 from torch.nn.modules import rnn
@@ -11,23 +12,24 @@ from torch.nn.utils.parametrizations import weight_norm
 
 from torch.utils.checkpoint import checkpoint_sequential
 
+from banda.modules.tfmodels.base import BaseRegisteredTFModel
 from banda.modules.utils import Transpose
 
 
 RNNType = Literal["RNN", "GRU", "LSTM"]
 
 
-class TimeFrequencyModellingModule(nn.Module):
+class TimeFrequencyModellingModule(BaseRegisteredTFModel):
     """
     Base class for time-frequency modelling modules.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, config: DictConfig) -> None:
         """
         Args:
             _verbose (bool): Whether to enable verbose logging. Default: False.
         """
-        super().__init__()
+        super().__init__(config=config)
 
 
 class ResidualRNN(nn.Module):
@@ -103,6 +105,14 @@ class ResidualRNN(nn.Module):
         return z
 
 
+class RNNSeqBandModellingParams(DictConfig):
+    n_modules: int = 8
+    emb_dim: int = 128
+    rnn_dim: int = 256
+    bidirectional: bool = True
+    rnn_type: RNNType = "GRU"
+
+
 class RNNSeqBandModellingModule(TimeFrequencyModellingModule):
     """
     Sequential band modelling module using ResidualRNN.
@@ -120,24 +130,18 @@ class RNNSeqBandModellingModule(TimeFrequencyModellingModule):
     def __init__(
         self,
         *,
-        n_modules: int = 8,
-        emb_dim: int = 128,
-        rnn_dim: int = 256,
-        bidirectional: bool = True,
-        rnn_type: RNNType = "GRU",
+        config: DictConfig,
     ) -> None:
-        super().__init__()
-
-        self.n_modules: int = n_modules
+        super().__init__(config=config)
 
         seqband: List[nn.Module] = []
-        for _ in range(2 * n_modules):
+        for _ in range(2 * self.config.n_modules):
             seqband += [
                 ResidualRNN(
-                    emb_dim=emb_dim,
-                    rnn_dim=rnn_dim,
-                    bidirectional=bidirectional,
-                    rnn_type=rnn_type,
+                    emb_dim=self.config.emb_dim,
+                    rnn_dim=self.config.rnn_dim,
+                    bidirectional=self.config.bidirectional,
+                    rnn_type=self.config.rnn_type,
                 ),
                 Transpose(dim0=1, dim1=2),
             ]
@@ -155,5 +159,7 @@ class RNNSeqBandModellingModule(TimeFrequencyModellingModule):
             torch.Tensor: Output tensor. Shape: (batch, n_bands, n_time, emb_dim)
         """
 
-        z = checkpoint_sequential(self.seqband, self.n_modules, z, use_reentrant=False)
+        z = checkpoint_sequential(
+            self.seqband, self.config.n_modules, z, use_reentrant=False
+        )
         return z  # (batch, n_bands, n_time, emb_dim)

@@ -4,8 +4,9 @@ from banda.data.item import SourceSeparationBatch
 from banda.models.masking.base import _BaseMaskingModel
 from banda.modules.bandsplit.band_specs import MusicalBandsplitSpecification
 from banda.modules.bandsplit.bandsplit import BandSplitModule
-from banda.modules.bandsplit.maskestim import OverlappingMaskEstimationModule
-from banda.modules.bandsplit.tfmodel import RNNSeqBandModellingModule
+from banda.modules.maskestim.maskestim import OverlappingMaskEstimationModule
+from banda.modules.tfmodels.base import TFModelRegistry
+from banda.modules.tfmodels.tfmodel import RNNSeqBandModellingModule
 
 
 class BaseBandit(_BaseMaskingModel):
@@ -34,13 +35,15 @@ class BaseBandit(_BaseMaskingModel):
         )
 
     def _build_tfmodel(self):
-        self.tf_model = RNNSeqBandModellingModule(
-            n_modules=self.config.tf_model.n_modules,
-            emb_dim=self.config.tf_model.emb_dim,
-            rnn_dim=self.config.tf_model.rnn_dim,
-            bidirectional=self.config.tf_model.bidirectional,
-            rnn_type=self.config.tf_model.rnn_type,
-        )
+        cls_str = self.config.tf_model.cls
+
+        cls = TFModelRegistry.get_registry().get(cls_str)
+        if cls is None:
+            raise ValueError(
+                f"TF model class '{cls_str}' not found in registry. Allowed classes are: {list(TFModelRegistry.get_registry().keys())}"
+            )
+
+        self.tf_model = cls(config=self.config.tf_model.params)
 
     def _build_mask_estim(self):
         mask_estim = OverlappingMaskEstimationModule(
