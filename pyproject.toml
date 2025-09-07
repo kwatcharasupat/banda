@@ -23,7 +23,8 @@ dependencies = [
     "mamba-ssm",
     "causal-conv1d",
     "torchtune",
-    "torchao"
+    "torchao",
+    "pyarrow==20.0.0"
 ]
 requires-python = ">=3.12"
 readme = "README.md"
