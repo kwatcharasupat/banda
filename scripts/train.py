@@ -6,6 +6,7 @@
 
 
 import random
+import signal
 import hydra
 from omegaconf import DictConfig
 import pytorch_lightning as pl
@@ -16,9 +17,6 @@ import hydra.utils
 from torch import nn
 import structlog
 from pytorch_lightning.utilities.seed import isolate_rng
-from banda.callbacks.checkpoint import (
-    ModelCheckpointWithAutoRestart,
-)
 from banda.data.base import DataConfig, SourceSeparationDataModule
 from banda.inference.handler import InferenceHandler, InferenceHandlerParams
 from banda.losses.handler import LossHandler, LossHandlerConfig
@@ -27,7 +25,7 @@ from banda.models.base import ModelRegistry
 from banda.system.base import SourceSeparationSystem
 from banda.utils import BaseConfig, WithClassConfig
 from hydra.core.hydra_config import HydraConfig
-
+from pytorch_lightning.plugins.environments import SLURMEnvironment
 import time
 
 logger = structlog.get_logger(__name__)
@@ -118,9 +116,11 @@ def train(config: DictConfig) -> None:
             ),
             # pl_callbacks.EarlyStopping(monitor="val/loss", patience=5, verbose=True, check_finite=False),
             pl_callbacks.ModelSummary(max_depth=2),
+            
         ],
         logger=WandbLogger(project="banda", log_model=True, name=wandb_name),
         **config.trainer.model_dump(),
+        # plugins=[SLURMEnvironment(requeue_signal=signal.SIGTERM)]
     )
 
     trainer.logger.log_hyperparams(config.model_dump())
