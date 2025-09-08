@@ -57,7 +57,6 @@ class BaseBandit(_BaseMaskingModel):
         return mask_estim
 
     def get_active_stems(self):
-
         if self.training:
             stems = random.sample(
                 list(self.config.stems), k=min(self.config.max_simultaneous_stems, len(self.config.stems))

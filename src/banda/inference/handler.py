@@ -195,12 +195,7 @@ class InferenceHandler(nn.Module):
     ) -> SourceSeparationBatch:
         # check that all batches have the same sources
         for batch in batches:
-            print(batch.estimates.keys())
-        
-        exit()
-            # if list(batch.estimates.keys()) == list(batches[0].estimates.keys()):
-            #     print("ok")
-            # assert list(batch.estimates.keys()) == list(batches[0].estimates.keys()), (list(batch.estimates.keys()), list(batches[0].estimates.keys()))
+            assert list(batch.estimates.keys()) == list(batches[0].estimates.keys()), (list(batch.estimates.keys()), list(batches[0].estimates.keys()))
 
         reconstructed_estimates = {}
 
