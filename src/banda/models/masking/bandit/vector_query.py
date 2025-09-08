@@ -16,14 +16,14 @@ class VectorDictQueryBandit(BaseBandit):
 
         self.query_bias = nn.ParameterDict(
             {
-                stem: nn.Parameter(torch.randn(self.config.tf_model.emb_dim))
+                stem: nn.Parameter(torch.randn(self.config.tf_model.params.emb_dim))
                 for stem in self.config.stems
             }
         )
 
         self.query_scale = nn.ParameterDict(
             {
-                stem: nn.Parameter(torch.randn(self.config.tf_model.emb_dim))
+                stem: nn.Parameter(torch.randn(self.config.tf_model.params.emb_dim))
                 for stem in self.config.stems
             }
         )

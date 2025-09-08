@@ -36,6 +36,6 @@ class AudioQueryBandit(BaseBandit):
         
         query = batch.queries[stem]["audio"]
 
-        tf_adapted = tf_outs * (1.0 + query_scale) + query_bias
+        # tf_adapted = tf_outs * (1.0 + query_scale) + query_bias
 
-        return tf_adapted
+        # return tf_adapted
