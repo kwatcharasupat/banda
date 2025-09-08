@@ -1,3 +1,7 @@
+defaults:
+- default-augmentation
+- _self_
+
 train:
   datasource:
   - cls: MUSDB18HQDatasource
@@ -12,27 +16,6 @@ train:
       chunk_size_seconds: 6.0
       allow_autolooping: true
       max_dataset_size: 8192
-
-      premix_augmentation:
-        augmentations:
-        - cls: Gain
-          params:
-            min_gain_db: -6
-            max_gain_db: 6.0
-            p: 1.0
-        # - cls: Shift
-        #   params:
-        #     min_shift: -0.5
-        #     max_shift: 0.5
-        #     shift_unit: "fraction"
-        #     rollover: True
-        #     p: 0.5
-        - cls: PolarityInversion
-          params:
-            p: 0.5
-        # - cls: RandomDrop
-        #   params:
-        #     p: 0.10
 
   dataloader:
     batch_size: 8
@@ -64,24 +47,4 @@ val:
     num_workers: 16
     shuffle: false
     drop_last: false
-    pin_memory: true
-
-test:
-  datasource:
-  - cls: MUSDB18HQDatasource
-    params:
-      split: test
-
-  dataset:
-    cls: FullTrackDataset
-    params:
-      n_channels: 2
-      fs: 44100
-      allow_autolooping: false
-
-  dataloader:
-    batch_size: 1
-    num_workers: 4
-    shuffle: false
-    drop_last: False
     pin_memory: true

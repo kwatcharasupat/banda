@@ -1,6 +1,6 @@
 defaults:
-- model: bandroformer-mus64
-- data: musdb18hq-xts
+- model: bandmamba-mus64
+- data: musdb18hq
 - logger: wandb
 - loss: l1snr
 - metrics: default

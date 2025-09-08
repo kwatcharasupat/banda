@@ -1,3 +1,7 @@
+defaults:
+- default-augmentation
+- _self_
+
 train:
   datasource:
   - cls: MUSDB18HQDatasource
@@ -75,30 +79,4 @@ val:
     num_workers: 16
     shuffle: false
     drop_last: false
-    pin_memory: true
-
-test:
-  datasource:
-  - cls: MUSDB18HQDatasource
-    params:
-      split: test
-  - cls: MoisesDBDatasource
-    params:
-      split: test
-      stems: _moises_vdbo
-
-  dataset:
-    cls: FullTrackDataset
-    params:
-      n_channels: 2
-      fs: 44100
-      allow_autolooping: false
-
-      variable_sources: true
-
-  dataloader:
-    batch_size: 1
-    num_workers: 4
-    shuffle: false
-    drop_last: False
     pin_memory: true

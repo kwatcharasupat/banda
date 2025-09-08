@@ -1,6 +1,6 @@
 defaults:
-- model: bandit-mus64
-- data: moisesdb-vdbo-test
+- model: bandroformer-mus64
+- data: musdb18hq
 - logger: wandb
 - loss: l1snr
 - metrics: default
@@ -11,7 +11,7 @@ defaults:
 
 model:
   params:
-    stems: [ 'bass' ]
+    stems: [ 'vocals', 'drums', 'bass', 'other' ]
 
 metrics:
   stems: ${..model.params.stems}

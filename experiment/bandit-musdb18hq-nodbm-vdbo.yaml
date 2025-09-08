@@ -1,6 +1,8 @@
+# @package _global_
+
 defaults:
 - model: bandit-mus64
-- data: musdb18hq-xts
+- data: musdb18hq
 - logger: wandb
 - loss: l1snr
 - metrics: default
