@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import yaml
+
 
 slurm_template = """#!/bin/bash
 #SBATCH -J{job_name}                    
@@ -24,62 +26,168 @@ srun {command}
 """
 
 
-def eval_20250908(submit: bool = False):
-    import pandas as pd
+def make_config(
+    model: str,
+    dataset: str,
+    stems: list[str],
+    logger: str = "wandb",
+    loss: str = "l1snr",
+    metrics: str = "default",
+    optimizer: str = "adam",
+    trainer: str = "default",
+    inference: str = "default",
+    seed: int = 42,
+    run_slurm: bool = False,
+):
+    defaults = [
+        {
+            "model": model,
+        },
+        {
+            "data": dataset,
+        },
+        {
+            "logger": logger,
+        },
+        {
+            "loss": loss,
+        },
+        {
+            "metrics": metrics,
+        },
+        {
+            "optimizer": optimizer,
+        },
+        {
+            "trainer": trainer,
+        },
+        {
+            "inference": inference,
+        },
+        "_self_",
+    ]
 
-    import wandb
-
-    api = wandb.Api()
-
-    # Project is specified by <entity/project-name>
-    runs = api.runs("kwatcharasupat-gatech/banda")
-
-    commands = []
-
-    for run in runs:
-        summary = run.summary
-        epoch = summary.get("epoch", None)
-        if epoch != 99:
-            continue
-
-        print(run.name, run.id, epoch)
-
-        ckpt_path = f"./banda/{run.id}/checkpoints/last.ckpt"
-        print(ckpt_path)
-
-        print(run.config["model"]["params"]["stems"])
-
-        test_config_name = "test-{model_type}-{dataset}-{stem_suffix}.yaml"
-
-        names = run.name.split("-")
-        model_type = names[0]
-
-        if len(names) < 4:
-            continue
-
-        maybe_stem = names[3]
-
-        if maybe_stem in ["vocals", "drums", "bass", "other"]:
-            stem_suffix = f"{maybe_stem}"
-        else:
-            stem_suffix = "vdbo"
-
-        for test_ds in ["musdb18hq", "moisesdb"]:
-            command = {
-                "config_name": test_config_name.format(
-                    model_type=model_type,
-                    dataset=test_ds,
-                    stem_suffix=stem_suffix,
-                ),
-                "overrides": f'++ckpt_path="{ckpt_path}" ++wandb_name="test-{run.name}-{test_ds}"',
-                "test_only": True,
-                "job_name": f"test-{run.name}-{test_ds}",
+    config = {
+        "defaults": defaults,
+        "model": {
+            "params": {
+                "stems": stems,
             }
-            commands.append(command)
+        },
+        "metrics": {"stems": "${..model.params.stems}"},
+        "seed": seed,
+        "hydra": {
+            "searchpath": [
+                "file:///home/kwatchar3/projects/banda/configs",
+                "file:///storage/ice1/4/1/kwatchar3/banda/configs",
+            ]
+        },
+    }
 
-    for command in commands:
-        print(command)
-        make(**command, submit=submit)
+    if len(stems) == 1:
+        stem_code = stems[0]
+    else:
+        stem_code = "".join([s[0] for s in stems])
+
+    config_name = f"{model}-{loss}-{optimizer}-{dataset}-{stem_code}"
+
+    with open(f"experiments/{config_name}.yaml", "w") as f:
+        yaml.dump(config, f)
+
+    if run_slurm:
+        make(
+            config_name=config_name,
+            job_name=config_name,
+            submit=True,
+        )
+
+    return config_name
+
+
+def make_configs(run_slurm: bool = False):
+    datasets = ["musdb18hq", "moisesdb"]
+
+    models = ["bandit", "vqbandit", "bandroformer", "bandmamba"]
+
+    losses = ["l1snr"]
+
+    stems = [
+        ["vocals", "drums", "bass", "other"],
+        # ["vocals"],
+        # ["drums"],
+        # ["bass"],
+        # ["other"],
+    ]
+
+    for dataset in datasets:
+        for model in models:
+            for loss in losses:
+                for stem in stems:
+                    make_config(
+                        model=model,
+                        dataset=dataset,
+                        stems=stem,
+                        loss=loss,
+                        run_slurm=run_slurm,
+                    )
+
+
+# def eval_20250908(submit: bool = False):
+#     import pandas as pd
+
+#     import wandb
+
+#     api = wandb.Api()
+
+#     # Project is specified by <entity/project-name>
+#     runs = api.runs("kwatcharasupat-gatech/banda")
+
+#     commands = []
+
+#     for run in runs:
+#         summary = run.summary
+#         epoch = summary.get("epoch", None)
+#         if epoch != 99:
+#             continue
+
+#         print(run.name, run.id, epoch)
+
+#         ckpt_path = f"./banda/{run.id}/checkpoints/last.ckpt"
+#         print(ckpt_path)
+
+#         print(run.config["model"]["params"]["stems"])
+
+#         test_config_name = "test-{model_type}-{dataset}-{stem_suffix}.yaml"
+
+#         names = run.name.split("-")
+#         model_type = names[0]
+
+#         if len(names) < 4:
+#             continue
+
+#         maybe_stem = names[3]
+
+#         if maybe_stem in ["vocals", "drums", "bass", "other"]:
+#             stem_suffix = f"{maybe_stem}"
+#         else:
+#             stem_suffix = "vdbo"
+
+#         for test_ds in ["musdb18hq", "moisesdb"]:
+#             command = {
+#                 "config_name": test_config_name.format(
+#                     model_type=model_type,
+#                     dataset=test_ds,
+#                     stem_suffix=stem_suffix,
+#                 ),
+#                 "overrides": f'++ckpt_path="{ckpt_path}" ++wandb_name="test-{run.name}-{test_ds}"',
+#                 "test_only": True,
+#                 "job_name": f"test-{run.name}-{test_ds}",
+#             }
+#             commands.append(command)
+
+#     for command in commands:
+#         print(command)
+#         make(**command, submit=submit)
 
 
 def make(
