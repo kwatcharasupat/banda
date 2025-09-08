@@ -81,7 +81,7 @@ def eval_20250908(submit: bool = False):
 
     for command in commands:
         print(command)
-        make(**command, submit=False)
+        make(**command, submit=submit)
 
 
 def make(
