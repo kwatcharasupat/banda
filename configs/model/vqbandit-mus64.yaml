@@ -17,11 +17,14 @@ params:
     emb_dim: 128
 
   tf_model:
-    n_modules: 8
-    rnn_type: GRU
-    emb_dim: ${..bandsplit.emb_dim}
-    rnn_dim: 256
-    bidirectional: true
+    cls: RNNSeqBandModellingModule
+    params:
+      n_modules: 8
+      rnn_type: GRU
+      emb_dim: ${...bandsplit.emb_dim}
+      rnn_dim: 256
+      bidirectional: true
+
 
   mask_estim:
     emb_dim: ${..bandsplit.emb_dim}
