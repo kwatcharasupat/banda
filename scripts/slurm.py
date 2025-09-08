@@ -31,7 +31,7 @@ def make_config(
     dataset: str,
     stems: list[str],
     logger: str = "wandb",
-    loss: str = "l1snr",
+    loss: str = "l1snr-multi",
     metrics: str = "default",
     optimizer: str = "adam",
     trainer: str = "default",
@@ -107,9 +107,9 @@ def make_config(
 def make_configs(run_slurm: bool = False):
     datasets = ["musdb18hq", "moisesdb"]
 
-    models = ["bandit", "vqbandit", "bandroformer", "bandmamba"]
+    models = ["bandit-mus64", "vqbandit-mus64", "bandroformer-mus64", "bandmamba-mus64"]
 
-    losses = ["l1snr"]
+    losses = ["l1snr-multi"]
 
     stems = [
         ["vocals", "drums", "bass", "other"],
