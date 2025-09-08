@@ -108,6 +108,7 @@ def train(config: DictConfig) -> None:
         callbacks=[
             ModelCheckpointWithAutoRestart(
                 config_name=config_name,
+                should_trigger=config.run_training, # only trigger slurm requeue on training runs
                 monitor="val/loss",
                 save_last=True,
                 save_on_exception=True,
