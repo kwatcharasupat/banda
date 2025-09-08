@@ -16,6 +16,9 @@ import hydra.utils
 from torch import nn
 import structlog
 from pytorch_lightning.utilities.seed import isolate_rng
+from banda.callbacks.checkpoint import (
+    ModelCheckpointWithAutoRestart,
+)
 from banda.data.base import DataConfig, SourceSeparationDataModule
 from banda.inference.handler import InferenceHandler, InferenceHandlerParams
 from banda.losses.handler import LossHandler, LossHandlerConfig
@@ -95,15 +98,16 @@ def train(config: DictConfig) -> None:
         random.seed(linux_time)
         random_number = random.randint(0, 10000)
 
+    config_name = HydraConfig.get().job.config_name
     try:
         wandb_name = config.wandb_name
     except Exception:
-        config_name = HydraConfig.get().job.config_name
         wandb_name = f"{config_name}-{random_number:04d}"
 
     trainer = pl.Trainer(
         callbacks=[
-            pl_callbacks.ModelCheckpoint(
+            ModelCheckpointWithAutoRestart(
+                config_name=config_name,
                 monitor="val/loss",
                 save_last=True,
                 save_on_exception=True,

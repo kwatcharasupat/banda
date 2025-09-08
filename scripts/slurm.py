@@ -84,12 +84,16 @@ def eval_20250908(submit: bool = False):
 
 def make(
     config_name: str,
+    ckpt_path: str | None = None,
     overrides: str | None = None,
     job_name: str | None = None,
     test_only: bool = False,
     submit: bool = True,
 ):
     command = f"python scripts/train.py -cn {config_name}"
+
+    if ckpt_path is not None:
+        command += f" ++ckpt_path={ckpt_path}"
 
     if overrides is not None:
         command += f" {overrides}"
