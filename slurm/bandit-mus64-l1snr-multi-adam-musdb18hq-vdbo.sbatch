@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -Jbandit-musdb18hq-nodbm-vdbo                    
+#SBATCH -Jbandit-mus64-l1snr-multi-adam-musdb18hq-vdbo                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:1 --constraint="V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S"
@@ -8,6 +8,7 @@
 #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
 #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
 #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
+#SBATCH --signal=SIGTERM@120
 
 cd $SLURM_SUBMIT_DIR
 
@@ -16,4 +17,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-musdb18hq-nodbm-vdbo ++ckpt_path=./banda/ihrbtpq4/checkpoints/last.ckpt
+srun python scripts/train.py -cn bandit-mus64-l1snr-multi-adam-musdb18hq-vdbo ++ckpt_path=./banda/hn1sfakm/checkpoints/last.ckpt

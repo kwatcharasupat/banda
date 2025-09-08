@@ -14,6 +14,7 @@ slurm_template = """#!/bin/bash
 #SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
 #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
 #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
+#SBATCH --signal=SIGTERM@120
 
 cd $SLURM_SUBMIT_DIR
 
