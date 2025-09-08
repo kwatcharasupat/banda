@@ -78,7 +78,8 @@ class SourceSeparationSystem(pl.LightningModule):
         self.test_metrics.append(
             {
                 "batch_idx": batch_idx,
-                "full_path": reconstructed_batch.full_path[0] ** metric_dict,
+                "full_path": reconstructed_batch.full_path[0],
+                **metric_dict,
             }
         )
         print(self.test_metrics)
