@@ -18,4 +18,4 @@ pip install -e .
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-musdb18hq-nodbm-xts
+srun python scripts/train.py -cn bandit-musdb18hq-nodbm-xts "++ckpt_path='./banda/anvfmf7p/checkpoints/last.ckpt'"

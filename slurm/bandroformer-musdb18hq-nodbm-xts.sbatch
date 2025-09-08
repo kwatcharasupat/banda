@@ -18,4 +18,4 @@ pip install -e .
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandroformer-musdb18hq-nodbm-xts
+srun python scripts/train.py -cn bandroformer-musdb18hq-nodbm-xts "++ckpt_path='./banda/l44xh867/checkpoints/last.ckpt'"

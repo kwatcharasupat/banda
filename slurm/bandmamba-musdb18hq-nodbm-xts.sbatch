@@ -18,4 +18,5 @@ pip install -e .
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandmamba-musdb18hq-nodbm-xts
+srun python scripts/train.py -cn bandmamba-musdb18hq-nodbm-xts "++ckpt_path='./banda/m5jmvg9l/checkpoints/last.ckpt'"
+
