@@ -36,9 +36,7 @@ class VectorDictQueryBandit(BaseBandit):
         band_embs = self.bandsplit(specs_normalized)
         tf_outs = self.tf_model(band_embs)  # (batch, n_bands, n_time, emb_dim)
 
-        active_stems = random.choices(
-            self.config.stems, k=self.config.max_simultaneous_stems
-        )
+        active_stems = self.get_active_stems()
 
         masks = {}
         for stem in active_stems:

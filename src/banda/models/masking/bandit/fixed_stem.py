@@ -24,9 +24,7 @@ class FixedStemBandit(BaseBandit):
         band_embs = self.bandsplit(specs_normalized)
         tf_outs = self.tf_model(band_embs)
 
-        active_stems = random.choices(
-            self.config.stems, k=self.config.max_simultaneous_stems
-        )
+        active_stems = self.get_active_stems()
 
         masks = {stem: self.mask_estim[stem](tf_outs) for stem in active_stems}
 

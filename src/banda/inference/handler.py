@@ -17,7 +17,7 @@ logger = structlog.get_logger(__name__)
 class InferenceHandlerParams(BaseConfig):
     fs: int
     chunk_size_seconds: float
-    inference_batch_size: int
+    inference_batch_size: int | None = None
     hop_size_seconds: float = 1.0
 
 
@@ -55,7 +55,15 @@ class InferenceHandler(nn.Module):
             self.chunk_size_samples,
         ).reshape(1, 1, self.chunk_size_samples) / scaler
 
-        self.inference_batch_size = self.config.inference_batch_size
+        inference_batch_size = self.config.inference_batch_size
+        if inference_batch_size is None:
+            device_properties = torch.cuda.get_device_properties()
+            total_memory_bytes = device_properties.total_memory
+            total_memory_gb = total_memory_bytes / (1024**3)
+            inference_batch_size = total_memory_gb * 0.75 # make a guess
+            inference_batch_size = int(inference_batch_size // 4) * 4
+
+        self.inference_batch_size = inference_batch_size
 
     def save_audio(
         self,
@@ -187,7 +195,12 @@ class InferenceHandler(nn.Module):
     ) -> SourceSeparationBatch:
         # check that all batches have the same sources
         for batch in batches:
-            assert batch.estimates.keys() == batches[0].estimates.keys()
+            print(batch.estimates.keys())
+        
+        exit()
+            # if list(batch.estimates.keys()) == list(batches[0].estimates.keys()):
+            #     print("ok")
+            # assert list(batch.estimates.keys()) == list(batches[0].estimates.keys()), (list(batch.estimates.keys()), list(batches[0].estimates.keys()))
 
         reconstructed_estimates = {}
 

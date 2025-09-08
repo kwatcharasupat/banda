@@ -7,7 +7,7 @@ from banda.modules.bandsplit.bandsplit import BandSplitModule
 from banda.modules.maskestim.maskestim import OverlappingMaskEstimationModule
 from banda.modules.tfmodels.base import TFModelRegistry
 from banda.modules.tfmodels.tfmodel import RNNSeqBandModellingModule
-
+import random
 
 class BaseBandit(_BaseMaskingModel):
     def __init__(self, *, config):
@@ -55,3 +55,14 @@ class BaseBandit(_BaseMaskingModel):
         )
 
         return mask_estim
+
+    def get_active_stems(self):
+
+        if self.training:
+            stems = random.sample(
+                list(self.config.stems), k=min(self.config.max_simultaneous_stems, len(self.config.stems))
+            )
+            return stems
+        else:
+            return self.config.stems
+

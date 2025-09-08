@@ -14,8 +14,6 @@ cd $SLURM_SUBMIT_DIR
 module load mamba
 mamba activate banda
 
-
-
 nvidia-smi
 
 srun python scripts/train.py -cn test-bandit-musdb18hq-other.yaml ++ckpt_path="./banda/jzfg16m4/checkpoints/last.ckpt" ++wandb_name="test-bandit-moisesdb-nodbm-other-9555-musdb18hq" ++run_training=false ++run_evaluation=true
