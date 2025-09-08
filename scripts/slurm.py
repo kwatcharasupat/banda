@@ -57,9 +57,9 @@ def eval_20250908(submit: bool = False):
         model_type = names[0]
 
         if len(names) < 4:
-            maybe_stem = None
-        else:
-            maybe_stem = names[3]
+            continue
+
+        maybe_stem = names[3]
 
         if maybe_stem in ["vocals", "drums", "bass", "other"]:
             stem_suffix = f"{maybe_stem}"
