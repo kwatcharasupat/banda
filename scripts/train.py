@@ -95,8 +95,11 @@ def train(config: DictConfig) -> None:
         random.seed(linux_time)
         random_number = random.randint(0, 10000)
 
-    config_name = HydraConfig.get().job.config_name
-    wandb_name = f"{config_name}-{random_number:04d}"
+    try:
+        wandb_name = config.wandb_name
+    except Exception:
+        config_name = HydraConfig.get().job.config_name
+        wandb_name = f"{config_name}-{random_number:04d}"
 
     trainer = pl.Trainer(
         callbacks=[

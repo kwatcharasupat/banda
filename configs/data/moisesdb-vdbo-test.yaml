@@ -1,0 +1,22 @@
+test:
+  datasource:
+  - cls: MoisesDBDatasource
+    params:
+      split: test
+      stems: _moises_vdbo
+
+  dataset:
+    cls: FullTrackDataset
+    params:
+      n_channels: 2
+      fs: 44100
+      allow_autolooping: false
+
+      variable_sources: true
+
+  dataloader:
+    batch_size: 1
+    num_workers: 4
+    shuffle: false
+    drop_last: False
+    pin_memory: true

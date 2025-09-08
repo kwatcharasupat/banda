@@ -26,19 +26,88 @@ srun {command}
 """
 
 
-def make_slurm_and_submit(
-    config_name: str, overrides: str | None = None, job_name: str | None = None
+def eval_20250908(submit: bool = False):
+    import pandas as pd
+
+    import wandb
+
+    api = wandb.Api()
+
+    # Project is specified by <entity/project-name>
+    runs = api.runs("kwatcharasupat-gatech/banda")
+
+    commands = []
+
+    for run in runs:
+        summary = run.summary
+        epoch = summary.get("epoch", None)
+        if epoch != 99:
+            continue
+
+        print(run.name, run.id, epoch)
+
+        ckpt_path = f"./banda/{run.id}/checkpoints/last.ckpt"
+        print(ckpt_path)
+
+        print(run.config["model"]["params"]["stems"])
+
+        test_config_name = "test-{model_type}-{dataset}-{stem_suffix}.yaml"
+
+        names = run.name.split("-")
+        model_type = names[0]
+
+        if len(names) < 4:
+            maybe_stem = None
+        else:
+            maybe_stem = names[3]
+
+        if maybe_stem in ["vocals", "drums", "bass", "other"]:
+            stem_suffix = f"{maybe_stem}"
+        else:
+            stem_suffix = "vdbo"
+
+        for test_ds in ["musdb18hq", "moisesdb"]:
+            command = {
+                "config_name": test_config_name.format(
+                    model_type=model_type,
+                    dataset=test_ds,
+                    stem_suffix=stem_suffix,
+                ),
+                "overrides": f'++ckpt_path="{ckpt_path}" ++wandb_name="test-{run.name}-{test_ds}"',
+                "test_only": True,
+                "job_name": f"test-{run.name}-{test_ds}",
+            }
+            commands.append(command)
+
+    for command in commands:
+        print(command)
+        make(**command, submit=False)
+
+
+def make(
+    config_name: str,
+    overrides: str | None = None,
+    job_name: str | None = None,
+    test_only: bool = False,
+    submit: bool = True,
 ):
     command = f"python scripts/train.py -cn {config_name}"
 
     if overrides is not None:
         command += f" {overrides}"
 
+    if test_only:
+        command += " ++run_training=false ++run_evaluation=true"
+
     job_name = (
         config_name.replace("/", "-").replace(".yaml", "")
         if job_name is None
         else job_name
     )
+
+    if test_only and not job_name.startswith("test-"):
+        job_name = "test-" + job_name
+
     slurm_script = slurm_template.format(job_name=job_name, command=command)
 
     script_path = Path(f"./slurm/{job_name}.sbatch").absolute()
@@ -51,10 +120,11 @@ def make_slurm_and_submit(
 
     print(slurm_script)
 
-    os.system(f"sbatch {script_path}")
+    if submit:
+        os.system(f"sbatch {script_path}")
 
 
 if __name__ == "__main__":
     import fire
 
-    fire.Fire(make_slurm_and_submit)
+    fire.Fire()

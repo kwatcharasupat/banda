@@ -1,0 +1,19 @@
+test:
+  datasource:
+  - cls: MUSDB18HQDatasource
+    params:
+      split: test
+
+  dataset:
+    cls: FullTrackDataset
+    params:
+      n_channels: 2
+      fs: 44100
+      allow_autolooping: false
+
+  dataloader:
+    batch_size: 1
+    num_workers: 4
+    shuffle: false
+    drop_last: False
+    pin_memory: true
