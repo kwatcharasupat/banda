@@ -17,7 +17,7 @@ from torch import nn
 import structlog
 from pytorch_lightning.utilities.seed import isolate_rng
 from banda.data.base import DataConfig, SourceSeparationDataModule
-from banda.inference.handler import InferenceHandlerParams
+from banda.inference.handler import InferenceHandler, InferenceHandlerParams
 from banda.losses.handler import LossHandler, LossHandlerConfig
 from banda.metrics.handler import MetricHandler, MetricHandlerParams
 from banda.models.base import ModelRegistry
@@ -45,7 +45,8 @@ class TrainingConfig(BaseConfig):
     trainer: BaseConfig
 
     ckpt_path: str | None = None
-    test_only: bool = False
+    run_training: bool = True
+    run_evaluation: bool = False
 
 
 def _build_model(config: WithClassConfig[BaseConfig]) -> nn.Module:
@@ -79,13 +80,13 @@ def train(config: DictConfig) -> None:
 
     metric = MetricHandler(config=config.metrics)
 
-    # inference_handler = InferenceHandler(config=config.inference)
+    inference_handler = InferenceHandler(config=config.inference)
 
     system = SourceSeparationSystem(
         model=model,
         loss_handler=loss,
         metric_handler=metric,
-        # inference_handler=inference_handler,
+        inference_handler=inference_handler,
         optimizer_config=config.optimizer,
     )
 
@@ -117,13 +118,14 @@ def train(config: DictConfig) -> None:
     trainer.logger.log_hyperparams(config.model_dump())
     trainer.logger.save()
 
-    if not config.test_only:
-        trainer.fit(system, datamodule=datamodule, ckpt_path=config.ckpt_path)
-        ckpt_path = "last"
-    else:
-        ckpt_path = config.ckpt_path
+    ckpt_path = config.ckpt_path
 
-    trainer.test(system, datamodule=datamodule, ckpt_path=ckpt_path)
+    if config.run_training:
+        trainer.fit(system, datamodule=datamodule, ckpt_path=ckpt_path)
+        ckpt_path = "last"
+
+    if config.run_evaluation:
+        trainer.test(system, datamodule=datamodule, ckpt_path=ckpt_path)
 
 
 if __name__ == "__main__":

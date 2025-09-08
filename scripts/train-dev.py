@@ -40,12 +40,13 @@ class TrainingConfig(BaseConfig):
     model: WithClassConfig[BaseConfig]
     loss: LossHandlerConfig
     metrics: MetricHandlerParams
-    inference: InferenceHandlerParams
+    inference: InferenceHandlerParams = None
 
     trainer: BaseConfig
 
     ckpt_path: str | None = None
-    test_only: bool = False
+    run_training: bool = True
+    run_evaluation: bool = False
 
 
 def _build_model(config: WithClassConfig[BaseConfig]) -> nn.Module:
@@ -117,13 +118,14 @@ def train(config: DictConfig) -> None:
     trainer.logger.log_hyperparams(config.model_dump())
     trainer.logger.save()
 
-    if not config.test_only:
-        trainer.fit(system, datamodule=datamodule, ckpt_path=config.ckpt_path)
-        ckpt_path = "last"
-    else:
-        ckpt_path = config.ckpt_path
+    ckpt_path = config.ckpt_path
 
-    trainer.test(system, datamodule=datamodule, ckpt_path=ckpt_path)
+    if config.run_training:
+        trainer.fit(system, datamodule=datamodule, ckpt_path=ckpt_path)
+        ckpt_path = "last"
+
+    if config.run_evaluation:
+        trainer.test(system, datamodule=datamodule, ckpt_path=ckpt_path)
 
 
 if __name__ == "__main__":
