@@ -66,7 +66,7 @@ def _build_model(config: WithClassConfig[BaseConfig]) -> nn.Module:
 
 
 @hydra.main(
-    config_path="../experiment", version_base="1.3"
+    config_path="../experiments", version_base="1.3"
 )  # Point to the top-level config.yaml
 def train(config: DictConfig) -> None:
     logger.info("Config: ", config=config)
@@ -108,7 +108,7 @@ def train(config: DictConfig) -> None:
         callbacks=[
             ModelCheckpointWithAutoRestart(
                 config_name=config_name,
-                should_trigger=config.run_training, # only trigger slurm requeue on training runs
+                should_trigger=config.run_training,  # only trigger slurm requeue on training runs
                 monitor="val/loss",
                 save_last=True,
                 save_on_exception=True,

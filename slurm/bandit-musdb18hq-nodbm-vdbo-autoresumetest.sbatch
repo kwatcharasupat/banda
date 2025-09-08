@@ -13,8 +13,7 @@
 cd $SLURM_SUBMIT_DIR
 
 module load mamba
-
-
+mamba info --envs
 
 mamba activate banda
 
