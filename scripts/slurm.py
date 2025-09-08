@@ -108,13 +108,8 @@ def make_config(
 def make_configs(run_slurm: bool = False):
     datasets = ["musdb18hq", "moisesdb"]
 
-<<<<<<< HEAD
-    # models = ["bandit-mus64", "vqbandit-mus64", "bandroformer-mus64", "bandmamba-mus64"]
-    models = ["bandit-mus64"]
-=======
     models = ["bandit-mus64", "vqbandit-mus64", "bandroformer-mus64", "bandmamba-mus64"]
     # models = ["bandit-mus64"]
->>>>>>> 1626eaf (update)
 
     losses = ["l1snr-multi"]
 
