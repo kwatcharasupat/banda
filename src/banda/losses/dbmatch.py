@@ -5,6 +5,8 @@ from banda.losses.base import BaseRegisteredLoss, LossDict
 
 import structlog
 
+from banda.losses.utils import _dbrms
+
 logger = structlog.get_logger(__name__)
 
 
@@ -83,15 +85,12 @@ class DecibelMatchLoss(BaseRegisteredLoss):
         batch_size = y_pred.shape[0]
 
         y_pred = y_pred.reshape(batch_size, -1)
-        db_pred = 10.0 * torch.log10(
-            self.eps + torch.mean(torch.square(torch.abs(y_pred)), dim=-1)
-        )
+        db_pred = _dbrms(y_pred, eps=self.eps)
 
         with torch.no_grad():
             y_true = y_true.reshape(batch_size, -1)
-            db_true = 10.0 * torch.log10(
-                self.eps + torch.mean(torch.square(torch.abs(y_true)), dim=-1)
-            )
+            db_true = _dbrms(y_true, eps=self.eps)
+
             weights = self.compute_weight(db_pred, db_true)
 
         diff = torch.abs(db_pred - db_true)
