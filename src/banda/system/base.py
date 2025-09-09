@@ -288,20 +288,27 @@ class SourceSeparationSystem(pl.LightningModule):
             # loop through the current key of the pre_tf_model state dict
             # if there are more keys in the old tf_model, then the rest has to be in post_tf_model
 
+            for k in sorted(current_state_dict_keys):
+                if k.startswith("model.post_tf_model"):
+                    print(k)
+
             new_state_dict = {}
             for key, value in state_dict.items():
                 if key.startswith("model.tf_model"):
                     new_key = key.replace("model.tf_model", "model.pre_tf_model")
 
                     if new_key not in current_state_dict_keys:
+                        #FIXME: deal with this later
                         new_key = key.replace("model.tf_model", "model.post_tf_model")
                         # update the module numbering
                         seq_band_idx = int(
                             key.replace("model.tf_model.seqband.", "").split(".")[0]
                         )
+                        # print(key)
+                        print(f"Replacing {seq_band_idx} with {seq_band_idx - self.model.pre_tf_model.config.n_modules}")
                         new_key = new_key.replace(
                             f"seqband.{seq_band_idx}.",
-                            f"seqband.{seq_band_idx - self.model.pre_tf_model.config.n_modules}.",
+                            f"seqband.{seq_band_idx - 2 * self.model.pre_tf_model.config.n_modules}.",
                         )
                         assert new_key in current_state_dict_keys, (
                             f"Key {new_key} not found in current state dict."
