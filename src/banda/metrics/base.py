@@ -39,6 +39,3 @@ class BaseRegisteredMetric(metaclass=MetricRegistry):
 
 
 MetricDict = Dict[str, torch.Tensor | float]
-
-MetricRegistry.METRIC_REGISTRY["SignalNoiseRatio"] = tm.SignalNoiseRatio
-MetricRegistry.METRIC_REGISTRY["ScaleInvariantSignalNoiseRatio"] = tm.ScaleInvariantSignalNoiseRatio
