@@ -6,7 +6,7 @@ defaults:
 - mask_estim@params.mask_estim: default
 - _self_
 
-cls: VectorQueryBandit
+cls: VectorDictQueryBandit
 params:
   tf_model:
     params:
