@@ -1,5 +1,5 @@
 defaults:
-- default-augmentation
+- augmentation/default
 - _self_
 
 train:

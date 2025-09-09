@@ -22,7 +22,7 @@ class FixedStemBandit(BaseBandit):
         self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch
     ):
         band_embs = self.bandsplit(specs_normalized)
-        tf_outs = self.tf_model(band_embs)
+        tf_outs = self.pre_tf_model(band_embs)
 
         active_stems = self.get_active_stems()
 

@@ -6,12 +6,12 @@ defaults:
 - mask_estim@params.mask_estim: default
 - _self_
 
-cls: FixedStemBandit
+cls: EmbeddingQueryBandit
 params:
   tf_model:
     params:
       emb_dim: ${...bandsplit.emb_dim}
-    use_split_model: false
+    use_split_model: true
 
   mask_estim:
     emb_dim: ${..bandsplit.emb_dim}

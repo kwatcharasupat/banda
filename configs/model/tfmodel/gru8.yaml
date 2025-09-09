@@ -1,0 +1,6 @@
+cls: RNNSeqBandModellingModule
+params:
+  n_modules: 8
+  rnn_type: GRU
+  rnn_dim: 256
+  bidirectional: true

@@ -62,7 +62,11 @@ MoisesDBStemShortCut = {
 class MoisesDBDatasourceParams(DatasourceParams):
     split: str
     load_duration: bool = False
-    stems: Dict[str, List[MoisesDBStem]] | str = MoisesDBStemShortCut["_moises_vdbo"]
+    stems: Dict[str, List[MoisesDBStem]] | str | None = MoisesDBStemShortCut[
+        "_moises_vdbo"
+    ]
+
+    mode: Literal["coarse", "fine", "raw"] = "coarse"
 
 
 class MoisesDBDatasource(BaseRegisteredDatasource):
@@ -78,12 +82,23 @@ class MoisesDBDatasource(BaseRegisteredDatasource):
         logger.info("Loading tracks for MoisesDB with", config=config)
         self.tracks = self._load_tracks()
 
+    def _get_duration_samples(self, path: Path) -> int:
+        data = np.load(path, mmap_mode="r")
+        first_key = next(iter(data.keys()))
+        return data[first_key].shape[1]
+
+    def __len__(self):
+        return len(self.tracks)
+
+    def __getitem__(self, index):
+        return self.tracks[index]
+
     def _load_tracks(self) -> List[TrackIdentifier]:
         datasource_path = Path(
             os.getenv("DATA_ROOT"),
             self.DATASOURCE_ID,
             "intermediates",
-            "npz-coarse",
+            f"npz-{self.config.mode}",
             self.config.split,
         ).expanduser()
         if not datasource_path.exists():
@@ -110,14 +125,3 @@ class MoisesDBDatasource(BaseRegisteredDatasource):
             for path in datasource_path.iterdir()
         ]
         return tracks
-
-    def _get_duration_samples(self, path: Path) -> int:
-        data = np.load(path, mmap_mode="r")
-        first_key = [k for k in data.keys() if k in self.config.stems][0]
-        return data[first_key].shape[1]
-
-    def __len__(self):
-        return len(self.tracks)
-
-    def __getitem__(self, index):
-        return self.tracks[index]

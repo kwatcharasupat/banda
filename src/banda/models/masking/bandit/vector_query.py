@@ -34,13 +34,14 @@ class VectorDictQueryBandit(BaseBandit):
         self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch
     ):
         band_embs = self.bandsplit(specs_normalized)
-        tf_outs = self.tf_model(band_embs)  # (batch, n_bands, n_time, emb_dim)
+        tf_outs = self.pre_tf_model(band_embs)  # (batch, n_bands, n_time, emb_dim)
 
         active_stems = self.get_active_stems()
 
         masks = {}
         for stem in active_stems:
             tf_adapted = self.adapt_query(tf_outs, stem=stem)
+            tf_adapted = self.post_tf_model(tf_adapted)
             masks[stem] = self.mask_estim(tf_adapted)
 
         return masks

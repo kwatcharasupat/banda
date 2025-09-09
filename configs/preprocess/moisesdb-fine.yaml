@@ -1,0 +1,8 @@
+datasource_id: moisesdb
+canonical_path: canonical/v0.1
+output_path: intermediates
+recompute_mixture: true
+fs: 44100
+
+split_path: splits.csv
+mode: fine

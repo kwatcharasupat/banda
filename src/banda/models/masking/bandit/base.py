@@ -8,6 +8,8 @@ from banda.modules.maskestim.maskestim import OverlappingMaskEstimationModule
 from banda.modules.tfmodels.base import TFModelRegistry
 from banda.modules.tfmodels.tfmodel import RNNSeqBandModellingModule
 import random
+from torch import nn
+
 
 class BaseBandit(_BaseMaskingModel):
     def __init__(self, *, config):
@@ -43,7 +45,16 @@ class BaseBandit(_BaseMaskingModel):
                 f"TF model class '{cls_str}' not found in registry. Allowed classes are: {list(TFModelRegistry.get_registry().keys())}"
             )
 
-        self.tf_model = cls(config=self.config.tf_model.params)
+        tf_model_params = self.config.tf_model.params
+        if self.config.tf_model.use_split_model:
+            tf_model_params["n_modules"] = tf_model_params["n_modules"] // 2
+
+        self.pre_tf_model = cls(config=tf_model_params)
+
+        if self.config.tf_model.use_split_model:
+            self.post_tf_model = cls(config=tf_model_params)
+        else:
+            self.post_tf_model = nn.Identity()
 
     def _build_mask_estim(self):
         mask_estim = OverlappingMaskEstimationModule(
@@ -59,9 +70,9 @@ class BaseBandit(_BaseMaskingModel):
     def get_active_stems(self):
         if self.training:
             stems = random.sample(
-                list(self.config.stems), k=min(self.config.max_simultaneous_stems, len(self.config.stems))
+                list(self.config.stems),
+                k=min(self.config.max_simultaneous_stems, len(self.config.stems)),
             )
             return stems
         else:
             return self.config.stems
-

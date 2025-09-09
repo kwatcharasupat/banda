@@ -89,18 +89,34 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
         return datasource_index, item_index
 
     def _load_audio(
-        self, track_identifier: TrackIdentifier, *, sources: list[str] = None
+        self,
+        track_identifier: TrackIdentifier,
+        *,
+        sources: list[str] = None,
+        ignore_mixture: bool = True,
     ):
         npz_data = np.load(track_identifier.full_path, mmap_mode="r")
 
         audio_data = SourceSeparationItem(mixture=None, sources={}, estimates={})
 
         if sources is None:
-            sources = list(track_identifier.sources.keys())
+            # if no sources are specified, load the track identifier's sources
+            if track_identifier.sources is None:
+                # if the track identifier has no sources, load all sources in the npz file
+                sources = list(npz_data.keys())
+                sources = [s for s in sources if s not in ["mixture", "fs"]]
+            else:
+                sources = list(track_identifier.sources.keys())
 
         for source in sources:
-            source_components = track_identifier.sources[source]
+            if track_identifier.sources is None:
+                source_components = [source]
+            else:
+                source_components = track_identifier.sources[source]
+
             if source == "mixture":
+                if ignore_mixture:
+                    continue
                 logger.warning("Mixture is being loaded into sources. Are you sure?.")
 
             source_audios = []
@@ -112,6 +128,10 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
                         )
                     continue
                 source_audio = npz_data[source_component]
+                assert len(source_audio.shape) == 2, (
+                    track_identifier,
+                    source_component,
+                )
                 source_audios.append(source_audio)
 
             audio_data.sources[source] = {"audio": source_audios}
@@ -124,7 +144,6 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
             self.premix_augmentation = Compose(config=augmentation_config)
         else:
             self.premix_augmentation = None
-
 
     def _get_track_identifier(self, index: int) -> TrackIdentifier:
         datasource_index, item_index = self._resolve_index(index)

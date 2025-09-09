@@ -1,0 +1,8 @@
+cls: RoFormerTFModel
+params:
+  n_modules: 8
+  emb_dim: ${...bandsplit.emb_dim}
+  n_heads: 8
+  hidden_dim: 256
+  dropout: 0.1
+  max_seq_len: 4096

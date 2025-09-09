@@ -30,6 +30,7 @@ class SourceSeparationItem(BaseModel, Generic[ArrayType]):
     mixture: ValidatedMultiDomainSignal[ArrayType] | None
     sources: Dict[str, ValidatedMultiDomainSignal[ArrayType]]
     estimates: Dict[str, ValidatedMultiDomainSignal[ArrayType]] | None
+    queries: Dict[str, Dict[str, ArrayType]] | None = {}
 
     n_samples: torch.Tensor | int = -1
 

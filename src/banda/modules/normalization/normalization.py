@@ -14,12 +14,9 @@ class Normalizer(nn.Module):
         super().__init__()
         self.config = config
 
-    def forward(self, batch: SourceSeparationBatch) -> SourceSeparationBatch:
-        mixture = batch.mixture["audio"]
-        normalized_mixture = self._normalize(mixture)
-        batch.mixture["audio/normalized"] = normalized_mixture
-
-        return batch
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        xn = self._normalize(x)
+        return xn
 
     def _dbrms(self, x: torch.Tensor) -> torch.Tensor:
         x = torch.flatten(x, start_dim=1)

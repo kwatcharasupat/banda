@@ -3,12 +3,13 @@
 #  1. GNU Affero General Public License v3.0 (AGPLv3) for academic and non-commercial research use.
 #     For details, see https://www.gnu.org/licenses/agpl-3.0.en.html
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
+from rich import print as rprint
 
-
+from pprint import pprint
 import random
 import signal
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import pytorch_lightning as pl
 import pytorch_lightning.callbacks as pl_callbacks
 from pytorch_lightning.loggers.wandb import WandbLogger
@@ -67,9 +68,9 @@ def _build_model(config: WithClassConfig[BaseConfig]) -> nn.Module:
     config_path="../experiments", version_base="1.3"
 )  # Point to the top-level config.yaml
 def train(config: DictConfig) -> None:
-    logger.info("Config: ", config=config)
-
     config: TrainingConfig = TrainingConfig.model_validate(config)
+
+    rprint(config)
 
     pl.seed_everything(config.seed, workers=True)
 
@@ -116,7 +117,6 @@ def train(config: DictConfig) -> None:
             ),
             # pl_callbacks.EarlyStopping(monitor="val/loss", patience=5, verbose=True, check_finite=False),
             pl_callbacks.ModelSummary(max_depth=2),
-            
         ],
         logger=WandbLogger(project="banda", log_model=True, name=wandb_name),
         **config.trainer.model_dump(),

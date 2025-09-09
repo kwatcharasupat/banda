@@ -12,13 +12,19 @@ from torchmetrics import MetricCollection
 
 class MetricHandlerParams(BaseConfig):
     metrics: List[MetricConfig]
-    stems: List[str]
+    stems: List[str] = None
+
+    auto_group: bool = True
 
 
 class MetricHandler(nn.Module):
     def __init__(self, *, config: DictConfig):
         super().__init__()
         self.config = MetricHandlerParams.model_validate(config)
+
+        assert self.config.stems or self.config.stem_agnostic, (
+            "Either `stems` must be provided or `stem_agnostic` must be True."
+        )
 
         self._build_metrics()
 
@@ -70,4 +76,8 @@ class MetricHandler(nn.Module):
             for key in batch.estimates:
                 estimate = batch.estimates[key]["audio"]
                 source = batch.sources[key]["audio"]
+
+                if self.config.auto_group and key not in self.metric_collection:
+                    key = key.split("/")[0]
+
                 self.metric_collection[key].update(estimate, source)

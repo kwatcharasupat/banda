@@ -1,3 +1,5 @@
+from collections import defaultdict
+from pprint import pprint
 import random
 import numpy as np
 from banda.data.datasets.base import BaseRegisteredDataset, DatasetParams
@@ -317,3 +319,34 @@ class DeterministicChunkDataset(_ChunkDataset):
         item_dict.mixture = {"audio": mixture}
 
         return item_dict
+
+
+class RandomChunkSelfQueryDataset(RandomChunkDataset):
+    def __init__(
+        self, *, datasources: list[BaseRegisteredDatasource], config: DatasetParams
+    ):
+        config = RandomChunkDatasetParams.model_validate(config)
+        super().__init__(datasources=datasources, config=config)
+
+    def __getitem__(self, index: int):
+        out = super().__getitem__(index)
+        target = random.choice(list(out["sources"].keys()))
+        out["sources"] = {"target": out["sources"][target]}
+        out["queries"] = out["sources"]
+        return out
+
+
+class DeterministicChunkSelfQueryDataset(DeterministicChunkDataset):
+    def __init__(
+        self, *, datasources: list[BaseRegisteredDatasource], config: DatasetParams
+    ):
+        config = DeterministicChunkDatasetParams.model_validate(config)
+        super().__init__(datasources=datasources, config=config)
+
+    def __getitem__(self, index: int):
+        out = super().__getitem__(index)
+        stems = list(out["sources"].keys())
+        target = stems[index % len(stems)]
+        out["sources"] = {"target": out["sources"][target]}
+        out["queries"] = out["sources"]
+        return out

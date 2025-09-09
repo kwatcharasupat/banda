@@ -45,6 +45,11 @@ class L1SNRLoss(BaseRegisteredLoss):
 
             losses[key] = self._loss_func(estimate, source)
 
+        if not losses:
+            raise ValueError(
+                f"No losses were computed. Check the keys in estimates and sources. Estimates keys: {estimates.keys()}, Sources keys: {sources.keys()}"
+            )
+
         total_loss = sum(losses.values())
 
         return LossDict(total_loss=total_loss, loss_contrib=losses)

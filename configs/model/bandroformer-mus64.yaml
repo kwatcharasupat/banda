@@ -1,34 +1,20 @@
+defaults:
+- stft@params.spectrogram: default
+- normalization@params.normalization: default
+- bandsplit@params.bandsplit: mus64
+- tfmodel@params.tf_model: roformer8
+- mask_estim@params.mask_estim: default
+- _self_
+
 cls: FixedStemBandit
 params:
-  spectrogram:
-    n_fft: 2048
-    hop_length: 512
-    win_length: 2048
-    window: "hann"
-    fs: 44100
-
-  normalization:
-    eps: 1e-6
-    dbrms_threshold: -60
-
-  bandsplit:
-    n_bands: 64
-    in_channels: 2
-    emb_dim: 128
-
   tf_model:
-    cls: RoFormerTFModel
     params:
-      n_modules: 8
       emb_dim: ${...bandsplit.emb_dim}
-      n_heads: 8
-      hidden_dim: 256
-      dropout: 0.1
-      max_seq_len: 4096
+    use_split_model: false
 
   mask_estim:
     emb_dim: ${..bandsplit.emb_dim}
-    mlp_dim: 512
     in_channels: ${..bandsplit.in_channels}
 
   stems: null
