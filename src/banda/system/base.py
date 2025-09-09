@@ -261,3 +261,56 @@ class SourceSeparationSystem(pl.LightningModule):
         }
 
         self.log_dict(metric_dict, on_step=on_step, on_epoch=on_epoch, prog_bar=False)
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        state_dict = self._handle_split_tf_model_change(state_dict)
+
+        super().load_state_dict(state_dict, strict=strict)
+
+    def _handle_split_tf_model_change(self, state_dict):
+        # handle the cases where the model were trained with the unified tf_model.
+        # now the same model is split into pre_tf_model and post_tf_model
+        # if use_split_tf_model is False, pre_tf_model is just tf_model and post_tf_model is identity
+
+        current_state_dict_keys = set(self.state_dict().keys())
+
+        # check if model.tf_model is in state_dict
+
+        has_old_tf_model = any(
+            key.startswith("model.tf_model") for key in state_dict.keys()
+        )
+
+        if has_old_tf_model:
+            logger.info(
+                "The checkpoint was trained with the unified tf_model. Splitting the weights into pre_tf_model and post_tf_model."
+            )
+
+            # loop through the current key of the pre_tf_model state dict
+            # if there are more keys in the old tf_model, then the rest has to be in post_tf_model
+
+            new_state_dict = {}
+            for key, value in state_dict.items():
+                if key.startswith("model.tf_model"):
+                    new_key = key.replace("model.tf_model", "model.pre_tf_model")
+
+                    if new_key not in current_state_dict_keys:
+                        new_key = key.replace("model.tf_model", "model.post_tf_model")
+                        # update the module numbering
+                        seq_band_idx = int(
+                            key.replace("model.tf_model.seqband.", "").split(".")[0]
+                        )
+                        new_key = new_key.replace(
+                            f"seqband.{seq_band_idx}.",
+                            f"seqband.{seq_band_idx - self.model.pre_tf_model.config.n_modules}.",
+                        )
+                        assert new_key in current_state_dict_keys, (
+                            f"Key {new_key} not found in current state dict."
+                        )
+
+                    new_state_dict[new_key] = value
+                else:
+                    new_state_dict[key] = value
+
+            return new_state_dict
+
+        return state_dict
