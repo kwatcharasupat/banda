@@ -260,7 +260,6 @@ def process_track_coarse(path: Path, config: DictConfig):
 
 
 def process_track_active(path: Path, config: DictConfig):
-
     track_name = path.stem
 
     splits = pd.read_csv(
@@ -292,35 +291,58 @@ def process_track_active(path: Path, config: DictConfig):
             if original_fs != config.fs:
                 x = resample(x, original_fs, config.fs)
 
-            process_stem_active(x, 
-                                stem_coarse=stem_name,
-                                stem_fine=track.trackType,
-                                track_id=track.id,
-                                config=config,
-                                split=split,
+            process_stem_active(
+                x.numpy(),
+                stem_coarse=stem_name,
+                stem_fine=track.trackType,
+                track_id=track.id,
+                config=config,
+                split=split,
             )
 
 
-def process_stem_active(x : torch.Tensor, *, 
-                        stem_coarse: str, stem_fine: str, track_id: str, config: DictConfig, split: str):
+def process_stem_active(
+    x: np.ndarray,
+    *,
+    stem_coarse: str,
+    stem_fine: str,
+    track_id: str,
+    config: DictConfig,
+    split: str,
+):
+    # rms = librosa.feature.rms(
+    #     y=x.numpy(),
+    #     frame_length=int(config.frame_length_seconds * config.fs),
+    #     hop_length=int(config.hop_length_seconds * config.fs),
+    #     center=True,
+    # ).squeeze()
+    # db_rms = librosa.amplitude_to_db(rms, ref=1.0, top_db=80.0)
+    # print(stem_coarse, stem_fine, rms.shape, rms.min(), rms.max())
 
     intervals: np.ndarray = librosa.effects.split(
         x.numpy(),
-        top_db=60,
-        ref=0.0,
-        frame_length=config.frame_length_seconds * config.fs,
-        hop_length=config.hop_length_seconds * config.fs,
+        top_db=config.top_db,
+        ref=1.0,
+        frame_length=int(config.frame_length_seconds * config.fs),
+        hop_length=int(config.hop_length_seconds * config.fs),
     )
 
     clips = []
     for start, end in intervals:
         clip = x[:, start:end]
 
-        clip_length_samples = int(config.clip_length_seconds * config.fs)
-        print(clip.shape, clip_length_samples)
+        # clip_length_samples = (end - start) / config.fs
+        # print(stem_coarse, stem_fine, clip.shape, clip_length_samples)
 
+        clips.append(clip)
 
+    if len(clips) == 0:
+        return
 
+    data = {}
+    for i, clip in enumerate(clips):
+        key = f"clip{i:04d}"
+        data[key] = clip
 
     output_path = Path(
         os.getenv("DATA_ROOT"),
@@ -328,13 +350,13 @@ def process_stem_active(x : torch.Tensor, *,
         "intermediates",
         "npz-active",
         str(split),
-        f"{track_name}.npz",
+        stem_coarse,
+        stem_fine,
+        f"{track_id}.npz",
     )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    # np.savez(output_path, **{k: v.cpu().numpy() for k, v in data.items()}, fs=config.fs)
-
-
+    np.savez(output_path, **{k: v for k, v in data.items()}, fs=config.fs)
 
 
 @hydra.main(config_path="../../configs/preprocess")
@@ -353,8 +375,10 @@ def main(config: DictConfig):
     elif config.mode == "raw":
         process_map(process_track_raw, tracks, [config] * len(tracks), max_workers=16)
     elif config.mode == "active":
-        # process_map(process_track_active, tracks, [config] * len(tracks), max_workers=16)
-        process_track_active(tracks[0], config)
+        process_map(
+            process_track_active, tracks, [config] * len(tracks), max_workers=16
+        )
+        # process_track_active(tracks[0], config)
     else:
         raise NotImplementedError(f"Mode {config.mode} not implemented.")
 
