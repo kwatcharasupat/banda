@@ -1,0 +1,10 @@
+datasource_id: moisesdb
+canonical_path: canonical/v0.1
+output_path: intermediates
+
+fs: 44100
+frame_length_seconds: 10.0
+hop_length_seconds: 1.0
+
+split_path: splits.csv
+mode: active
