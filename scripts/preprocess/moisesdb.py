@@ -319,6 +319,8 @@ def process_stem_active(
     # db_rms = librosa.amplitude_to_db(rms, ref=1.0, top_db=80.0)
     # print(stem_coarse, stem_fine, rms.shape, rms.min(), rms.max())
 
+    print(stem_coarse, stem_fine, track_id)
+
     intervals: np.ndarray = librosa.effects.split(
         x.numpy(),
         top_db=config.top_db,
@@ -375,9 +377,7 @@ def main(config: DictConfig):
     elif config.mode == "raw":
         process_map(process_track_raw, tracks, [config] * len(tracks), max_workers=16)
     elif config.mode == "active":
-        process_map(
-            process_track_active, tracks, [config] * len(tracks), max_workers=16
-        )
+        process_map(process_track_active, tracks, [config] * len(tracks), max_workers=16)
         # process_track_active(tracks[0], config)
     else:
         raise NotImplementedError(f"Mode {config.mode} not implemented.")
