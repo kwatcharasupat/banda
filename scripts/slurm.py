@@ -144,6 +144,8 @@ def multi_eval_vdbo(group_filter: str = "training runs - to be tested", max_epoc
     # Project is specified by <entity/project-name>
     runs = api.runs("kwatcharasupat-gatech/banda")
 
+    slurm_paths = []
+
     for run in runs:
         summary = run.summary
         epoch = summary.get("epoch", None)
@@ -186,11 +188,17 @@ def multi_eval_vdbo(group_filter: str = "training runs - to be tested", max_epoc
             print(f"New config name: {config_name}")
 
             print(f"Submitting test job: {test_job_name}")
-            make(config_name=config_name,
+            slurm_path = make(config_name=config_name,
                     ckpt_path=str(ckpt_path),
                     test_only=True,
                     job_name=test_job_name,
                     submit=submit)
+            
+            slurm_paths.append(slurm_path)
+
+    sbatch_commands = "\n".join([f"sbatch {p}" for p in slurm_paths])
+    print("To submit all jobs, run the following commands:")
+    print(sbatch_commands)
 
 
 def make(

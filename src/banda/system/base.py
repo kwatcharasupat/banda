@@ -72,6 +72,7 @@ class SourceSeparationSystem(pl.LightningModule):
         self.metric_handler.reset()
         self.metric_handler.update(reconstructed_batch)
         metric_dict = self.metric_handler.compute()
+        print(metric_dict)
 
         logger.info("Test metric", metric_dict=metric_dict)
 
@@ -82,8 +83,7 @@ class SourceSeparationSystem(pl.LightningModule):
                 **metric_dict,
             }
         )
-        print(self.test_metrics)
-
+        
         self.log_dict(
             metric_dict, prog_bar=True, logger=False, on_step=True, on_epoch=False
         )
@@ -91,6 +91,8 @@ class SourceSeparationSystem(pl.LightningModule):
     def on_test_epoch_end(self):
         df = pd.DataFrame(self.test_metrics)
         df = df.set_index("batch_idx")
+
+        print(df)
 
         logger: WandbLogger = self.logger
         logger.log_table(key="test/metrics", dataframe=df)
