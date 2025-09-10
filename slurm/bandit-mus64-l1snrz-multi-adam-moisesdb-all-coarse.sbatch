@@ -17,4 +17,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-mus64-l1snrz-multi-adam-moisesdb-all-coarse
+srun python scripts/train.py -cn bandit-mus64-l1snrz-multi-adam-moisesdb-all-coarse "++ckpt_path='./banda/2f3nhds5/checkpoints/last.ckpt'"

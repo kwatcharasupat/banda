@@ -11,7 +11,7 @@ slurm_template = """#!/bin/bash
 #SBATCH --gres=gpu:1 --constraint="V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S"
 #SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
-#SBATCH --output=./slurm-out/Report-%j.out                  # Combined output and error messages file
+#SBATCH --output=./slurm-out/{job_name}.out                  # Combined output and error messages file
 #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
 #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
 #SBATCH --signal=SIGTERM@120
@@ -134,62 +134,63 @@ def make_configs(run_slurm: bool = False):
                     )
 
 
-# def eval_20250908(submit: bool = False):
-#     import pandas as pd
+def multi_eval_vdbo(group_filter: str = "training runs - to be tested", max_epoch: int = 99, submit: bool = False):
+    import pandas as pd
 
-#     import wandb
+    import wandb
 
-#     api = wandb.Api()
+    api = wandb.Api()
 
-#     # Project is specified by <entity/project-name>
-#     runs = api.runs("kwatcharasupat-gatech/banda")
+    # Project is specified by <entity/project-name>
+    runs = api.runs("kwatcharasupat-gatech/banda")
 
-#     commands = []
+    for run in runs:
+        summary = run.summary
+        epoch = summary.get("epoch", None)
+        if epoch != max_epoch:
+            continue
 
-#     for run in runs:
-#         summary = run.summary
-#         epoch = summary.get("epoch", None)
-#         if epoch != 99:
-#             continue
+        if run.group != group_filter:
+            continue
 
-#         print(run.name, run.id, epoch)
+        print(f"Run: {run.name}, id: {run.id}, epoch: {epoch}")
+        print(f"Group: {run.group}")
 
-#         ckpt_path = f"./banda/{run.id}/checkpoints/last.ckpt"
-#         print(ckpt_path)
+        ckpt_path = Path(f"./banda/{run.id}/checkpoints/last.ckpt").absolute()
+        if not ckpt_path.exists():
+            print(f"Checkpoint {ckpt_path} does not exist, skipping...")
+            continue
 
-#         print(run.config["model"]["params"]["stems"])
+        print(f"Checkpoint {ckpt_path} exists.")
 
-#         test_config_name = "test-{model_type}-{dataset}-{stem_suffix}.yaml"
+        original_config_name = "-".join(run.name.split("-")[:-1]) + ".yaml"
+        print(f"Original config name: {original_config_name}")
 
-#         names = run.name.split("-")
-#         model_type = names[0]
+        for test_ds in ["musdb18hq-vdbo-test", "moisesdb-vdbo-test"]:
 
-#         if len(names) < 4:
-#             continue
+            test_job_name = f"test-{run.name}-{test_ds}"
 
-#         maybe_stem = names[3]
+            original_stems = run.config["model"]["params"]["stems"]
+            print(f"Original stems: {original_stems}")
 
-#         if maybe_stem in ["vocals", "drums", "bass", "other"]:
-#             stem_suffix = f"{maybe_stem}"
-#         else:
-#             stem_suffix = "vdbo"
+            model = "-".join(run.name.split("-")[:2])
+            print(f"Model: {model}")
+            
+            config_name = make_config(
+                model=model,
+                dataset=test_ds,
+                stems=original_stems,
+                run_slurm=False,
+            )
 
-#         for test_ds in ["musdb18hq", "moisesdb"]:
-#             command = {
-#                 "config_name": test_config_name.format(
-#                     model_type=model_type,
-#                     dataset=test_ds,
-#                     stem_suffix=stem_suffix,
-#                 ),
-#                 "overrides": f'++ckpt_path="{ckpt_path}" ++wandb_name="test-{run.name}-{test_ds}"',
-#                 "test_only": True,
-#                 "job_name": f"test-{run.name}-{test_ds}",
-#             }
-#             commands.append(command)
+            print(f"New config name: {config_name}")
 
-#     for command in commands:
-#         print(command)
-#         make(**command, submit=submit)
+            print(f"Submitting test job: {test_job_name}")
+            make(config_name=config_name,
+                    ckpt_path=str(ckpt_path),
+                    test_only=True,
+                    job_name=test_job_name,
+                    submit=submit)
 
 
 def make(
@@ -234,6 +235,58 @@ def make(
 
     if submit:
         os.system(f"sbatch {script_path}")
+
+
+    return script_path
+
+def continue_run(group_filter: str = "training runs - to be continued",
+                run_name_regex: str = None, 
+                 submit: bool = False):
+    import wandb
+
+    api = wandb.Api()
+
+    # Project is specified by <entity/project-name>
+    runs = api.runs("kwatcharasupat-gatech/banda")
+
+    slurm_paths = []
+
+    for run in runs:
+
+        if run.group != group_filter:
+            continue
+
+        if run_name_regex is not None:
+            import re
+
+            if not re.search(run_name_regex, run.name):
+                continue
+
+        if run.state != "finished":
+            continue
+
+        print(f"Run: {run.name}, id: {run.id}")
+        ckpt_path = Path(f"./banda/{run.id}/checkpoints/last.ckpt").absolute()
+        if not ckpt_path.exists():
+            raise ValueError(f"Checkpoint {ckpt_path} does not exist.")
+
+        print(f"Checkpoint {ckpt_path} exists.")
+
+        config_name = "-".join(run.name.split("-")[:-1]) + ".yaml"
+        print(f"Config name: {config_name}")
+
+
+        slurm_path = make(
+            config_name=config_name,
+            ckpt_path=str(ckpt_path),
+            submit=submit,
+        )
+
+        slurm_paths.append(slurm_path)
+
+    sbatch_commands = "\n".join([f"sbatch {p}" for p in slurm_paths])
+    print("To submit all jobs, run the following commands:")
+    print(sbatch_commands)
 
 
 if __name__ == "__main__":

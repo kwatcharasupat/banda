@@ -88,9 +88,7 @@ class L1SNRLossCapSilenceContrib(L1SNRLoss):
         self.max_silence_contrib = self.config.max_silence_contrib
         self.silence_thresh_db = self.config.silence_thresh_db
 
-    def _agg_contrib(
-        self, snr: torch.Tensor, y_pred: torch.Tensor, y_true: torch.Tensor
-    ) -> torch.Tensor:
+    def _get_weights(self, y_true: torch.Tensor):
         with torch.no_grad():
             y_true = y_true.flatten(start_dim=1)
             _db_true = _dbrms(y_true, eps=self.eps)
@@ -98,16 +96,15 @@ class L1SNRLossCapSilenceContrib(L1SNRLoss):
             n_silence = torch.sum(silence_mask).item()
 
             if n_silence == 0:
-                return -torch.mean(snr)
+                return None
 
             n_total = y_true.shape[0]
             silence_ratio = n_silence / n_total
 
             if silence_ratio < self.max_silence_contrib:
-                return -torch.mean(snr)
+                return None
 
             # adjust the weights of silence samples to be at most max_silence_contrib out of 1.0
-
             silence_weight = self.max_silence_contrib * n_total / n_silence
             non_silence_weight = (
                 (1.0 - self.max_silence_contrib) * n_total / (n_total - n_silence)
@@ -115,13 +112,23 @@ class L1SNRLossCapSilenceContrib(L1SNRLoss):
 
             weights = torch.where(
                 silence_mask,
-                torch.tensor(silence_weight, device=snr.device, dtype=snr.dtype),
-                torch.tensor(non_silence_weight, device=snr.device, dtype=snr.dtype),
+                torch.tensor(silence_weight, device=y_true.device, dtype=y_true.dtype),
+                torch.tensor(non_silence_weight, device=y_true.device, dtype=y_true.dtype),
             )
 
             assert weights.sum().item() == n_total, (
                 f"weights.sum()={weights.sum().item()}, n_total={n_total}"
             )
 
+        return weights
+
+
+    def _agg_contrib(
+        self, snr: torch.Tensor, y_pred: torch.Tensor, y_true: torch.Tensor
+    ) -> torch.Tensor:
+        
+        weights = self._get_weights(y_true=y_true)
+        if weights is None:
+            return - torch.mean(snr)
         weighted_snr = weights * snr
         return -torch.mean(weighted_snr)
