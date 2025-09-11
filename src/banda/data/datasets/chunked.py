@@ -5,6 +5,7 @@ import numpy as np
 from banda.data.datasets.base import BaseRegisteredDataset, DatasetParams
 from banda.data.datasources.base import BaseRegisteredDatasource, TrackIdentifier
 
+from banda.data.datasources.moisesdb import MoisesDBStemWiseDatasource
 from banda.data.item import SourceSeparationItem
 
 import structlog
@@ -350,3 +351,60 @@ class DeterministicChunkSelfQueryDataset(DeterministicChunkDataset):
         out["sources"] = {"target": out["sources"][target]}
         out["queries"] = out["sources"]
         return out
+
+
+class RandomChunkAutoMixDataset(RandomChunkDataset):
+    def __init__(
+        self, *, datasources: list[BaseRegisteredDatasource], config: DatasetParams
+    ):
+        config = RandomChunkDatasetParams.model_validate(config)
+        super().__init__(datasources=datasources, config=config)
+
+    def __getitem__(self, index: int):
+
+        item_dict = self._load_audio_automix(index)
+        chunked_item_dict = self._chunk_and_augment(item_dict)
+
+        return chunked_item_dict.model_dump()
+
+
+    def _load_audio_automix(self, index: int) -> SourceSeparationItem[np.ndarray]:
+
+        datasource = self.datasources[index % len(self.datasources)]
+        datasource: MoisesDBStemWiseDatasource
+
+        sources = defaultdict(lambda: {"audio": []})
+
+        n_coarse_stems = random.randint(self.config.n_coarse_stems_min, self.config.n_coarse_stems_max)
+        chosen_coarse_stems = random.choices(
+            list(datasource.coarse_stems), k=n_coarse_stems
+        ) # allow duplicates
+
+        for coarse_stem in chosen_coarse_stems:
+            n_fine_stems = random.randint(self.config.n_fine_stems_min, self.config.n_fine_stems_max)
+            fine_stems = list(datasource.fine_stems_by_coarse[coarse_stem])
+            chosen_fine_stems = random.choices(
+                fine_stems, k=n_fine_stems
+            ) # allow duplicates
+
+            for fine_stem in chosen_fine_stems:
+                n_fine_tracks = datasource.get_fine_length(coarse_stem=coarse_stem, fine_stem=fine_stem)
+                fine_track_idx = random.randint(0, n_fine_tracks - 1)
+                stem_identifier = datasource.get_fine_by_index(coarse_stem=coarse_stem, fine_stem=fine_stem, index=fine_track_idx)
+
+                clip_idx = random.randint(0, stem_identifier.n_clips - 1)
+
+                zip = np.load(stem_identifier.full_path, mmap_mode="r")
+                clip = zip[stem_identifier.stem][clip_idx]
+
+                composite_key = datasource.resolve_stem_to_composite(coarse_stem, fine_stem)
+
+                sources[composite_key]["audio"].append(clip)
+
+
+        return SourceSeparationItem(
+            mixture=None,
+            sources=sources,
+            estimates={},
+        )
+

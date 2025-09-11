@@ -319,10 +319,10 @@ def process_stem_active(
     # db_rms = librosa.amplitude_to_db(rms, ref=1.0, top_db=80.0)
     # print(stem_coarse, stem_fine, rms.shape, rms.min(), rms.max())
 
-    print(stem_coarse, stem_fine, track_id)
+    # print(stem_coarse, stem_fine, track_id)
 
     intervals: np.ndarray = librosa.effects.split(
-        x.numpy(),
+        x,
         top_db=config.top_db,
         ref=1.0,
         frame_length=int(config.frame_length_seconds * config.fs),
@@ -355,8 +355,8 @@ def process_stem_active(
         stem_coarse,
         stem_fine,
         f"{track_id}.npz",
-    )
-    output_path.mkdir(parents=True, exist_ok=True)
+    ).expanduser()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     np.savez(output_path, **{k: v for k, v in data.items()}, fs=config.fs)
 
@@ -364,7 +364,7 @@ def process_stem_active(
 @hydra.main(config_path="../../configs/preprocess")
 def main(config: DictConfig):
     tracks = list(
-        Path(os.getenv("DATA_ROOT"), config.datasource_id, "canonical").glob("*/*")
+        Path(os.getenv("DATA_ROOT"), config.datasource_id, config.canonical_path).expanduser().glob("*")
     )
 
     if config.mode == "coarse":
@@ -377,7 +377,7 @@ def main(config: DictConfig):
     elif config.mode == "raw":
         process_map(process_track_raw, tracks, [config] * len(tracks), max_workers=16)
     elif config.mode == "active":
-        process_map(process_track_active, tracks, [config] * len(tracks), max_workers=16)
+        process_map(process_track_active, tracks, [config] * len(tracks), max_workers=24)
         # process_track_active(tracks[0], config)
     else:
         raise NotImplementedError(f"Mode {config.mode} not implemented.")

@@ -1,0 +1,63 @@
+defaults:
+- augmentation/default
+- _self_
+
+train:
+  datasource:
+  - cls: MoisesDBStemWiseDatasource
+    params:
+      split: train
+      stems: _moises_coarse
+      mode: active
+
+  dataset:
+    cls: RandomChunkAutoMixDataset
+    params:
+      n_channels: 2
+      fs: 44100
+      chunk_size_seconds: 6.0
+      allow_autolooping: true
+      max_dataset_size: 8192
+      variable_sources: true
+
+      n_coarse_stems_min: 2
+      n_coarse_stems_max: 11
+
+      n_fine_stems_min: 1
+      n_fine_stems_max: 3
+      
+
+  dataloader:
+    batch_size: 4
+    num_workers: 8
+    shuffle: true
+    drop_last: False
+    pin_memory: true
+    prefetch_factor: 4
+
+val:
+  datasource:
+  - cls: MoisesDBDatasource
+    params:
+      split: val
+      load_duration: true
+      stems: _moises_coarse
+
+  dataset:
+    cls: DeterministicChunkDataset
+    params:
+      n_channels: 2
+      fs: 44100
+      chunk_size_seconds: 6.0
+      hop_size_seconds: 6.0
+      allow_autolooping: false
+      max_dataset_size: 1024
+
+      variable_sources: true
+
+  dataloader:
+    batch_size: 2
+    num_workers: 8
+    shuffle: false
+    drop_last: false
+    pin_memory: true

@@ -228,6 +228,7 @@ def make(
 
     if test_only and not job_name.startswith("test-"):
         job_name = "test-" + job_name
+        command += f" ++wandb_name={job_name}"
 
     slurm_script = slurm_template.format(job_name=job_name, command=command)
 
