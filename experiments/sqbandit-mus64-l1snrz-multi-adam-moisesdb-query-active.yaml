@@ -1,0 +1,19 @@
+defaults:
+- model: sqbandit-mus64
+- data: moisesdb-query-active
+- logger: wandb
+- loss: l1snrz-multi
+- metrics: default
+- optimizer: adam
+- trainer: default
+- inference: default
+- _self_
+hydra:
+  searchpath:
+  - file:///home/kwatchar3/projects/banda/configs
+  - file:///storage/ice1/4/1/kwatchar3/banda/configs
+
+metrics:
+  stems: [ "target" ] #[ "other_keys", "bass", "guitar", "percussion", "wind", "bowed_strings", "drums", "other_plucked", "piano", "other", "vocals" ]
+
+seed: 42

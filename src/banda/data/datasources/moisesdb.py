@@ -126,7 +126,7 @@ class MoisesDBDatasourceParams(DatasourceParams):
         "_moises_vdbo"
     ]
 
-    mode: Literal["coarse", "fine", "raw"] = "coarse"
+    mode: Literal["coarse", "fine", "raw", "active"] = "coarse"
 
 
 class MoisesDBDatasource(BaseRegisteredDatasource):
@@ -202,7 +202,7 @@ class MoisesDBStemWiseDatasource(BaseRegisteredDatasource):
         super().__init__(config=config)
         self.config = MoisesDBDatasourceParams.model_validate(config)
 
-        assert config.mode in ["active"], (
+        assert self.config.mode in ["active"], (
             "MoisesDBStemWiseDatasource only supports mode='active'"
         )
 
@@ -218,7 +218,7 @@ class MoisesDBStemWiseDatasource(BaseRegisteredDatasource):
         return data[first_key].shape[1]
 
     def __len__(self):
-        return len(self.tracks)
+        return len(self.npz)
 
     def __getitem__(self, index):
         return self.tracks[index]
@@ -364,7 +364,7 @@ class MoisesDBStemWiseDatasource(BaseRegisteredDatasource):
 
         npzs = []
 
-        for path in tqdm(datasource_path.iterdir()):
+        for path in tqdm(datasource_path.glob("*/*/*.npz"), desc="Loading MoisesDB npzs"):
             track_id = path.stem
             fine_stem = path.parent.stem
             coarse_stem = path.parent.parent.stem
@@ -408,9 +408,6 @@ class MoisesDBStemWiseDatasource(BaseRegisteredDatasource):
         if coarse_length is None:
             raise ValueError(f"Coarse stem '{coarse_stem}' not found in dataset.")
 
-        if self.config.allow_autoloop:
-            index = index % coarse_length
-
         return self.npzs_by_coarse[coarse_stem][index]
 
     def get_fine_by_index(
@@ -421,9 +418,6 @@ class MoisesDBStemWiseDatasource(BaseRegisteredDatasource):
             raise ValueError(
                 f"Fine stem '{coarse_stem}/{fine_stem}' not found in dataset."
             )
-
-        if self.config.allow_autoloop:
-            index = index % fine_length
 
         return self.npzs_by_fine[coarse_stem][fine_stem][index]
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -Jbandit-mus64-l1snr-multi-adam-moisesdb-vdbo                    
+#SBATCH -Jvqbandit-mus64-l1snr-multi-adam-moisesdb-all-coarse                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:1 --constraint="V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S"
@@ -17,4 +17,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-mus64-l1snr-multi-adam-moisesdb-vdbo "++ckpt_path='./banda/vzt9wjpi/checkpoints/last.ckpt'"
+srun python scripts/train.py -cn vqbandit-mus64-l1snr-multi-adam-moisesdb-all-coarse-active.yaml

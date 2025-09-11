@@ -214,3 +214,5 @@ slurm-out/
 
 outputs
 wandb
+
+_debug/

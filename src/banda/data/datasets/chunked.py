@@ -5,7 +5,7 @@ import numpy as np
 from banda.data.datasets.base import BaseRegisteredDataset, DatasetParams
 from banda.data.datasources.base import BaseRegisteredDatasource, TrackIdentifier
 
-from banda.data.datasources.moisesdb import MoisesDBStemWiseDatasource
+from banda.data.datasources.moisesdb import MoisesDBStemWiseDatasource, StemIdentifier
 from banda.data.item import SourceSeparationItem
 
 import structlog
@@ -117,7 +117,7 @@ class RandomChunkDataset(_ChunkDataset):
         return item_dict
 
     def _chunk_and_augment(
-        self, item_dict: SourceSeparationItem[np.ndarray]
+        self, item_dict: SourceSeparationItem[np.ndarray], pre_pad: bool = False
     ) -> SourceSeparationItem[np.ndarray]:
         # Implement chunking logic here
 
@@ -132,7 +132,8 @@ class RandomChunkDataset(_ChunkDataset):
                 continue
 
             chunked_audio = [
-                self._chunk_item_random(audio_component) for audio_component in audio
+                self._chunk_item_random(audio_component, pad=pre_pad)
+                for audio_component in audio
             ]
 
             if self.premix_augmentation is not None:
@@ -153,10 +154,31 @@ class RandomChunkDataset(_ChunkDataset):
         return item_dict
 
     def _chunk_item_random(
-        self, audio: np.ndarray, *, trial_counter: int = 0
+        self, audio: np.ndarray, 
+        *, 
+        chunk_size_samples: int | None = None,
+        trial_counter: int = 0, 
+        pad: bool = False
     ) -> np.ndarray:
         _, n_samples = audio.shape
-        start_time = np.random.randint(0, max(1, n_samples - self.chunk_size_samples))
+
+        if chunk_size_samples is None:
+            chunk_size_samples = self.chunk_size_samples
+
+        if n_samples < chunk_size_samples:
+            if pad:
+                audio = np.pad(
+                    audio,
+                    ((0, 0), (0, chunk_size_samples - n_samples)),
+                    mode="constant",
+                    constant_values=0,
+                )
+            else:
+                raise ValueError(
+                    f"Audio is shorter than chunk size: {n_samples} < {chunk_size_samples}"
+                )
+
+        start_time = np.random.randint(0, max(1, n_samples - chunk_size_samples))
         out = self._chunk_item(audio, start_time)
 
         if trial_counter > self.config.max_trial:
@@ -285,7 +307,9 @@ class DeterministicChunkDataset(_ChunkDataset):
         return chunked_item_dict.model_dump()
 
     def _chunk_and_augment(
-        self, item_dict: SourceSeparationItem[np.ndarray], start_sample: int
+        self,
+        item_dict: SourceSeparationItem[np.ndarray],
+        start_sample: int,
     ) -> SourceSeparationItem[np.ndarray]:
         """
         Chunks and augments the data deterministically.
@@ -361,46 +385,62 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
         super().__init__(datasources=datasources, config=config)
 
     def __getitem__(self, index: int):
-
         item_dict = self._load_audio_automix(index)
-        chunked_item_dict = self._chunk_and_augment(item_dict)
+
+        chunked_item_dict = self._chunk_and_augment(item_dict, pre_pad=True)
 
         return chunked_item_dict.model_dump()
 
-
     def _load_audio_automix(self, index: int) -> SourceSeparationItem[np.ndarray]:
-
         datasource = self.datasources[index % len(self.datasources)]
         datasource: MoisesDBStemWiseDatasource
 
         sources = defaultdict(lambda: {"audio": []})
 
-        n_coarse_stems = random.randint(self.config.n_coarse_stems_min, self.config.n_coarse_stems_max)
-        chosen_coarse_stems = random.choices(
-            list(datasource.coarse_stems), k=n_coarse_stems
-        ) # allow duplicates
+        n_coarse_stems = random.randint(
+            self.config.n_coarse_stems_min, self.config.n_coarse_stems_max
+        )
+        coarse_stems = datasource.coarse_stems
+        chosen_coarse_stems = random.sample(
+            coarse_stems, k=min(n_coarse_stems, len(coarse_stems))
+        )
 
         for coarse_stem in chosen_coarse_stems:
-            n_fine_stems = random.randint(self.config.n_fine_stems_min, self.config.n_fine_stems_max)
-            fine_stems = list(datasource.fine_stems_by_coarse[coarse_stem])
-            chosen_fine_stems = random.choices(
-                fine_stems, k=n_fine_stems
-            ) # allow duplicates
+            n_fine_stems = random.randint(
+                self.config.n_fine_stems_min, self.config.n_fine_stems_max
+            )
+            fine_stems = datasource.fine_stems_by_coarse[coarse_stem]
+            chosen_fine_stems = random.sample(
+                fine_stems, k=min(n_fine_stems, len(fine_stems))
+            )
 
             for fine_stem in chosen_fine_stems:
-                n_fine_tracks = datasource.get_fine_length(coarse_stem=coarse_stem, fine_stem=fine_stem)
+                n_fine_tracks = datasource.get_fine_length(
+                    coarse_stem=coarse_stem, fine_stem=fine_stem
+                )
                 fine_track_idx = random.randint(0, n_fine_tracks - 1)
-                stem_identifier = datasource.get_fine_by_index(coarse_stem=coarse_stem, fine_stem=fine_stem, index=fine_track_idx)
+                stem_identifier : StemIdentifier = datasource.get_fine_by_index(
+                    coarse_stem=coarse_stem, fine_stem=fine_stem, index=fine_track_idx
+                )
 
                 clip_idx = random.randint(0, stem_identifier.n_clips - 1)
 
                 zip = np.load(stem_identifier.full_path, mmap_mode="r")
-                clip = zip[stem_identifier.stem][clip_idx]
+                clip = zip[f"clip{clip_idx:04d}"]
 
-                composite_key = datasource.resolve_stem_to_composite(coarse_stem, fine_stem)
+                if datasource.config.stems is None:
+                    composite_key = stem_identifier.name
+                else:
+                    composite_key = datasource.resolve_stem_to_composite(
+                        coarse_stem, fine_stem
+                    )
 
                 sources[composite_key]["audio"].append(clip)
 
+        if datasource.config.stems is not None:
+            for key in datasource.composite_stems:
+                if key not in sources:
+                    sources[key] = {"audio": []}
 
         return SourceSeparationItem(
             mixture=None,
@@ -408,3 +448,72 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
             estimates={},
         )
 
+class RandomChunkAutoMixSelfQueryDataset(RandomChunkAutoMixDataset):
+    def __init__(
+        self, *, datasources: list[BaseRegisteredDatasource], config: DatasetParams
+    ):
+        config = RandomChunkDatasetParams.model_validate(config)
+        super().__init__(datasources=datasources, config=config)
+
+        self.query_size_samples = int(self.config.query_size_seconds * self.config.fs) 
+
+        self.query_mode = self.config.query_mode
+
+    def __getitem__(self, index: int):
+
+        item_dict = self._load_audio_automix(index)
+
+        chunked_item_dict = self._chunk_and_augment(item_dict, pre_pad=True)
+        out = chunked_item_dict.model_dump()
+
+        active_keys = [k for k in item_dict.sources if len(item_dict.sources[k]["audio"]) > 0]
+        target = random.choice(active_keys)
+
+        if self.query_mode == "same_clip":
+            target_clip = item_dict.sources[target]["audio"]
+
+            query_clip = self._chunk_item_random(
+                target_clip, 
+                chunk_size_samples=self.query_size_samples,
+                pad=True
+            )
+        elif self.query_mode == "exact":
+            query_clip = out["sources"][target]["audio"]
+        else:
+            raise ValueError(f"Unknown query mode: {self.query_mode}")
+
+        out["sources"] = {"target": out["sources"][target]}
+        out["queries"] = {"query": {"audio": query_clip}}
+
+        return out
+
+
+if __name__ == "__main__":
+    config = "/home/hice1/kwatchar3/scratch/banda/configs/data/moisesdb-all-coarse-active.yaml"
+    import yaml
+    import torchaudio as ta
+    import torch
+
+    with open(config, "r") as f:
+        config = yaml.safe_load(f)["train"]
+
+    ds = RandomChunkAutoMixDataset(
+        datasources=[
+            MoisesDBStemWiseDatasource(config=config["datasource"][0]["params"])
+        ],
+        config=config["dataset"]["params"],
+    )
+
+    dataloader = torch.utils.data.DataLoader(
+        ds,
+        batch_size=8,
+        num_workers=16,
+        shuffle=True,
+        drop_last=False,
+        pin_memory=True,
+        prefetch_factor=2,
+    )
+
+    for batch in dataloader:
+        pprint(batch)
+        # break

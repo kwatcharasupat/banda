@@ -17,5 +17,5 @@ params:
     emb_dim: ${..bandsplit.emb_dim}
     in_channels: ${..bandsplit.in_channels}
 
-  stems: null
+  stems: ["target"]
   max_simultaneous_stems: 4

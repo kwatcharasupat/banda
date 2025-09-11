@@ -7,11 +7,11 @@ train:
   - cls: MoisesDBStemWiseDatasource
     params:
       split: train
-      stems: _moises_coarse
+      stems: null
       mode: active
 
   dataset:
-    cls: RandomChunkAutoMixDataset
+    cls: RandomChunkAutoMixSelfQueryDataset
     params:
       n_channels: 2
       fs: 44100
@@ -20,20 +20,16 @@ train:
       max_dataset_size: 8192
       variable_sources: true
 
-      n_coarse_stems_min: 2
-      n_coarse_stems_max: 11
-
-      n_fine_stems_min: 1
-      n_fine_stems_max: 3
-      
+      query_size_seconds: 6.0
+      query_mode: same_clip
 
   dataloader:
     batch_size: 8
-    num_workers: 24
+    num_workers: 16
     shuffle: true
     drop_last: False
     pin_memory: true
-    prefetch_factor: 2
+    prefetch_factor: 4
 
 val:
   datasource:
@@ -41,10 +37,11 @@ val:
     params:
       split: val
       load_duration: true
-      stems: _moises_coarse
+      stems: null
+      mode: raw
 
   dataset:
-    cls: DeterministicChunkDataset
+    cls: DeterministicChunkSelfQueryDataset
     params:
       n_channels: 2
       fs: 44100
@@ -56,8 +53,8 @@ val:
       variable_sources: true
 
   dataloader:
-    batch_size: 2
-    num_workers: 8
+    batch_size: 8
+    num_workers: 16
     shuffle: false
     drop_last: false
     pin_memory: true

@@ -3,7 +3,7 @@
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:1 --constraint="V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S"
-#SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
+#SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/test-bandmamba-mus64-l1snr-multi-adam-musdb18hq-vdbo.yaml-9247-musdb18hq-vdbo-test.out                  # Combined output and error messages file
 #SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
