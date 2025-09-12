@@ -216,3 +216,5 @@ outputs
 wandb
 
 _debug/
+
+named-checkpoints/

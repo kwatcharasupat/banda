@@ -1,21 +1,22 @@
 defaults:
-- model: vqbandit-mus64
-- data: moisesdb-all-coarse
+- model: bandit-mus64
+- data: moisesdb-all-coarse-active
 - logger: wandb
-- loss: l1snr-multi
+- loss: l1snrz-multi-dbm
 - metrics: default
 - optimizer: adam
 - trainer: default
 - inference: default
 - _self_
-
-
+hydra:
+  searchpath:
+  - file:///home/kwatchar3/projects/banda/configs
+  - file:///storage/ice1/4/1/kwatchar3/banda/configs
 metrics:
   stems: ${..model.params.stems}
-
 model:
   params:
-    # max_simultaneous_stems: 4
+    # max_simultaneous_stems: 11
     stems:
     - "vocals"
     - "drums"
@@ -28,11 +29,4 @@ model:
     - "other_keys"
     - "other_plucked"
     - "other"
-
 seed: 42
-
-
-hydra:
-  searchpath:
-  - file:///home/kwatchar3/projects/banda/configs
-  - file:///storage/ice1/4/1/kwatchar3/banda/configs

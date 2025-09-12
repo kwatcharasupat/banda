@@ -154,11 +154,12 @@ class RandomChunkDataset(_ChunkDataset):
         return item_dict
 
     def _chunk_item_random(
-        self, audio: np.ndarray, 
-        *, 
+        self,
+        audio: np.ndarray,
+        *,
         chunk_size_samples: int | None = None,
-        trial_counter: int = 0, 
-        pad: bool = False
+        trial_counter: int = 0,
+        pad: bool = False,
     ) -> np.ndarray:
         _, n_samples = audio.shape
 
@@ -401,25 +402,52 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
             self.config.n_coarse_stems_min, self.config.n_coarse_stems_max
         )
         coarse_stems = datasource.coarse_stems
-        chosen_coarse_stems = random.sample(
-            coarse_stems, k=min(n_coarse_stems, len(coarse_stems))
+
+        p_coarse = np.array(
+            [
+                datasource.get_coarse_length(coarse_stem=coarse_stem)
+                for coarse_stem in coarse_stems
+            ]
         )
+        p_coarse = p_coarse / p_coarse.sum()
+
+        chosen_coarse_stems = np.random.choice(
+            coarse_stems,
+            size=min(n_coarse_stems, len(coarse_stems)),
+            replace=False,
+            p=p_coarse,
+        ).tolist()
 
         for coarse_stem in chosen_coarse_stems:
             n_fine_stems = random.randint(
                 self.config.n_fine_stems_min, self.config.n_fine_stems_max
             )
             fine_stems = datasource.fine_stems_by_coarse[coarse_stem]
-            chosen_fine_stems = random.sample(
-                fine_stems, k=min(n_fine_stems, len(fine_stems))
+
+            p_fine = np.array(
+                [
+                    datasource.get_fine_length(
+                        coarse_stem=coarse_stem, fine_stem=fine_stem
+                    )
+                    for fine_stem in fine_stems
+                ]
+            )
+            p_fine = p_fine / p_fine.sum()
+
+            chosen_fine_stems = np.random.choice(
+                fine_stems,
+                size=min(n_fine_stems, len(fine_stems)),
+                replace=False,
+                p=p_fine,
             )
 
             for fine_stem in chosen_fine_stems:
                 n_fine_tracks = datasource.get_fine_length(
                     coarse_stem=coarse_stem, fine_stem=fine_stem
                 )
+                # print(coarse_stem, fine_stem, n_fine_tracks)
                 fine_track_idx = random.randint(0, n_fine_tracks - 1)
-                stem_identifier : StemIdentifier = datasource.get_fine_by_index(
+                stem_identifier: StemIdentifier = datasource.get_fine_by_index(
                     coarse_stem=coarse_stem, fine_stem=fine_stem, index=fine_track_idx
                 )
 
@@ -448,6 +476,7 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
             estimates={},
         )
 
+
 class RandomChunkAutoMixSelfQueryDataset(RandomChunkAutoMixDataset):
     def __init__(
         self, *, datasources: list[BaseRegisteredDatasource], config: DatasetParams
@@ -455,27 +484,26 @@ class RandomChunkAutoMixSelfQueryDataset(RandomChunkAutoMixDataset):
         config = RandomChunkDatasetParams.model_validate(config)
         super().__init__(datasources=datasources, config=config)
 
-        self.query_size_samples = int(self.config.query_size_seconds * self.config.fs) 
+        self.query_size_samples = int(self.config.query_size_seconds * self.config.fs)
 
         self.query_mode = self.config.query_mode
 
     def __getitem__(self, index: int):
-
         item_dict = self._load_audio_automix(index)
 
         chunked_item_dict = self._chunk_and_augment(item_dict, pre_pad=True)
         out = chunked_item_dict.model_dump()
 
-        active_keys = [k for k in item_dict.sources if len(item_dict.sources[k]["audio"]) > 0]
+        active_keys = [
+            k for k in item_dict.sources if len(item_dict.sources[k]["audio"]) > 0
+        ]
         target = random.choice(active_keys)
 
         if self.query_mode == "same_clip":
             target_clip = item_dict.sources[target]["audio"]
 
             query_clip = self._chunk_item_random(
-                target_clip, 
-                chunk_size_samples=self.query_size_samples,
-                pad=True
+                target_clip, chunk_size_samples=self.query_size_samples, pad=True
             )
         elif self.query_mode == "exact":
             query_clip = out["sources"][target]["audio"]
@@ -483,7 +511,7 @@ class RandomChunkAutoMixSelfQueryDataset(RandomChunkAutoMixDataset):
             raise ValueError(f"Unknown query mode: {self.query_mode}")
 
         out["sources"] = {"target": out["sources"][target]}
-        out["queries"] = {"query": {"audio": query_clip}}
+        out["queries"] = {"target": {"audio": query_clip}}
 
         return out
 
@@ -514,6 +542,25 @@ if __name__ == "__main__":
         prefetch_factor=2,
     )
 
-    for batch in dataloader:
-        pprint(batch)
-        # break
+    # for batch in dataloader:
+    #     pprint(batch)
+    #     # break
+
+    for i, item in enumerate(ds):
+        mixture = item["mixture"]["audio"]
+        ta.save(
+            f"_debug/mixture_{i}.wav",
+            torch.from_numpy(mixture),
+            sample_rate=ds.config.fs,
+        )
+
+        for key, source in item["sources"].items():
+            audio = source["audio"]
+            ta.save(
+                f"_debug/source_{i}_{key}.wav",
+                torch.from_numpy(audio),
+                sample_rate=ds.config.fs,
+            )
+
+        if i >= 10:
+            break

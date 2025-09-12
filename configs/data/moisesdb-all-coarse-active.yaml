@@ -20,7 +20,7 @@ train:
       max_dataset_size: 8192
       variable_sources: true
 
-      n_coarse_stems_min: 2
+      n_coarse_stems_min: 11
       n_coarse_stems_max: 11
 
       n_fine_stems_min: 1
@@ -56,8 +56,8 @@ val:
       variable_sources: true
 
   dataloader:
-    batch_size: 2
-    num_workers: 8
+    batch_size: 8
+    num_workers: 24
     shuffle: false
     drop_last: false
     pin_memory: true

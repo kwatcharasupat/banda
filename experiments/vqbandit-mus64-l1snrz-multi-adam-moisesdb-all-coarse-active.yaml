@@ -15,7 +15,7 @@ metrics:
 
 model:
   params:
-    max_simultaneous_stems: 4
+    # max_simultaneous_stems: 4
     stems:
     - "vocals"
     - "drums"

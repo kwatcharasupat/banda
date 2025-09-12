@@ -18,4 +18,4 @@ params:
     in_channels: ${..bandsplit.in_channels}
 
   stems: ["target"]
-  max_simultaneous_stems: 4
+  max_simultaneous_stems: 11

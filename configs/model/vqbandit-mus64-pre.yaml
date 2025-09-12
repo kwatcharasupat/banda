@@ -19,3 +19,6 @@ params:
 
   stems: null
   max_simultaneous_stems: 11
+
+  pretrained_encoder_ckpt_path: "./named-checkpoints/bandit-mus64-l1snr-multi-adam-moisesdb-vdbo-8091.ckpt"
+

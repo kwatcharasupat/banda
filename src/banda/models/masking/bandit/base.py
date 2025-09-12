@@ -10,6 +10,9 @@ from banda.modules.tfmodels.tfmodel import RNNSeqBandModellingModule
 import random
 from torch import nn
 
+import structlog
+logger = structlog.get_logger(__name__)
+
 
 class BaseBandit(_BaseMaskingModel):
     def __init__(self, *, config):
@@ -17,6 +20,16 @@ class BaseBandit(_BaseMaskingModel):
 
         self._build_bandsplit()
         self._build_tfmodel()
+
+
+        if hasattr(self.config, "pretrained_encoder_ckpt_path"):
+            logger.info(
+                "Loading pretrained encoder",
+                ckpt_path=self.config.pretrained_encoder_ckpt_path,
+            )
+            self.load_pretrained_encoder(
+                ckpt_path=self.config.pretrained_encoder_ckpt_path
+            )
 
     def _inner_model(
         self, specs_normalized: torch.Tensor, batch: SourceSeparationBatch
@@ -76,3 +89,21 @@ class BaseBandit(_BaseMaskingModel):
             return stems
         else:
             return self.config.stems
+
+    def load_pretrained_encoder(self, ckpt_path: str):
+        state_dict = torch.load(ckpt_path, map_location="cpu")["state_dict"]
+
+        bandsplit_dict = {
+            k.replace("model.bandsplit.", ""): v
+            for k, v in state_dict.items()
+            if k.startswith("model.bandsplit.")
+        }
+
+        pre_tf_model_dict = {
+            k.replace("model.pre_tf_model.", ""): v
+            for k, v in state_dict.items()
+            if k.startswith("model.pre_tf_model.")
+        }
+
+        self.bandsplit.load_state_dict(bandsplit_dict)
+        self.pre_tf_model.load_state_dict(pre_tf_model_dict, strict=False)

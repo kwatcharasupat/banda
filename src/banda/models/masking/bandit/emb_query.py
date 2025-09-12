@@ -51,6 +51,7 @@ class EmbeddingQueryBandit(BaseBandit):
         self._build_query_encoder()
         self._build_query_adaptor()
 
+
     def _build_query_encoder(self):
         emb_dim = self.config.tf_model.params.emb_dim
         self.query_encoder = Passt(emb_dim=emb_dim, fs=self.config.spectrogram.fs)

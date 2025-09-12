@@ -20,6 +20,12 @@ train:
       max_dataset_size: 8192
       variable_sources: true
 
+      n_coarse_stems_min: 11
+      n_coarse_stems_max: 11
+
+      n_fine_stems_min: 1
+      n_fine_stems_max: 3
+
       query_size_seconds: 6.0
       query_mode: same_clip
 
@@ -29,7 +35,7 @@ train:
     shuffle: true
     drop_last: False
     pin_memory: true
-    prefetch_factor: 4
+    prefetch_factor: 1
 
 val:
   datasource:
@@ -53,7 +59,7 @@ val:
       variable_sources: true
 
   dataloader:
-    batch_size: 8
+    batch_size: 2
     num_workers: 16
     shuffle: false
     drop_last: false

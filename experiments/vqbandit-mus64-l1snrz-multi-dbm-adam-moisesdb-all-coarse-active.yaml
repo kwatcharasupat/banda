@@ -1,8 +1,8 @@
 defaults:
 - model: vqbandit-mus64
-- data: moisesdb-all-coarse
+- data: moisesdb-all-coarse-active
 - logger: wandb
-- loss: l1snr-multi
+- loss: l1snrz-multi-dbm
 - metrics: default
 - optimizer: adam
 - trainer: default

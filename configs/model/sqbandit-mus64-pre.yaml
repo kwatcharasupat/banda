@@ -6,16 +6,18 @@ defaults:
 - mask_estim@params.mask_estim: default
 - _self_
 
-cls: VectorDictQueryBandit
+cls: EmbeddingQueryBandit
 params:
   tf_model:
     params:
       emb_dim: ${...bandsplit.emb_dim}
-    use_split_model: false
+    use_split_model: true
 
   mask_estim:
     emb_dim: ${..bandsplit.emb_dim}
     in_channels: ${..bandsplit.in_channels}
 
-  stems: null
+  stems: ["target"]
   max_simultaneous_stems: 11
+
+  pretrained_encoder_ckpt_path: "./named-checkpoints/bandit-mus64-l1snr-multi-adam-moisesdb-vdbo-8091.ckpt"
