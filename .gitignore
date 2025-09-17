@@ -218,3 +218,5 @@ wandb
 _debug/
 
 named-checkpoints/
+
+_artifacts/

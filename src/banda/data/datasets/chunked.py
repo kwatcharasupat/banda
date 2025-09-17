@@ -462,6 +462,7 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
                     composite_key = datasource.resolve_stem_to_composite(
                         coarse_stem, fine_stem
                     )
+                    # print(f"Resolved {coarse_stem}/{fine_stem} to {composite_key}")
 
                 sources[composite_key]["audio"].append(clip)
 
@@ -517,7 +518,7 @@ class RandomChunkAutoMixSelfQueryDataset(RandomChunkAutoMixDataset):
 
 
 if __name__ == "__main__":
-    config = "/home/hice1/kwatchar3/scratch/banda/configs/data/moisesdb-all-coarse-active.yaml"
+    config = "/home/hice1/kwatchar3/scratch/banda/configs/data/moisesdb-vdbo-active.yaml"
     import yaml
     import torchaudio as ta
     import torch
@@ -547,20 +548,21 @@ if __name__ == "__main__":
     #     # break
 
     for i, item in enumerate(ds):
-        mixture = item["mixture"]["audio"]
-        ta.save(
-            f"_debug/mixture_{i}.wav",
-            torch.from_numpy(mixture),
-            sample_rate=ds.config.fs,
-        )
+        # mixture = item["mixture"]["audio"]
+        # ta.save(
+        #     f"_debug/mixture_{i}.wav",
+        #     torch.from_numpy(mixture),
+        #     sample_rate=ds.config.fs,
+        # )
 
         for key, source in item["sources"].items():
-            audio = source["audio"]
-            ta.save(
-                f"_debug/source_{i}_{key}.wav",
-                torch.from_numpy(audio),
-                sample_rate=ds.config.fs,
-            )
+            print(key, source["audio"].shape)
+        #     audio = source["audio"]
+        #     ta.save(
+        #         f"_debug/source_{i}_{key}.wav",
+        #         torch.from_numpy(audio),
+        #         sample_rate=ds.config.fs,
+        #     )
 
         if i >= 10:
             break

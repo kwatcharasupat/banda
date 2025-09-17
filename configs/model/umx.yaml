@@ -1,0 +1,13 @@
+defaults:
+- stft@params.spectrogram: openunmix
+- normalization@params.normalization: default
+- _self_
+
+cls: OpenUnmix
+params:
+  in_channels: 2
+  hidden_size: 512
+  n_layers: 3
+  bidirectional: true
+  dropout: 0.4
+  complex: true

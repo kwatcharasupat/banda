@@ -1,11 +1,11 @@
 defaults:
-- model: bandit-mus64
-- data: moisesdb
+- model: vqbandit-mus64
+- data: moisesdb-vdbo-test
 - logger: wandb
-- loss: l1snr-multi
+- loss: l1snrz-multi-dbm
 - metrics: default
 - optimizer: adam
-- trainer: default
+- trainer: default-long
 - inference: default
 - _self_
 hydra:

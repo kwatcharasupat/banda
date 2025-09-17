@@ -9,11 +9,11 @@ slurm_template = """#!/bin/bash
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:1 --constraint={gpu_constraint}
-#SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
+#SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/{job_name}-%j.out                  # Combined output and error messages file
-#SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
-#SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
+#SBATCH --mail-type=END,FAIL       # Mail preferences
+#SBATCH --mail-user=kwatchar3+pace@gatech.edu # E-mail address for notifications
 #SBATCH --signal=SIGTERM@120
 
 cd $SLURM_SUBMIT_DIR
@@ -32,10 +32,10 @@ def make_config(
     dataset: str,
     stems: list[str],
     logger: str = "wandb",
-    loss: str = "l1snr-multi",
+    loss: str = "l1snrz-multi-dbm",
     metrics: str = "default",
     optimizer: str = "adam",
-    trainer: str = "default",
+    trainer: str = "default-long",
     inference: str = "default",
     seed: int = 42,
     large_gpu_only: bool = False,
@@ -124,26 +124,63 @@ def make_config(
     return config_name
 
 
-def make_configs(make_slurm: bool = True, submit: bool = False):
-    datasets = ["moisesdb-all-coarse-active"]
+def make_moises_single_stem_dataset_configs():
+    template = "_moisesdb-active"
+    stems = [
+        "vocals",
+        "drums",
+        "bass",
+        "guitar",
+        "piano",
+        "wind",
+        "bowed_strings",
+        "percussion",
+        "other_keys",
+        "other_plucked",
+        "other",
+    ]
 
-    models = ["vqbandit-split-mus64-pre"]
-    
+    output_name = "moisesdb-{stem}-active"
+
+    with open(Path("./configs/data", template + ".yaml")) as f:
+        template_config = yaml.safe_load(f)
+
+    for stem in stems:
+        new_config = template_config.copy()
+        for split in ["train", "val"]:
+            new_config[split]["datasource"][0]["params"]["stems"] = {
+                stem: [stem],
+                "other": [s for s in stems if s != stem],
+            }
+
+        print(new_config)
+
+        new_config_name = output_name.format(stem=stem)
+        with open(Path("./configs/data", new_config_name + ".yaml"), "w") as f:
+            yaml.dump(new_config, f)
+        print(f"Wrote config to {new_config_name}.yaml")
+
+
+def make_configs(make_slurm: bool = True, submit: bool = False):
+    datasets = ["moisesdb-{stem}-active"]
+
+    models = ["bandit-mus64"]
+
     losses = ["l1snrz-multi-dbm"]
 
-    stems = [[
-                "vocals",
-                "drums",
-                "bass",
-                "guitar",
-                "piano",
-                "wind",
-                "bowed_strings",
-                "percussion",
-                "other_keys",
-                "other_plucked",
-                "other",
-            ]]
+    stems = [
+        ["vocals"],
+        ["drums"],
+        ["bass"],
+        ["guitar"],
+        ["piano"],
+        ["wind"],
+        ["bowed_strings"],
+        ["percussion"],
+        ["other_keys"],
+        ["other_plucked"],
+        ["other"],
+    ]
 
     slurm_paths = []
 
@@ -151,12 +188,13 @@ def make_configs(make_slurm: bool = True, submit: bool = False):
         for model in models:
             for loss in losses:
                 for stem in stems:
+
                     slurm_path = make_config(
                         model=model,
-                        dataset=dataset,
+                        dataset=dataset.format(stem=stem[0]),
                         stems=stem,
                         loss=loss,
-                        large_gpu_only=True,
+                        large_gpu_only=len(stem) > 4,
                         make_slurm=make_slurm,
                         submit=submit,
                     )
@@ -167,7 +205,8 @@ def make_configs(make_slurm: bool = True, submit: bool = False):
     print(sbatch_commands)
 
 
-def multi_eval_vdbo(
+def _multi_test(
+    test_sets: list[str],
     group_filter: str = "training runs - to be tested",
     max_epoch: int = 99,
     submit: bool = False,
@@ -205,7 +244,7 @@ def multi_eval_vdbo(
         original_config_name = "-".join(run.name.split("-")[:-1]) + ".yaml"
         print(f"Original config name: {original_config_name}")
 
-        for test_ds in ["musdb18hq-vdbo-test", "moisesdb-vdbo-test"]:
+        for test_ds in test_sets:
             test_job_name = f"test-{run.name}-{test_ds}"
 
             original_stems = run.config["model"]["params"]["stems"]
@@ -218,7 +257,8 @@ def multi_eval_vdbo(
                 model=model,
                 dataset=test_ds,
                 stems=original_stems,
-                run_slurm=False,
+                make_slurm=False,
+                submit=False,
             )
 
             print(f"New config name: {config_name}")
@@ -237,6 +277,35 @@ def multi_eval_vdbo(
     sbatch_commands = "\n".join([f"sbatch {p}" for p in slurm_paths])
     print("To submit all jobs, run the following commands:")
     print(sbatch_commands)
+
+
+
+def multi_eval_vdbo(
+    group_filter: str = "training runs - to be tested",
+    max_epoch: int = 99,
+    submit: bool = False,
+):
+    _multi_test(
+        test_sets=[
+            "musdb18hq-vdbo-test", "moisesdb-vdbo-test"],
+        group_filter=group_filter,
+        max_epoch=max_epoch,
+        submit=submit,
+    )
+
+def multi_eval_moises_coarse(
+    group_filter: str = "training runs - to be tested",
+    max_epoch: int = 99,
+    submit: bool = False,
+):
+    _multi_test(
+        test_sets=[
+            "moisesdb-all-coarse-test",
+        ],
+        group_filter=group_filter,
+        max_epoch=max_epoch,
+        submit=submit,
+    )
 
 
 def make(
@@ -274,7 +343,9 @@ def make(
     else:
         gpu_constraint = "V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S"
 
-    slurm_script = slurm_template.format(job_name=job_name, command=command, gpu_constraint=gpu_constraint)
+    slurm_script = slurm_template.format(
+        job_name=job_name, command=command, gpu_constraint=gpu_constraint
+    )
 
     script_path = Path(f"./slurm/{job_name}.sbatch").absolute()
     print(f"Writing slurm script to {script_path}")
@@ -317,6 +388,8 @@ def continue_run(
         if run.state != "finished":
             continue
 
+        run_config = run.config
+
         print(f"Run: {run.name}, id: {run.id}")
         ckpt_path = Path(f"./banda/{run.id}/checkpoints/last.ckpt").absolute()
         if not ckpt_path.exists():
@@ -324,13 +397,17 @@ def continue_run(
 
         print(f"Checkpoint {ckpt_path} exists.")
 
-        config_name = "-".join(run.name.split("-")[:-1]) + ".yaml"
+        config_name = "-".join(run.name.split("-")[:-1])
         print(f"Config name: {config_name}")
 
         slurm_path = make(
             config_name=config_name,
             ckpt_path=str(ckpt_path),
             submit=submit,
+            large_gpu_only=run_config["model"]["params"].get(
+                "max_simultaneous_stems", 1
+            )
+            > 4,
         )
 
         slurm_paths.append(slurm_path)

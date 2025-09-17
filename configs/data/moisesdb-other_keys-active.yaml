@@ -1,0 +1,79 @@
+defaults:
+- augmentation/default
+- _self_
+train:
+  dataloader:
+    batch_size: 8
+    drop_last: false
+    num_workers: 24
+    pin_memory: true
+    prefetch_factor: 2
+    shuffle: true
+  dataset:
+    cls: RandomChunkAutoMixDataset
+    params:
+      allow_autolooping: true
+      chunk_size_seconds: 6.0
+      fs: 44100
+      max_dataset_size: 8192
+      n_channels: 2
+      n_coarse_stems_max: 11
+      n_coarse_stems_min: 11
+      n_fine_stems_max: 3
+      n_fine_stems_min: 1
+      variable_sources: true
+  datasource:
+  - cls: MoisesDBStemWiseDatasource
+    params:
+      mode: active
+      split: train
+      stems:
+        other:
+        - vocals
+        - drums
+        - bass
+        - guitar
+        - piano
+        - wind
+        - bowed_strings
+        - percussion
+        - other_plucked
+        - other
+        other_keys:
+        - other_keys
+val:
+  dataloader:
+    batch_size: 2
+    drop_last: false
+    num_workers: 8
+    pin_memory: true
+    shuffle: false
+  dataset:
+    cls: DeterministicChunkDataset
+    params:
+      allow_autolooping: false
+      chunk_size_seconds: 6.0
+      fs: 44100
+      hop_size_seconds: 6.0
+      max_dataset_size: 1024
+      n_channels: 2
+      variable_sources: true
+  datasource:
+  - cls: MoisesDBDatasource
+    params:
+      load_duration: true
+      split: val
+      stems:
+        other:
+        - vocals
+        - drums
+        - bass
+        - guitar
+        - piano
+        - wind
+        - bowed_strings
+        - percussion
+        - other_plucked
+        - other
+        other_keys:
+        - other_keys

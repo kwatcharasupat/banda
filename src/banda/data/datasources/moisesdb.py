@@ -118,6 +118,11 @@ MoisesDBStemShortCut = {
     },
 }
 
+# make single stem short hands
+for stem in MoisesDBCoarseStem.__args__:
+    other_stems = [s for s in MoisesDBCoarseStem.__args__ if s != stem]
+    MoisesDBStemShortCut[f"_moises_{stem}"] = {stem: [stem], "other": other_stems}
+
 
 class MoisesDBDatasourceParams(DatasourceParams):
     split: str
@@ -136,7 +141,10 @@ class MoisesDBDatasource(BaseRegisteredDatasource):
         super().__init__(config=config)
         self.config = MoisesDBDatasourceParams.model_validate(config)
 
-        if self.config.stems in MoisesDBStemShortCut:
+        if (
+            isinstance(self.config.stems, str)
+            and self.config.stems in MoisesDBStemShortCut
+        ):
             self.config.stems = MoisesDBStemShortCut[self.config.stems]
 
         logger.info("Loading tracks for MoisesDB with", config=config)
@@ -206,7 +214,7 @@ class MoisesDBStemWiseDatasource(BaseRegisteredDatasource):
             "MoisesDBStemWiseDatasource only supports mode='active'"
         )
 
-        if self.config.stems in MoisesDBStemShortCut:
+        if isinstance(self.config.stems, str) and self.config.stems in MoisesDBStemShortCut:
             self.config.stems = MoisesDBStemShortCut[self.config.stems]
 
         logger.info("Loading tracks for MoisesDB with", config=config)
@@ -364,7 +372,9 @@ class MoisesDBStemWiseDatasource(BaseRegisteredDatasource):
 
         npzs = []
 
-        for path in tqdm(datasource_path.glob("*/*/*.npz"), desc="Loading MoisesDB npzs"):
+        for path in tqdm(
+            datasource_path.glob("*/*/*.npz"), desc="Loading MoisesDB npzs"
+        ):
             track_id = path.stem
             fine_stem = path.parent.stem
             coarse_stem = path.parent.parent.stem

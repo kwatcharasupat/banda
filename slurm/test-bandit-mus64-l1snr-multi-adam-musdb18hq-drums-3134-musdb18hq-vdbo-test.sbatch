@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/test-bandit-mus64-l1snr-multi-adam-musdb18hq-drums-3134-musdb18hq-vdbo-test.out                  # Combined output and error messages file
-#SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
+#SBATCH --mail-type=END,FAIL       # Mail preferences
 #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
 #SBATCH --signal=SIGTERM@120
 

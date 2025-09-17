@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/bandit-mus64-pre-l1snrz-multi-dbm-adam-moisesdb-all-coarse-active-vdbgpwbpooo-%j.out                  # Combined output and error messages file
-#SBATCH --mail-type=BEGIN,END,FAIL       # Mail preferences
+#SBATCH --mail-type=END,FAIL       # Mail preferences
 #SBATCH --mail-user=kwatchar3@gatech.edu # E-mail address for notifications
 #SBATCH --signal=SIGTERM@120
 
@@ -17,4 +17,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-mus64-pre-l1snrz-multi-dbm-adam-moisesdb-all-coarse-active-vdbgpwbpooo
+srun python scripts/train.py -cn bandit-mus64-pre-l1snrz-multi-dbm-adam-moisesdb-all-coarse-active-vdbgpwbpooo ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/gadbvu8d/checkpoints/last.ckpt
