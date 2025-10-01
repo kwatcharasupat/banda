@@ -1,0 +1,43 @@
+defaults:
+- stft@params.spectrogram: default
+- normalization@params.normalization: default
+- bandsplit@params.bandsplit: mus64
+- tfmodel@params.tf_model: gru8
+- mask_estim@params.mask_estim: default
+- _self_
+
+cls: VectorDictQueryBandit
+params:
+  spectrogram:
+    n_fft: 2048
+    hop_length: 512
+    win_length: 2048
+    window: "hann"
+    fs: 44100
+
+  normalization:
+    eps: 1e-6
+    dbrms_threshold: -60
+
+  bandsplit:
+    n_bands: 64
+    in_channels: 2
+    emb_dim: 256
+
+  tf_model:
+    params:
+      n_modules: 8
+      rnn_type: GRU
+      emb_dim: ${...bandsplit.emb_dim}
+      rnn_dim: 512
+      bidirectional: true
+    use_split_model: false
+
+  mask_estim:
+    emb_dim: ${..bandsplit.emb_dim}
+    mlp_dim: 1024
+    in_channels: ${..bandsplit.in_channels}
+
+  stems: null
+  max_simultaneous_stems: 11
+

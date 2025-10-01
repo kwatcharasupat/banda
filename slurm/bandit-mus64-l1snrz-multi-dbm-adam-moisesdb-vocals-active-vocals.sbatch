@@ -2,7 +2,7 @@
 #SBATCH -Jbandit-mus64-l1snrz-multi-dbm-adam-moisesdb-vocals-active-vocals                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
-#SBATCH --gres=gpu:1 --constraint=V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S
+#SBATCH --gres=gpu:1 --constraint=A100-80GB|H100|H200
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/bandit-mus64-l1snrz-multi-dbm-adam-moisesdb-vocals-active-vocals-%j.out                  # Combined output and error messages file
@@ -17,4 +17,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-mus64-l1snrz-multi-dbm-adam-moisesdb-vocals-active-vocals
+srun python scripts/train.py -cn bandit-mus64-l1snrz-multi-dbm-adam-moisesdb-vocals-active-vocals ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/bijxgq93/checkpoints/last.ckpt

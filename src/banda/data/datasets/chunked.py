@@ -518,13 +518,15 @@ class RandomChunkAutoMixSelfQueryDataset(RandomChunkAutoMixDataset):
 
 
 if __name__ == "__main__":
-    config = "/home/hice1/kwatchar3/scratch/banda/configs/data/moisesdb-vdbo-active.yaml"
+    config = "/home/hice1/kwatchar3/scratch/banda/configs/data/musdb18hq-moisesdb-aggressive.yaml"
     import yaml
     import torchaudio as ta
     import torch
 
     with open(config, "r") as f:
         config = yaml.safe_load(f)["train"]
+
+    print(config)
 
     ds = RandomChunkAutoMixDataset(
         datasources=[
@@ -533,19 +535,6 @@ if __name__ == "__main__":
         config=config["dataset"]["params"],
     )
 
-    dataloader = torch.utils.data.DataLoader(
-        ds,
-        batch_size=8,
-        num_workers=16,
-        shuffle=True,
-        drop_last=False,
-        pin_memory=True,
-        prefetch_factor=2,
-    )
-
-    # for batch in dataloader:
-    #     pprint(batch)
-    #     # break
 
     for i, item in enumerate(ds):
         # mixture = item["mixture"]["audio"]

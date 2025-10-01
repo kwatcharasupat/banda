@@ -1,3 +1,12 @@
+
+defaults:
+- stft@params.spectrogram: default
+- normalization@params.normalization: default
+- bandsplit@params.bandsplit: mus64
+- tfmodel@params.tf_model: gru8
+- mask_estim@params.mask_estim: default
+- _self_
+
 cls: FixedStemBandit
 params:
   spectrogram:
@@ -17,11 +26,13 @@ params:
     emb_dim: 256
 
   tf_model:
-    n_modules: 8
-    rnn_type: GRU
-    emb_dim: ${..bandsplit.emb_dim}
-    rnn_dim: 512
-    bidirectional: true
+    params:
+      n_modules: 8
+      rnn_type: GRU
+      emb_dim: ${...bandsplit.emb_dim}
+      rnn_dim: 512
+      bidirectional: true
+    use_split_model: false
 
   mask_estim:
     emb_dim: ${..bandsplit.emb_dim}
@@ -29,3 +40,4 @@ params:
     in_channels: ${..bandsplit.in_channels}
 
   stems: null
+  max_simultaneous_stems: 11

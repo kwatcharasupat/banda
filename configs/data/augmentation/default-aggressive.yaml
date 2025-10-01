@@ -1,0 +1,31 @@
+augmentations:
+- cls: MultichannelGain
+  params:
+    min_gain_db: -6
+    max_gain_db: 6.0
+    p: 1.0
+# - cls: Shift
+#   params:
+#     min_shift: -0.5
+#     max_shift: 0.5
+#     shift_unit: "fraction"
+#     rollover: True
+#     p: 0.5
+- cls: PolarityInversion
+  params:
+    p: 0.5
+- cls: RandomDrop
+  params:
+    p: 0.10
+- cls: TimeStretch
+  params:
+    p: 1.0
+- cls: PitchShift
+  params:
+    p: 1.0
+- cls: Limiter
+  params:
+    p: 0.5
+- cls: SevenBandParametricEQ
+  params:
+    p: 1.0

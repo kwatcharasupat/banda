@@ -87,6 +87,8 @@ def make_config(
         },
     }
 
+    stems = list(stems)  # Make a copy
+
     if len(stems) == 1:
         if stems[0] == "_moisesdb_coarse":
             stems = [

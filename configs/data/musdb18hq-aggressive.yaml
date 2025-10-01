@@ -1,0 +1,50 @@
+defaults:
+- augmentation@train.dataset.params.premix_augmentation: default-aggressive
+- _self_
+
+train:
+  datasource:
+  - cls: MUSDB18HQDatasource
+    params:
+      split: train
+
+  dataset:
+    cls: RandomChunkDataset
+    params:
+      n_channels: 2
+      fs: 44100
+      chunk_size_seconds: 6.0
+      allow_autolooping: true
+      max_dataset_size: 8192
+
+  dataloader:
+    batch_size: 8
+    num_workers: 16
+    shuffle: true
+    drop_last: False
+    pin_memory: true
+    prefetch_factor: 4
+
+val:
+  datasource:
+  - cls: MUSDB18HQDatasource
+    params:
+      split: val
+      load_duration: true
+
+  dataset:
+    cls: DeterministicChunkDataset
+    params:
+      n_channels: 2
+      fs: 44100
+      chunk_size_seconds: 6.0
+      hop_size_seconds: 6.0
+      allow_autolooping: false
+      max_dataset_size: 1024
+
+  dataloader:
+    batch_size: 2
+    num_workers: 8
+    shuffle: false
+    drop_last: false
+    pin_memory: true
