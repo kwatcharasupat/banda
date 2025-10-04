@@ -9,7 +9,6 @@ from pathlib import Path
 
 import warnings
 
-import torch
 import torchaudio as ta
 from torchaudio.functional import resample
 from torch.nn import functional as F

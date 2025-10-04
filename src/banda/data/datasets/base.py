@@ -141,6 +141,7 @@ class BaseRegisteredDataset(Dataset, metaclass=DatasetRegistry):
     def _build_augmentation(self):
         augmentation_config = self.config.premix_augmentation
         if augmentation_config is not None:
+            print(augmentation_config)
             self.premix_augmentation = Compose(config=augmentation_config)
         else:
             self.premix_augmentation = None

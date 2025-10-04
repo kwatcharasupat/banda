@@ -75,7 +75,9 @@ class MetricHandler(nn.Module):
         with torch.no_grad():
             for key in batch.estimates:
                 estimate = batch.estimates[key]["audio"]
-                source = batch.sources[key]["audio"]
+                source = batch.sources.get(key, {}).get("audio", None)
+                if source is None:
+                    source = torch.zeros_like(estimate, requires_grad=False)
 
                 if self.config.auto_group and key not in self.metric_collection:
                     key = key.split("/")[0]

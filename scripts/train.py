@@ -5,11 +5,9 @@
 #  2. Commercial License for all other uses. Contact kwatcharasupat [at] ieee.org for commercial licensing.
 from rich import print as rprint
 
-from pprint import pprint
 import random
-import signal
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 import pytorch_lightning as pl
 import pytorch_lightning.callbacks as pl_callbacks
 from pytorch_lightning.loggers.wandb import WandbLogger
@@ -26,7 +24,6 @@ from banda.models.base import ModelRegistry
 from banda.system.base import SourceSeparationSystem
 from banda.utils import BaseConfig, WithClassConfig
 from hydra.core.hydra_config import HydraConfig
-from pytorch_lightning.plugins.environments import SLURMEnvironment
 import time
 
 logger = structlog.get_logger(__name__)
@@ -75,6 +72,10 @@ def train(config: DictConfig) -> None:
     pl.seed_everything(config.seed, workers=True)
 
     datamodule = SourceSeparationDataModule(config=config.data)
+    # for batch in datamodule.train_dataloader():
+    #     pprint(batch)
+    #     break
+    # return
 
     model = _build_model(config=config.model)
 

@@ -11,7 +11,6 @@ from torch.utils.checkpoint import checkpoint_sequential
 
 
 from torch.nn.utils.parametrizations import weight_norm
-from torch.nn import functional as F
 from mamba_ssm import Mamba2
 
 

@@ -1,0 +1,74 @@
+augmentations:
+- cls: MultichannelGain
+  params:
+    min_gain_db: -6
+    max_gain_db: 6.0
+    p: 1.0
+
+- cls: TimeStretch
+  params:
+    p: 1.0
+
+- cls: PitchShift
+  params:
+    p: 1.0
+
+- cls: RoomSimulator
+  params:
+    p: 0.5
+
+- cls: SevenBandParametricEQ
+  params:
+    p: 1.0
+
+- cls: GainTransition
+  params:
+    min_gain_db: -12.0
+    max_gain_db: 12.0
+    transition_time_min: 0.1
+    transition_time_max: 1.0
+    duration_unit: fraction
+    p: 0.5
+
+- cls: Limiter
+  params:
+    p: 0.5
+
+- cls: ClippingDistortion
+  params:
+    p: 0.1
+
+- cls: RandomDrop
+  params:
+    p: 0.10
+
+- cls: Mp3Compression
+  params:
+    p: 0.1
+
+- cls: TanhDistortion
+  params:
+    p: 0.1
+
+- cls: RepeatPart
+  params:
+    min_part_duration: 0.1
+    max_part_duration: 1.0  
+    mode: replace
+    duration_unit: fraction
+    p: 0.25
+
+- cls: BitCrush
+  params:
+    p: 0.1
+
+- cls: PolarityInversion
+  params:
+    p: 0.5
+
+- cls: TimeMask
+  params:
+    min_band_part: 0.1
+    max_band_part: 0.5
+    duration_unit: fraction
+    p: 0.5

@@ -213,7 +213,6 @@ def _multi_test(
     max_epoch: int = 99,
     submit: bool = False,
 ):
-    import pandas as pd
 
     import wandb
 

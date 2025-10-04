@@ -38,9 +38,11 @@ class L1SNRLoss(BaseRegisteredLoss):
                 domain = self.config.domain
 
             estimate = estimates[key][domain]
-            source = sources[key][domain]
+            source = sources.get(key, {}).get(domain, None)
+            if source is None:
+                source = torch.zeros_like(estimate, requires_grad=False)
 
-            if self.stft is not None:
+            if "spectrogram/" in self.config.domain and self.stft is not None:
                 estimate = self.stft(estimate)
                 source = self.stft(source)
 

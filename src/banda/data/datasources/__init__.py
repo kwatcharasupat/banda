@@ -2,3 +2,4 @@
 
 from .musdb18hq import MUSDB18HQDatasource  # noqa
 from .moisesdb import MoisesDBDatasource  # noqa
+from .rawstems import RawStemsDatasource  # noqa

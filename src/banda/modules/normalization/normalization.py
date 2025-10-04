@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from banda.data.item import SourceSeparationBatch
 from torch import nn
 import torch
 

@@ -9,7 +9,6 @@ from torch import nn
 
 from banda.utils import BaseConfig
 from tqdm import tqdm
-import torchaudio as ta
 
 import structlog
 logger = structlog.get_logger(__name__)

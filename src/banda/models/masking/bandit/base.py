@@ -6,7 +6,6 @@ from banda.modules.bandsplit.band_specs import MusicalBandsplitSpecification
 from banda.modules.bandsplit.bandsplit import BandSplitModule
 from banda.modules.maskestim.maskestim import OverlappingMaskEstimationModule
 from banda.modules.tfmodels.base import TFModelRegistry
-from banda.modules.tfmodels.tfmodel import RNNSeqBandModellingModule
 import random
 from torch import nn
 
@@ -107,3 +106,5 @@ class BaseBandit(_BaseMaskingModel):
 
         self.bandsplit.load_state_dict(bandsplit_dict)
         self.pre_tf_model.load_state_dict(pre_tf_model_dict, strict=False)
+
+    

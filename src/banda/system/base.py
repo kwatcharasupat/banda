@@ -1,5 +1,3 @@
-import gc
-import os
 from typing import Literal
 from omegaconf import DictConfig
 import pytorch_lightning as pl
@@ -12,9 +10,7 @@ from banda.losses.handler import LossHandler
 from banda.metrics.handler import MetricHandler
 from banda.models.base import BaseRegisteredModel
 from pytorch_lightning.loggers import WandbLogger
-from tqdm import tqdm
 
-import torchaudio as ta
 import structlog
 import pandas as pd
 
@@ -152,7 +148,7 @@ class SourceSeparationSystem(pl.LightningModule):
                 chunked_outputs = self._try_inference(
                     chunked_audio, inference_batch_size=inference_batch_size
                 )
-            except torch.cuda.OutOfMemoryError as e:
+            except torch.cuda.OutOfMemoryError:
                 torch.cuda.empty_cache()
 
                 if inference_batch_size >= 48:

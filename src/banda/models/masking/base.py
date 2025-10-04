@@ -1,3 +1,4 @@
+import os
 from typing import Dict
 
 from omegaconf import DictConfig
@@ -36,6 +37,9 @@ class _BaseMaskingModel(BaseRegisteredModel):
     def forward(self, batch: dict) -> SourceSeparationBatch:
         with torch.no_grad():
             batch: SourceSeparationBatch = SourceSeparationBatch.model_validate(batch)
+            if os.getenv("BANDA_DEBUG_MODE", "0") == "1":
+                logger.info("Sources keys: %s", batch.sources.keys())
+                print(batch)
             assert "mixture" not in batch.sources, "Mixture should not be in sources"
             # print(batch.sources.keys())
             # logger.info("Sources keys: %s", batch.sources.keys())
@@ -59,7 +63,12 @@ class _BaseMaskingModel(BaseRegisteredModel):
             if batch.sources:
                 for key in batch.estimates:
                     # only compute this for stems with estimates to reduce the compute
-                    source = batch.sources[key]["audio"]
+                    source = batch.sources.get(key, {}).get("audio", None)
+                    if source is None:
+                        logger.warn(
+                            f"Source audio for key '{key}' not found in batch.sources. Skipping spec computation."
+                        )
+                        continue
                     source_specs = self.stft(source)
                     batch.sources[key]["spectrogram"] = source_specs
 

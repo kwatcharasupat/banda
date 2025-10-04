@@ -74,7 +74,9 @@ class DecibelMatchLoss(BaseRegisteredLoss):
 
         for key in estimates.keys():
             estimate = estimates[key]["audio"]
-            source = sources[key]["audio"]
+            source = sources.get(key, {}).get("audio", None)
+            if source is None:
+                source = torch.zeros_like(estimate, requires_grad=False)
             losses[key] = self._loss_func(estimate, source)
 
         total_loss = sum(losses.values())

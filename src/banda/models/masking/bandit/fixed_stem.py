@@ -1,4 +1,3 @@
-import random
 import torch
 from banda.data.item import SourceSeparationBatch
 from banda.models.masking.bandit.base import BaseBandit

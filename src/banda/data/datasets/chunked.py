@@ -1,11 +1,14 @@
 from collections import defaultdict
-from pprint import pprint
 import random
 import numpy as np
 from banda.data.datasets.base import BaseRegisteredDataset, DatasetParams
-from banda.data.datasources.base import BaseRegisteredDatasource, TrackIdentifier
+from banda.data.datasources.base import (
+    BaseRegisteredDatasource,
+    TrackIdentifier,
+    StemIdentifier,
+)
 
-from banda.data.datasources.moisesdb import MoisesDBStemWiseDatasource, StemIdentifier
+from banda.data.datasources.moisesdb import MoisesDBStemWiseDatasource
 from banda.data.item import SourceSeparationItem
 
 import structlog
@@ -137,6 +140,8 @@ class RandomChunkDataset(_ChunkDataset):
             ]
 
             if self.premix_augmentation is not None:
+                # logger.info("Applying premix augmentation", premix_augmentation=self.premix_augmentation)
+                print(self.premix_augmentation)
                 chunked_audio = [
                     self.premix_augmentation(
                         chunked_audio_component, sample_rate=self.config.fs
@@ -456,6 +461,25 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
                 zip = np.load(stem_identifier.full_path, mmap_mode="r")
                 clip = zip[f"clip{clip_idx:04d}"]
 
+                # FIXME: this should actually be handled at the preprocessing stage
+                #  but I don't want the system to fail right not
+                n_channels, n_samples = clip.shape
+                if n_channels != self.config.n_channels:
+                    logger.warning(
+                        f"Number of channels in the clip ({n_channels}) does not match the dataset config "
+                        f"({self.config.n_channels}). Applying random gain mapping."
+                    )
+                    # make gain mapper
+                    gains = np.random.uniform(
+                        0.0, 1.0, size=(self.config.n_channels, n_channels)
+                    )
+                    # normalize so that sum of squared gains on the output channels is 1
+                    gains = gains / np.sqrt(np.sum(gains**2, axis=1, keepdims=True))
+                    # (self.config.n_channels, n_channels) / (self.config.n_channels, 1) -> (self.config.n_channels, n_channels)
+
+                    clip = gains @ clip
+                    # (n_channels, n_samples) -> (self.config.n_channels, n_samples)
+
                 if datasource.config.stems is None:
                     composite_key = stem_identifier.name
                 else:
@@ -518,23 +542,30 @@ class RandomChunkAutoMixSelfQueryDataset(RandomChunkAutoMixDataset):
 
 
 if __name__ == "__main__":
-    config = "/home/hice1/kwatchar3/scratch/banda/configs/data/musdb18hq-moisesdb-aggressive.yaml"
+    config = "/home/hice1/kwatchar3/scratch/banda/configs/data/rawstems-all-coarse-active.yaml"
     import yaml
-    import torchaudio as ta
-    import torch
+    from banda.data.datasources.rawstems import (
+        RawStemsDatasourceParams,
+        RawStemsStemWiseDatasource,
+    )
 
     with open(config, "r") as f:
         config = yaml.safe_load(f)["train"]
 
     print(config)
 
-    ds = RandomChunkAutoMixDataset(
-        datasources=[
-            MoisesDBStemWiseDatasource(config=config["datasource"][0]["params"])
-        ],
-        config=config["dataset"]["params"],
+    datasource = RawStemsStemWiseDatasource(
+        config=RawStemsDatasourceParams(
+            split="train",
+            mode="active",
+            stems="_rs_coarse",
+        )
     )
 
+    ds = RandomChunkAutoMixDataset(
+        datasources=[datasource],
+        config=RandomChunkDatasetParams.model_validate(config["dataset"]["params"]),
+    )
 
     for i, item in enumerate(ds):
         # mixture = item["mixture"]["audio"]
@@ -546,6 +577,9 @@ if __name__ == "__main__":
 
         for key, source in item["sources"].items():
             print(key, source["audio"].shape)
+
+            print(source)
+
         #     audio = source["audio"]
         #     ta.save(
         #         f"_debug/source_{i}_{key}.wav",

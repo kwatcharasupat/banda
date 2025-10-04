@@ -1,7 +1,6 @@
 from typing import Dict
 from omegaconf import DictConfig
 import torch
-import torchmetrics as tm
 
 from banda.utils import BaseConfig, WithClassConfig
 

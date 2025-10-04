@@ -1,0 +1,6 @@
+datasource_id: rawstems
+canonical_path: canonical
+output_path: intermediates
+
+fs: 44100
+mode: coarse
