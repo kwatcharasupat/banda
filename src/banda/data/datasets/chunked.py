@@ -471,7 +471,7 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
                     )
                     # make gain mapper
                     gains = np.random.uniform(
-                        0.0, 1.0, size=(self.config.n_channels, n_channels)
+                        0.0, 1.0, size=(self.config.n_channels, n_channels),
                     )
                     # normalize so that sum of squared gains on the output channels is 1
                     gains = gains / np.sqrt(np.sum(gains**2, axis=1, keepdims=True))
@@ -487,6 +487,8 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
                         coarse_stem, fine_stem
                     )
                     # print(f"Resolved {coarse_stem}/{fine_stem} to {composite_key}")
+
+                clip = clip.astype(np.float32)  # ensure float32
 
                 sources[composite_key]["audio"].append(clip)
 
