@@ -40,6 +40,7 @@ class BaseBandit(_BaseMaskingModel):
             n_fft=self.config.spectrogram.n_fft,
             n_bands=self.config.bandsplit.n_bands,
             fs=self.config.spectrogram.fs,
+            fb_kwargs=self.config.bandsplit.fb_kwargs
         ).get_band_specs()
 
         self.bandsplit = BandSplitModule(

@@ -1,0 +1,21 @@
+defaults:
+- stft@params.spectrogram: default
+- normalization@params.normalization: default
+- bandsplit@params.bandsplit: mus64_midwide
+- tfmodel@params.tf_model: gru8
+- mask_estim@params.mask_estim: default
+- _self_
+
+cls: FixedStemBandit
+params:
+  tf_model:
+    params:
+      emb_dim: ${...bandsplit.emb_dim}
+    use_split_model: false
+
+  mask_estim:
+    emb_dim: ${..bandsplit.emb_dim}
+    in_channels: ${..bandsplit.in_channels}
+
+  stems: null
+  max_simultaneous_stems: 11

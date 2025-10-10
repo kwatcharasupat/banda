@@ -93,7 +93,7 @@ class SourceSeparationSystem(pl.LightningModule):
         logger: WandbLogger = self.logger
         logger.log_table(key="test/metrics", dataframe=df)
 
-    def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: int = 0):
+    def predict_step(self, batch: dict, batch_idx: int = 0, dataloader_idx: int = 0):
         return self.inference_step(batch, batch_idx, dataloader_idx)
 
     def _try_inference(
@@ -107,7 +107,8 @@ class SourceSeparationSystem(pl.LightningModule):
             chunked_batch.mixture["audio"] = chunked_batch.mixture["audio"].to(
                 self.device
             )
-            chunked_output = self.forward(chunked_batch)
+            with torch.no_grad():
+                chunked_output = self.forward(chunked_batch)
             chunked_outputs.append(
                 SourceSeparationBatch(
                     mixture=None,
@@ -121,8 +122,14 @@ class SourceSeparationSystem(pl.LightningModule):
                 )
             )
 
-            chunked_output.estimates = {}
-            chunked_output.mixture = {}
+
+            # free memory
+            del chunked_batch.estimates
+            del chunked_batch.mixture
+            del chunked_batch
+
+            del chunked_output
+
             torch.cuda.empty_cache()
 
         return chunked_outputs

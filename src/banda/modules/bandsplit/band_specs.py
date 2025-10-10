@@ -14,6 +14,9 @@ from banda.modules.bandsplit.filterbanks import (
     triangular_bark_filterbank,
 )
 
+from structlog import get_logger
+logger = get_logger(__name__)
+
 
 def band_widths_from_specs(*, band_specs: List[Tuple[float, float]]) -> List[float]:
     """
@@ -463,14 +466,22 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
         n_bands: int,
         f_min: float = 0.0,
         f_max: Optional[float] = None,
+        fb_kwargs: Optional[dict] = None,
     ) -> None:
         super().__init__(n_fft=n_fft, fs=fs)
         self.n_bands = n_bands
         if f_max is None:
             f_max = fs / 2
 
+        logger.info(
+            "Using fbkwargs", fb_kwargs=fb_kwargs
+        )
+
+        if fb_kwargs is None:
+            fb_kwargs = {}
+
         self.filterbank = fbank_fn(
-            n_bands=n_bands, fs=fs, f_min=f_min, f_max=f_max, n_freqs=self.max_index
+            n_bands=n_bands, fs=fs, f_min=f_min, f_max=f_max, n_freqs=self.max_index, **fb_kwargs
         )
 
         weight_per_bin = torch.sum(self.filterbank, dim=0, keepdim=True)  # (1, n_freqs)
@@ -612,7 +623,9 @@ class MusicalBandsplitSpecification(PerceptualBandsplitSpecification):
         n_bands: int,
         f_min: float = 0.0,
         f_max: Optional[float] = None,
+        fb_kwargs: Optional[dict] = None,
     ) -> None:
+        
         super().__init__(
             fbank_fn=musical_filterbank,
             n_fft=n_fft,
@@ -620,6 +633,7 @@ class MusicalBandsplitSpecification(PerceptualBandsplitSpecification):
             n_bands=n_bands,
             f_min=f_min,
             f_max=f_max,
+            fb_kwargs=fb_kwargs,
         )
 
 

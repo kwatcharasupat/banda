@@ -13,6 +13,7 @@ def musical_filterbank(
     f_min: float,
     f_max: float,
     n_freqs: int,
+    octave_per_band_mult: float = 1.0,
 ) -> torch.Tensor:
     """
     Generate a musical filterbank.
@@ -30,12 +31,13 @@ def musical_filterbank(
     nfft = 2 * (n_freqs - 1)
     df = fs / nfft
     f_max = f_max or fs / 2
-    f_min = f_min or 0
-    f_min = fs / nfft
+    f_min = f_min or fs / nfft
+
+    assert octave_per_band_mult >= 0.5, "octave_per_band_mult must be >= 0.5"
 
     n_octaves = np.log2(f_max / f_min)
     n_octaves_per_band = n_octaves / n_bands
-    bandwidth_mult = np.power(2.0, n_octaves_per_band)
+    bandwidth_mult = np.power(2.0, n_octaves_per_band * octave_per_band_mult)
 
     low_midi = max(0, hz_to_midi(f_min))
     high_midi = hz_to_midi(f_max)

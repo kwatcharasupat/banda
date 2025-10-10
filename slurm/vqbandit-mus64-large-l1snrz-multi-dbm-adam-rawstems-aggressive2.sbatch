@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH -Jvqbandit-mus64-large-l1snrz-multi-dbm-adam-musdb18hq-moisesdb-aggressive-vdbo                    
+#SBATCH -Jvqbandit-mus64-large-l1snrz-multi-dbm-adam-rawstems-aggressive2                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
-#SBATCH --gres=gpu:1 --constraint=A100-80GB|H200
+#SBATCH --gres=gpu:1 --constraint=A100-80GB|H100|H200
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/vqbandit-mus64-large-l1snrz-multi-dbm-adam-rawstems-aggressive2-%j.out                  # Combined output and error messages file
@@ -17,5 +17,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn vqbandit-mus64-large-l1snrz-multi-dbm-adam-rawstems-aggressive2
-
+srun python scripts/train.py -cn vqbandit-mus64-large-l1snrz-multi-dbm-adam-rawstems-aggressive2 ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/e9ruz3y8/checkpoints/last.ckpt

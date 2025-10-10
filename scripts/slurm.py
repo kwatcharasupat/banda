@@ -283,7 +283,7 @@ def _multi_test(
 
 def multi_eval_vdbo(
     group_filter: str = "training runs - to be tested",
-    max_epoch: int = 99,
+    max_epoch: int = 149,
     submit: bool = False,
 ):
     _multi_test(

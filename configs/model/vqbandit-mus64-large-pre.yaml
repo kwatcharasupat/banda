@@ -41,8 +41,6 @@ params:
   stems: null
   max_simultaneous_stems: 11
 
-
-
-  pretrained_encoder_ckpt_path: "/storage/ice1/4/1/kwatchar3/banda/banda/tzkag7if/checkpoints/last.ckpt"
-  pretrained_decoder_ckpt_path: "/storage/ice1/4/1/kwatchar3/banda/banda/tzkag7if/checkpoints/last.ckpt"
+  pretrained_encoder_ckpt_path: ./named-checkpoints/vqbandit-mus64-large-l1snrz-multi-dbm-adam-musdb18hq-moisesdb-aggressive-vdbo-epoch=1000.ckpt
+  pretrained_decoder_ckpt_path: ./named-checkpoints/vqbandit-mus64-large-l1snrz-multi-dbm-adam-musdb18hq-moisesdb-aggressive-vdbo-epoch=1000.ckpt
 
