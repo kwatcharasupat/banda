@@ -14,6 +14,8 @@ from audiomentations.augmentations.tanh_distortion import TanhDistortion as _Tan
 from audiomentations.augmentations.repeat_part import RepeatPart as _RepeatPart
 from audiomentations.augmentations.room_simulator import RoomSimulator as _RoomSimulator
 from audiomentations.augmentations.time_mask import TimeMask as _TimeMask
+from audiomentations.augmentations.loudness_normalization import LoudnessNormalization as _LoudnessNormalization
+
 import numpy as np
 
 from banda.data.augmentation.base import AugmentationParams, BaseRegisteredAugmentation
@@ -107,4 +109,7 @@ class TimeMask(BaseRegisteredAugmentation, _TimeMask):
         BaseRegisteredAugmentation.__init__(self, config=config)
         _TimeMask.__init__(self, **config.model_dump())
 
-        
+class LoudnessNormalization(BaseRegisteredAugmentation, _LoudnessNormalization):
+    def __init__(self, *, config: AugmentationParams):
+        BaseRegisteredAugmentation.__init__(self, config=config)
+        _LoudnessNormalization.__init__(self, **config.model_dump())

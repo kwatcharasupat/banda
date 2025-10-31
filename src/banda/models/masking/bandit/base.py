@@ -1,9 +1,11 @@
 from typing import Dict
+from omegaconf import OmegaConf
 import torch
 from banda.data.item import SourceSeparationBatch
 from banda.models.masking.base import _BaseMaskingModel
 from banda.modules.bandsplit.band_specs import MusicalBandsplitSpecification
 from banda.modules.bandsplit.bandsplit import BandSplitModule
+from banda.modules.bandsplit.base import BandsplitModuleRegistry
 from banda.modules.maskestim.maskestim import OverlappingMaskEstimationModule
 from banda.modules.tfmodels.base import TFModelRegistry
 import random
@@ -38,16 +40,24 @@ class BaseBandit(_BaseMaskingModel):
     def _build_bandsplit(self):
         self.band_specs = MusicalBandsplitSpecification(
             n_fft=self.config.spectrogram.n_fft,
-            n_bands=self.config.bandsplit.n_bands,
+            n_bands=self.config.bandsplit.params.n_bands,
             fs=self.config.spectrogram.fs,
-            fb_kwargs=self.config.bandsplit.fb_kwargs
+            fb_kwargs=self.config.bandsplit.params.fb_kwargs
         ).get_band_specs()
 
-        self.bandsplit = BandSplitModule(
-            band_specs=self.band_specs,
-            emb_dim=self.config.bandsplit.emb_dim,
-            in_channels=self.config.bandsplit.in_channels,
+        cls = BandsplitModuleRegistry.get_registry().get(self.config.bandsplit.cls)
+        if cls is None:
+            raise ValueError(
+                f"Bandsplit class '{self.config.bandsplit.cls}' not found in registry. Allowed classes are: {list(BandsplitModuleRegistry.get_registry().keys())}"
+            )
+        
+        bandsplit_params = OmegaConf.to_container(self.config.bandsplit.params)
+        bandsplit_params["band_specs"] = self.band_specs
+
+        self.bandsplit = cls(
+            config=bandsplit_params,
         )
+
 
     def _build_tfmodel(self):
         cls_str = self.config.tf_model.cls

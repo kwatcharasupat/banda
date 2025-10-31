@@ -1,5 +1,7 @@
-n_bands: 64
-in_channels: 2
-emb_dim: 128
-fb_kwargs:
-  octave_per_band_mult: 1.0
+cls: BandSplitModule
+params:
+  n_bands: 64
+  in_channels: 2
+  emb_dim: 128
+  fb_kwargs:
+    octave_per_band_mult: 1.0

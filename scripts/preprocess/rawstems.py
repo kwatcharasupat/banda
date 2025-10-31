@@ -245,7 +245,6 @@ def process_track_coarse(row: pd.Series, config: DictConfig):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(output_path, **data, fs=config.fs)
 
-
 def make_splits(tracklist: pd.DataFrame):
     
     tracklist["split"] = tracklist["musdb18_split"]
@@ -391,8 +390,8 @@ def main(config: DictConfig):
         process_map(process_track_coarse, tracks, [config] * len(tracks), max_workers=24)
 
     if config.mode == "active":
-        print("Running on train only.")
-        tracklist = tracklist[tracklist.split == "train"]
+        print("Running on val only.")
+        tracklist = tracklist[tracklist.split == "val"]
         tracks = [row for _, row in tracklist.iterrows()]
         print(f"Number of tracks: {len(tracks)}")
 

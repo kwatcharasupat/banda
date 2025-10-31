@@ -1,8 +1,9 @@
 augmentations:
+
 - cls: MultichannelGain
   params:
-    min_gain_db: -6
-    max_gain_db: 6.0
+    min_gain_db: -12.0
+    max_gain_db: 12.0
     p: 1.0
 
 - cls: TimeStretch

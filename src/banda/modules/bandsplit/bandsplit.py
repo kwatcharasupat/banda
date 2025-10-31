@@ -1,8 +1,11 @@
-from typing import List, Tuple
+import math
+from typing import Dict, List, Tuple
 
 import torch
 from torch import nn
 from torch.nn.utils.parametrizations import weight_norm
+
+from banda.modules.bandsplit.base import BaseRegisteredBandsplitModule
 
 from .band_specs import (
     band_widths_from_specs,
@@ -58,7 +61,7 @@ class NormFC(nn.Module):
         return checkpoint_sequential(self.combined, 1, xb, use_reentrant=False)
 
 
-class BandSplitModule(nn.Module):
+class BandSplitModule(BaseRegisteredBandsplitModule):
     """
     Module for splitting input spectrogram into subbands and processing each subband.
 
@@ -74,13 +77,15 @@ class BandSplitModule(nn.Module):
     def __init__(
         self,
         *,
-        band_specs: List[Tuple[float, float]],
-        emb_dim: int,
-        in_channels: int,
-        require_no_overlap: bool = False,
-        require_no_gap: bool = True,
+        config: Dict,
     ) -> None:
-        super().__init__()
+        super().__init__(config=config)
+
+        band_specs: List[Tuple[float, float]] = config["band_specs"]
+        emb_dim: int = config["emb_dim"]
+        in_channels: int = config["in_channels"]
+        require_no_overlap: bool = config.get("require_no_overlap", False)
+        require_no_gap: bool = config.get("require_no_gap", True)
 
         check_nonzero_bandwidth(band_specs=band_specs)
 
@@ -142,3 +147,41 @@ class BandSplitModule(nn.Module):
             # (batch, n_time, emb_dim)
 
         return z
+
+
+class BandSplitModuleWithDrop(BandSplitModule):
+    def __init__(self, *,
+        config,
+    ) -> None:
+        # drop some bands for ablation
+        drop_rate: float = config.get("drop_rate", 0.0)
+        band_specs: List[Tuple[float, float]] = config["band_specs"]
+
+        new_band_specs = []
+        for fstart, fend in band_specs:
+            bandwidth = fend - fstart
+            if bandwidth <= 2:
+                new_band_specs.append((fstart, fend))
+                continue
+
+            reduced_bandwidth = math.floor(bandwidth * (1 - drop_rate))
+            fmid = (fstart + fend) / 2
+
+            new_fstart = math.ceil(fmid - reduced_bandwidth / 2)
+            new_fend = math.floor(fmid + reduced_bandwidth / 2)
+
+            new_fstart = max(new_fstart, fstart)
+            new_fend = max(new_fstart + 1, new_fend)
+            new_fend = min(new_fend, fend)
+
+            assert new_fend - new_fstart <= bandwidth
+            assert new_fstart >= fstart
+            assert new_fend <= fend
+            assert new_fend - new_fstart > 0
+
+            new_band_specs.append((new_fstart, new_fend))
+
+        config["band_specs"] = new_band_specs
+        config["require_no_gap"] = False
+
+        super().__init__(config=config)

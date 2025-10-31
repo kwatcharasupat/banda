@@ -20,23 +20,25 @@ params:
     dbrms_threshold: -60
 
   bandsplit:
-    n_bands: 64
-    in_channels: 2
-    emb_dim: 256
+    cls: BandSplitModule
+    params:
+      n_bands: 64
+      in_channels: 2
+      emb_dim: 256
 
   tf_model:
     params:
       n_modules: 8
       rnn_type: GRU
-      emb_dim: ${...bandsplit.emb_dim}
+      emb_dim: ${...bandsplit.params.emb_dim}
       rnn_dim: 512
       bidirectional: true
     use_split_model: false
 
   mask_estim:
-    emb_dim: ${..bandsplit.emb_dim}
+    emb_dim: ${..bandsplit.params.emb_dim}
     mlp_dim: 1024
-    in_channels: ${..bandsplit.in_channels}
+    in_channels: ${..bandsplit.params.in_channels}
 
   stems: null
   max_simultaneous_stems: 11

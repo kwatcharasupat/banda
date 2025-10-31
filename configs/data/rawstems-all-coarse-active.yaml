@@ -37,22 +37,28 @@ train:
 
 val:
   datasource:
-  - cls: RawStemsDatasource
+  - cls: RawStemsStemWiseDatasource
     params:
       split: val
       load_duration: true
       stems: _rs_coarse
+      mode: active
 
   dataset:
-    cls: DeterministicChunkDataset
+    cls: DeterministicChunkAutoMixDataset
     params:
       n_channels: 2
       fs: 44100
       chunk_size_seconds: 6.0
-      hop_size_seconds: 6.0
-      allow_autolooping: false
-      max_dataset_size: 1024
+      allow_autolooping: true
+      max_dataset_size: 8192
 
+      n_coarse_stems_min: 8
+      n_coarse_stems_max: 8
+
+      n_fine_stems_min: 1
+      n_fine_stems_max: 3
+      
       variable_sources: true
 
   dataloader:

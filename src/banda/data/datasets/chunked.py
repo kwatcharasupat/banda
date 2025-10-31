@@ -141,7 +141,7 @@ class RandomChunkDataset(_ChunkDataset):
 
             if self.premix_augmentation is not None:
                 # logger.info("Applying premix augmentation", premix_augmentation=self.premix_augmentation)
-                print(self.premix_augmentation)
+                # print(self.premix_augmentation)
                 chunked_audio = [
                     self.premix_augmentation(
                         chunked_audio_component, sample_rate=self.config.fs
@@ -465,10 +465,10 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
                 #  but I don't want the system to fail right not
                 n_channels, n_samples = clip.shape
                 if n_channels != self.config.n_channels:
-                    logger.warning(
-                        f"Number of channels in the clip ({n_channels}) does not match the dataset config "
-                        f"({self.config.n_channels}). Applying random gain mapping."
-                    )
+                    # logger.warning(
+                    #     f"Number of channels in the clip ({n_channels}) does not match the dataset config "
+                    #     f"({self.config.n_channels}). Applying random gain mapping."
+                    # )
                     # make gain mapper
                     gains = np.random.uniform(
                         0.0, 1.0, size=(self.config.n_channels, n_channels),
@@ -502,6 +502,25 @@ class RandomChunkAutoMixDataset(RandomChunkDataset):
             sources=sources,
             estimates={},
         )
+
+
+class DeterministicChunkAutoMixDataset(RandomChunkAutoMixDataset):
+    def __init__(
+        self, *, datasources: list[BaseRegisteredDatasource], config: DatasetParams
+    ):
+        config = RandomChunkDatasetParams.model_validate(config)
+        super().__init__(datasources=datasources, config=config)
+
+    def __getitem__(self, index: int):
+        seed = index
+        random.seed(seed)
+        np.random.seed(seed)
+
+        item_dict = self._load_audio_automix(index)
+
+        chunked_item_dict = self._chunk_and_augment(item_dict, pre_pad=True)
+
+        return chunked_item_dict.model_dump()
 
 
 class RandomChunkAutoMixSelfQueryDataset(RandomChunkAutoMixDataset):
