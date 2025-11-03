@@ -1,0 +1,5 @@
+cls: LocoFormerTFModel
+params:
+  n_modules: 8
+  emb_dim: ${...bandsplit.emb_dim}
+  # keep other params as default

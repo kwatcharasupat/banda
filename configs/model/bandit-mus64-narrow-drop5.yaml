@@ -1,12 +1,12 @@
 defaults:
 - stft@params.spectrogram: default
 - normalization@params.normalization: default
-- bandsplit@params.bandsplit: mus64
+- bandsplit@params.bandsplit: mus64_narrow_drop5
 - tfmodel@params.tf_model: gru8
 - mask_estim@params.mask_estim: default
 - _self_
 
-cls: VectorDictQueryBandit
+cls: FixedStemBandit
 params:
   tf_model:
     params:

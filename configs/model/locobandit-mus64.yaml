@@ -2,11 +2,11 @@ defaults:
 - stft@params.spectrogram: default
 - normalization@params.normalization: default
 - bandsplit@params.bandsplit: mus64
-- tfmodel@params.tf_model: gru8
+- tfmodel@params.tf_model: locoformer8
 - mask_estim@params.mask_estim: default
 - _self_
 
-cls: VectorDictQueryBandit
+cls: FixedStemBandit
 params:
   tf_model:
     params:

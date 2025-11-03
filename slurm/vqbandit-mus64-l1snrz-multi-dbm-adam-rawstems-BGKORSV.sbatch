@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH -Jbandit-mus64-narrow-drop25-l1snrz-multi-dbm-adam-musdb18hq-vdbo                    
+#SBATCH -Jvqbandit-mus64-l1snrz-multi-dbm-adam-rawstems-BGKORSV                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --gres=gpu:1 --constraint=A100-80GB|H100|H200
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
-#SBATCH --output=./slurm-out/bandit-mus64-narrow-drop25-l1snrz-multi-dbm-adam-musdb18hq-vdbo-%j.out                  # Combined output and error messages file
+#SBATCH --output=./slurm-out/vqbandit-mus64-l1snrz-multi-dbm-adam-rawstems-BGKORSV-%j.out                  # Combined output and error messages file
 #SBATCH --mail-type=END,FAIL       # Mail preferences
 #SBATCH --mail-user=kwatchar3+pace@gatech.edu # E-mail address for notifications
 #SBATCH --signal=SIGTERM@120
@@ -17,4 +17,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-mus64-narrow-drop25-l1snrz-multi-dbm-adam-musdb18hq-vdbo ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/1rjs7q6n/checkpoints/last.ckpt
+srun python scripts/train.py -cn vqbandit-mus64-l1snrz-multi-dbm-adam-rawstems-BGKORSV ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/9zx9f0cj/checkpoints/last.ckpt
