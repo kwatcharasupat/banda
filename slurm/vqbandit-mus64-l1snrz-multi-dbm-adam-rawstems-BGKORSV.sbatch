@@ -17,4 +17,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn vqbandit-mus64-l1snrz-multi-dbm-adam-rawstems-BGKORSV ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/9zx9f0cj/checkpoints/last.ckpt
+srun python scripts/train.py -cn vqbandit-mus64-l1snrz-multi-dbm-adam-rawstems-BGKORSV ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/rmu59m56/checkpoints/last.ckpt

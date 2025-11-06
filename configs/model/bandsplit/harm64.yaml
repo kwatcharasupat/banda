@@ -1,0 +1,5 @@
+cls: HarmonicBandsplitModule
+params:
+  n_bands: 64
+  in_channels: 2
+  emb_dim: 128

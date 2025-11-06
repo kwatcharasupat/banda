@@ -63,7 +63,7 @@ class EmbeddingQueryBandit(BaseBandit):
     def _inner_model(
         self, specs_normalized: torch.Tensor, *, batch: SourceSeparationBatch
     ):
-        band_embs = self.bandsplit(specs_normalized)
+        band_embs = self.bandsplit(specs_normalized, batch=batch)
         tf_outs = self.pre_tf_model(band_embs)  # (batch, n_bands, n_time, emb_dim)
 
         active_stems = self.get_active_stems(batch=batch)

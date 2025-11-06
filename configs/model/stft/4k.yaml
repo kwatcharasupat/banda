@@ -1,0 +1,5 @@
+n_fft: 4096
+hop_length: 512
+win_length: 4096
+window: "hann"
+fs: 44100

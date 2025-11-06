@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import math
-from typing import List, Union
+from typing import Any, List, Union
 
 from omegaconf import DictConfig
 import torch
@@ -16,41 +16,49 @@ from packaging.version import parse as V
 from banda.modules.tfmodels.tfmodel import TimeFrequencyModellingModule
 
 from torch.utils.checkpoint import checkpoint_sequential
+
+from banda.utils import BaseConfig
 is_torch_2_0_plus = V(torch.__version__) >= V("2.0.0")
 
-class LocoFormerParams(DictConfig):
+class LocoFormerParams(BaseConfig):
     n_modules: int = 8
     emb_dim: int = 128
 
-    pe_freq=None
-    pe_time=None
+    pe_freq : Any = None
+    pe_time : Any = None
 
     # general setup
-    emb_dim=128
-    norm_type="rmsgroupnorm"
-    num_groups=4
-    tf_order="ft"
+    emb_dim: int = 128
+    norm_type: str = "rmsgroupnorm"
+    num_groups: int = 4
+    tf_order: str = "ft"
 
     # self-attention related
-    n_heads=4
-    flash_attention=False
-    attention_dim=128
+    n_heads: int = 4
+    flash_attention: bool = False
+    attention_dim: int = 128
 
     # ffn related
-    ffn_type="swiglu_conv1d"
-    ffn_hidden_dim=384
-    conv1d_kernel=4
-    conv1d_shift=1
-    dropout=0.0
-    eps=1.0e-5
+    ffn_type: str | List[str] = ["swiglu_conv1d", "swiglu_conv1d"]
+    ffn_hidden_dim: int | List[int] = [256, 256]
+    conv1d_kernel: int = 4
+    conv1d_shift: int = 1
+    dropout: float = 0.0
+    eps: float = 1.0e-5
 
 class LocoFormerTFModel(TimeFrequencyModellingModule):
     def __init__(self, *, config):
-        config = LocoFormerParams(config)
+        config = LocoFormerParams.model_validate(config)
         super().__init__(config=config)
 
+        self.config : LocoFormerParams
+        print("Building LocoFormer TF model with config:", self.config)
+        print("n_modules:", self.config.n_modules)
+
+
         seqband: List[nn.Module] = []
-        for _ in range(2 * self.config.n_modules):
+        # no need to *2, as we are doing both freq and time in each block
+        for _ in range(self.config.n_modules):
             seqband += [
                 TFLocoformerBlock(
                     pe_freq=self.config.pe_freq,
@@ -340,14 +348,15 @@ class MultiHeadSelfAttention(nn.Module):
             raise NotImplementedError("Rotary positional encoding is not implemented in this version.")
 
         # pytorch 2.0 flash attention: q, k, v, mask, dropout, softmax_scale
-        with torch.backends.cuda.sdp_kernel(**self.flash_attention_config):
-            output = F.scaled_dot_product_attention(
-                query=query,
-                key=key,
-                value=value,
-                attn_mask=None,
-                dropout_p=self.dropout if self.training else 0.0,
-            )  # (batch, head, seq_len, -1)
+        # with torch.backends.cuda.sdp_kernel(**self.flash_attention_config):
+        # with torch.nn.attention.sdpa_kernel(**self.flash_attention_config):
+        output = F.scaled_dot_product_attention(
+            query=query,
+            key=key,
+            value=value,
+            attn_mask=None,
+            dropout_p=self.dropout if self.training else 0.0,
+        )  # (batch, head, seq_len, -1)
 
         output = output.transpose(1, 2)  # (batch, seq_len, head, -1)
         output = output.reshape(output.shape[:2] + (-1,))

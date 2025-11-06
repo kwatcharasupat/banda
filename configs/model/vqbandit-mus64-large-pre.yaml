@@ -20,7 +20,7 @@ params:
     dbrms_threshold: -60
 
   bandsplit:
-    cls: BandSplitModule
+    cls: BandsplitModule
     params:
       n_bands: 64
       in_channels: 2

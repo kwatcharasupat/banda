@@ -220,7 +220,7 @@ class BaseMaskEstimationModule(nn.Module):
 
     def __init__(
         self,
-        band_specs: List[Tuple[float, float]],
+        band_selectors: torch.Tensor,
         emb_dim: int,
         mlp_dim: int,
         in_channels: Optional[int],
@@ -231,8 +231,8 @@ class BaseMaskEstimationModule(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.band_widths = band_widths_from_specs(band_specs=band_specs)
-        self.n_bands = len(band_specs)
+        self.band_widths = band_selectors.sum(dim=1).tolist()
+        self.n_bands = band_selectors.shape[0]
 
         if hidden_activation_kwargs is None:
             hidden_activation_kwargs = {}
@@ -307,7 +307,7 @@ class OverlappingMaskEstimationModule(BaseMaskEstimationModule):
     def __init__(
         self,
         in_channels: int,
-        band_specs: List[Tuple[float, float]],
+        band_selectors: torch.Tensor,
         n_freq: int,
         emb_dim: int,
         mlp_dim: int,
@@ -317,7 +317,7 @@ class OverlappingMaskEstimationModule(BaseMaskEstimationModule):
         norm_mlp_kwargs: Optional[Dict] = None,
     ) -> None:
         super().__init__(
-            band_specs=band_specs,
+            band_selectors=band_selectors,
             emb_dim=emb_dim,
             mlp_dim=mlp_dim,
             in_channels=in_channels,
@@ -328,7 +328,7 @@ class OverlappingMaskEstimationModule(BaseMaskEstimationModule):
         )
 
         self.n_freq = n_freq
-        self.band_specs = band_specs
+        self.band_selectors = band_selectors
         self.in_channels = in_channels
 
     def forward(
@@ -357,8 +357,8 @@ class OverlappingMaskEstimationModule(BaseMaskEstimationModule):
         )
 
         for im, mask in enumerate(mask_list):
-            fstart, fend = self.band_specs[im]
-            masks[:, :, fstart:fend, :] += mask
+            fselector = self.band_selectors[im, :]  # (n_freq,)
+            masks[:, :, fselector, :] += mask 
 
         return masks
 

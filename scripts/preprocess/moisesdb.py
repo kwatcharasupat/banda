@@ -17,13 +17,14 @@ from tqdm.contrib.concurrent import process_map
 
 import pandas as pd
 
-from typing import List
+from typing import Dict, List
 
 from pydantic import BaseModel
 
 import structlog
 
 import librosa
+import yaml
 
 logger = structlog.get_logger()
 
@@ -47,6 +48,42 @@ class SongMetadata(BaseModel):
     artist: str
     genre: str
     stems: List[StemMetadata]
+
+
+class MedleyDBLikeRawTrackMetadata(BaseModel):
+    filename: str
+    instrument: str
+    has_bleed: bool | None
+
+class MedleyDBLikeStemMetadata(BaseModel):
+    component: str
+    filename: str
+    instrument: str
+    raw: Dict[str, MedleyDBLikeRawTrackMetadata]
+
+class MedleyDBLikeMetadata(BaseModel):
+    version: str
+
+    title: str
+    artist: str
+    composer: List[str]
+    producer: List[str]
+    album: str
+    origin: str
+
+    website: List[str]
+
+    genre: str
+
+    has_bleed: bool
+    instrumental: bool
+    excerpt: bool
+
+    mix_filename: str
+    
+    raw_dir: str
+    stem_dir: str
+    stems: Dict[str, MedleyDBLikeStemMetadata]
 
 
 def process_track_raw(path: Path, config: DictConfig):
@@ -359,6 +396,72 @@ def process_stem_active(
 
     np.savez(output_path, **{k: v for k, v in data.items()}, fs=config.fs)
 
+def process_metadata(track: Path, config: DictConfig):
+    track_id = track.stem
+
+    data_json_path = Path(track, "data.json")
+
+    with open(data_json_path, "r") as f:
+        data_json = json.load(f)
+        song_metadata = SongMetadata.model_validate(data_json)
+
+    moisesdb_like_stems = {}
+    has_vocals = False
+    for stem in song_metadata.stems:
+        stem_name = stem.stemName
+        stem_name = stem_name.replace("_", " ").lower()
+        moisesdb_like_raws = {}
+        for track in stem.tracks:
+            track: TrackMetadata
+            track_name = track.trackType.replace("_", " ").lower()
+            moisesdb_like_raws[track.id] = MedleyDBLikeRawTrackMetadata(
+                filename=f"{track.id}.{track.extension}",
+                instrument=track_name,
+                has_bleed=track.has_bleed,
+            )
+        moisesdb_like_stems[stem.id] = MedleyDBLikeStemMetadata(
+            component="",
+            filename="",
+            instrument=stem_name,
+            raw=moisesdb_like_raws,
+        )
+
+        if "vocal" in stem_name.lower() or "voice" in stem_name.lower():
+            has_vocals = True
+
+    moisesdb_like_metadata = MedleyDBLikeMetadata(
+        version="alpha",
+        title=song_metadata.song,
+        artist=song_metadata.artist,
+        composer=[],
+        producer=[],
+        album="",
+        origin="MoisesDB",
+        website=[],
+        genre=song_metadata.genre,
+        has_bleed=any(
+            track.has_bleed for stem in song_metadata.stems for track in stem.tracks
+        ),
+        instrumental=not has_vocals,
+        excerpt=False,
+        mix_filename="",
+        raw_dir="",
+        stem_dir="",
+        stems=moisesdb_like_stems,
+    )
+
+    output_path = Path(
+        os.getenv("DATA_ROOT"),
+        config.datasource_id,
+        "intermediates",
+        "metadata",
+        f"{track_id}.yaml",
+    ).expanduser()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, "w") as f:
+        yaml.dump(moisesdb_like_metadata.model_dump(), f)
+
 
 @hydra.main(config_path="../../configs/preprocess")
 def main(config: DictConfig):
@@ -378,6 +481,11 @@ def main(config: DictConfig):
     elif config.mode == "active":
         process_map(process_track_active, tracks, [config] * len(tracks), max_workers=24)
         # process_track_active(tracks[0], config)
+    elif config.mode == 'metadata':
+        # tracks = [tracks[0]]
+        process_map(
+            process_metadata, tracks, [config] * len(tracks), max_workers=32
+        )
     else:
         raise NotImplementedError(f"Mode {config.mode} not implemented.")
 

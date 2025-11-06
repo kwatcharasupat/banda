@@ -1,0 +1,26 @@
+defaults:
+- stft@params.spectrogram: 4k
+- normalization@params.normalization: default
+- bandsplit@params.bandsplit: cqt64
+- tfmodel@params.tf_model: locoformer8
+- mask_estim@params.mask_estim: default
+- _self_
+
+cls: VectorDictQueryBandit
+params:
+
+  bandsplit:
+    params:
+      hop_length: ${..spectrogram.hop_length}
+
+  tf_model:
+    params:
+      emb_dim: ${...bandsplit.params.emb_dim}
+    use_split_model: false
+
+  mask_estim:
+    emb_dim: ${..bandsplit.params.emb_dim}
+    in_channels: ${..bandsplit.params.in_channels}
+
+  stems: null
+  max_simultaneous_stems: 11

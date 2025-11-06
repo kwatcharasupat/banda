@@ -4,7 +4,7 @@ import torch
 from banda.data.item import SourceSeparationBatch
 from banda.models.masking.base import _BaseMaskingModel
 from banda.modules.bandsplit.band_specs import MusicalBandsplitSpecification
-from banda.modules.bandsplit.bandsplit import BandSplitModule
+from banda.modules.bandsplit.bandsplit import BaseBandsplitModule, HarmonicBandsplitModule
 from banda.modules.bandsplit.base import BandsplitModuleRegistry
 from banda.modules.maskestim.maskestim import OverlappingMaskEstimationModule
 from banda.modules.tfmodels.base import TFModelRegistry
@@ -38,12 +38,6 @@ class BaseBandit(_BaseMaskingModel):
         raise NotImplementedError
 
     def _build_bandsplit(self):
-        self.band_specs = MusicalBandsplitSpecification(
-            n_fft=self.config.spectrogram.n_fft,
-            n_bands=self.config.bandsplit.params.n_bands,
-            fs=self.config.spectrogram.fs,
-            fb_kwargs=self.config.bandsplit.params.fb_kwargs
-        ).get_band_specs()
 
         cls = BandsplitModuleRegistry.get_registry().get(self.config.bandsplit.cls)
         if cls is None:
@@ -51,13 +45,15 @@ class BaseBandit(_BaseMaskingModel):
                 f"Bandsplit class '{self.config.bandsplit.cls}' not found in registry. Allowed classes are: {list(BandsplitModuleRegistry.get_registry().keys())}"
             )
         
+            
         bandsplit_params = OmegaConf.to_container(self.config.bandsplit.params)
-        bandsplit_params["band_specs"] = self.band_specs
+        bandsplit_params["n_fft"] = self.config.spectrogram["n_fft"]
+        bandsplit_params["fs"] = self.config.spectrogram["fs"]
+        bandsplit_params["hop_length"] = self.config.spectrogram["hop_length"]
 
-        self.bandsplit = cls(
+        self.bandsplit : BaseBandsplitModule = cls(
             config=bandsplit_params,
         )
-
 
     def _build_tfmodel(self):
         cls_str = self.config.tf_model.cls
@@ -70,19 +66,27 @@ class BaseBandit(_BaseMaskingModel):
 
         tf_model_params = self.config.tf_model.params
         if self.config.tf_model.use_split_model:
+            print("Using split TF model, halving n_modules")
+            print("Original n_modules:", tf_model_params["n_modules"])
             tf_model_params["n_modules"] = tf_model_params["n_modules"] // 2
+            print("New n_modules:", tf_model_params["n_modules"])
 
         self.pre_tf_model = cls(config=tf_model_params)
+        print(self.pre_tf_model)
 
         if self.config.tf_model.use_split_model:
             self.post_tf_model = cls(config=tf_model_params)
+            print(self.post_tf_model)
         else:
             self.post_tf_model = nn.Identity()
 
     def _build_mask_estim(self):
+
+        band_selectors = self.bandsplit.band_selectors_for_decoders
+
         mask_estim = OverlappingMaskEstimationModule(
             in_channels=self.config.mask_estim.in_channels,
-            band_specs=self.band_specs,
+            band_selectors=band_selectors,
             n_freq=self.config.spectrogram.n_fft // 2 + 1,
             emb_dim=self.config.mask_estim.emb_dim,
             mlp_dim=self.config.mask_estim.mlp_dim,

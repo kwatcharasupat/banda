@@ -8,6 +8,7 @@ slurm_template = """#!/bin/bash
 #SBATCH -J{job_name}                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
+#SBATCH --qos=pace-grade
 #SBATCH --gres=gpu:1 --constraint={gpu_constraint}
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            

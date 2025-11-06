@@ -9,18 +9,21 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 
-class VectorDictQueryBandit(BaseBandit):
+class StemPrefixQueryBandit(BaseBandit):
+
+    PREFIX_TYPES = ["stem", "mixture"]
+
     def __init__(self, *, config):
         super().__init__(config=config)
 
-        self.query_bias = nn.ParameterDict(
+        self.prefix_dict = nn.ParameterDict(
             {
-                stem: nn.Parameter(torch.randn(self.config.tf_model.params.emb_dim))
-                for stem in self.config.stems
+                prefix: nn.Parameter(torch.randn(self.config.tf_model.params.emb_dim))
+                for prefix in self.PREFIX_TYPES
             }
         )
 
-        self.query_scale = nn.ParameterDict(
+        self.stem_dict = nn.ParameterDict(
             {
                 stem: nn.Parameter(torch.randn(self.config.tf_model.params.emb_dim))
                 for stem in self.config.stems
@@ -28,7 +31,6 @@ class VectorDictQueryBandit(BaseBandit):
         )
 
         self.mask_estim = self._build_mask_estim()
-
 
         if hasattr(self.config, "pretrained_decoder_ckpt_path"):
             logger.info(
@@ -44,24 +46,49 @@ class VectorDictQueryBandit(BaseBandit):
     ):
         band_embs = self.bandsplit(specs_normalized, batch=batch)
         tf_outs = self.pre_tf_model(band_embs)  # (batch, n_bands, n_time, emb_dim)
+        # print("TF OUTS SHAPE:", tf_outs.shape)
 
         active_stems = self.get_active_stems()
 
         masks = {}
         for stem in active_stems:
-            tf_adapted = self.adapt_query(tf_outs, stem=stem)
+            tf_adapted, prefix_idx = self.adapt_query(tf_outs, stem=stem)
+            # print("TF ADAPTED SHAPE:", tf_adapted.shape)
             tf_adapted = self.post_tf_model(tf_adapted)
+            # print("TF ADAPTED POST SHAPE:", tf_adapted.shape)
+            tf_adapted = self.remove_prefix(tf_adapted, prefix_idx=prefix_idx)
+            # print("TF ADAPTED NO PREFIX SHAPE:", tf_adapted.shape)
             masks[stem] = self.mask_estim(tf_adapted)
 
         return masks
 
+    def remove_prefix(self, tf_adapted: torch.Tensor, prefix_idx: int) -> torch.Tensor:
+        return tf_adapted[:, :, prefix_idx:, :]
+
     def adapt_query(self, tf_outs: torch.Tensor, stem: str) -> torch.Tensor:
-        query_bias = self.query_bias[stem]
-        query_scale = self.query_scale[stem]
+        
+        stem_prefix = self.prefix_dict["stem"]
+        stem_vector = self.stem_dict[stem]
+        mixture_prefix = self.prefix_dict["mixture"]
 
-        tf_adapted = tf_outs * (1.0 + query_scale) + query_bias
+        batch, n_bands, n_time, emb_dim = tf_outs.shape
+        stem_prefix_ = stem_prefix.view(1, 1, 1, emb_dim).expand(batch, n_bands, 1, -1)
+        stem_vector_ = stem_vector.view(1, 1, 1, emb_dim).expand(batch, n_bands, 1, -1)
+        mixture_prefix_ = mixture_prefix.view(1, 1, 1, emb_dim).expand(batch, n_bands, 1, -1)
 
-        return tf_adapted
+        tf_adapted = torch.concat(
+            [
+                stem_prefix_,
+                stem_vector_,
+                mixture_prefix_,
+                tf_outs
+            ],
+            dim=2,
+        )
+
+        prefix_idx = 3  # number of prefix tokens added
+
+        return tf_adapted, prefix_idx
 
 
     def load_pretrained_decoder(self, ckpt_path: str):

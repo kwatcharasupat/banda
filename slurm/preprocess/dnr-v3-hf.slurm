@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --array=1-12
+#SBATCH --array=5
 #SBATCH -Jdnr-download
 #SBATCH -N1 --ntasks-per-node=1
 #SBATCH --partition=ice-cpu
@@ -38,6 +38,6 @@ echo "Current SLURM Array Task ID: $TASK_ID"
 echo "Current language code: $LANG_CODE"
 echo "--------------------------------------"
 
-hf upload-large-folder "kwatcharasupat/dnr-v3-$LANG_CODE" $LANG_CODE --repo-type=dataset --num-workers=32 
+hf upload-large-folder "kwatcharasupat/dnr-v3-$LANG_CODE" $LANG_CODE --repo-type=dataset --no-bars --num-workers=32 
 
 echo "Task $TASK_ID completed for language $LANG_CODE."

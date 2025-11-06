@@ -1,4 +1,4 @@
-cls: BandSplitModuleWithDrop
+cls: FilterbankBandsplitModuleWithDrop
 params:
   n_bands: 64
   in_channels: 2

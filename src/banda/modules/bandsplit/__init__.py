@@ -1,1 +1,2 @@
-from .bandsplit import BandSplitModule, BandSplitModuleWithDrop
+from .bandsplit import FilterbankBandsplitModule, FilterbankBandsplitModuleWithDrop # noqa
+from .cqtbandsplit import CQTBandsplitModule # noqa

@@ -1,0 +1,6 @@
+cls: CQTBandsplitModule
+params:
+  n_bands: 64
+  bins_per_band: 8
+  in_channels: 2
+  emb_dim: 128

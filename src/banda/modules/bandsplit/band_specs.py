@@ -485,20 +485,35 @@ class PerceptualBandsplitSpecification(BandsplitSpecification):
         )
 
         weight_per_bin = torch.sum(self.filterbank, dim=0, keepdim=True)  # (1, n_freqs)
-        normalized_mel_fb = self.filterbank / weight_per_bin  # (n_mels, n_freqs)
+        normalized_fb = self.filterbank / weight_per_bin  # (n_mels, n_freqs)
 
         freq_weights = []
         band_specs = []
+        prev_end_index = 0
         for i in range(self.n_bands):
             active_bins = torch.nonzero(self.filterbank[i, :]).squeeze().tolist()
             if isinstance(active_bins, int):
                 active_bins = (active_bins, active_bins)
             if len(active_bins) == 0:
                 continue
+
             start_index = active_bins[0]
             end_index = active_bins[-1] + 1
+
+            if start_index > prev_end_index:
+                new_start_index = prev_end_index
+                logger.warning(
+                    "Gap detected between bands, adjusting start index from {start_index} to {new_start_index}",
+                    band_index=i,
+                    prev_end_index=prev_end_index,
+                    start_index=start_index,
+                    new_start_index=new_start_index,
+                )
+                start_index = new_start_index
+
             band_specs.append((start_index, end_index))
-            freq_weights.append(normalized_mel_fb[i, start_index:end_index])
+            freq_weights.append(normalized_fb[i, start_index:end_index])
+            prev_end_index = end_index
 
         self.freq_weights = freq_weights
         self.band_specs = band_specs
