@@ -3,7 +3,7 @@
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --qos=pace-grade
-#SBATCH --gres=gpu:1 --constraint=A100-80GB|H100|H200
+#SBATCH --gres=gpu:1 --constraint=A100-80GB|H100
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/vqlocobandit-cqt64-4k-l1snrz-multi-dbm-adam-musdbhq18-vdbo-%j.out                  # Combined output and error messages file

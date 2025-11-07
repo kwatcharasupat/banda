@@ -2,7 +2,7 @@
 #SBATCH -Jbandit-mus64-narrow-drop10-l1snrz-multi-dbm-adam-musdb18hq-vdbo                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
-#SBATCH --gres=gpu:1 --constraint=A100-80GB|H100|H200
+#SBATCH --gres=gpu:1 --constraint=A100-80GB|H100
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/bandit-mus64-narrow-drop10-l1snrz-multi-dbm-adam-musdb18hq-vdbo-%j.out                  # Combined output and error messages file

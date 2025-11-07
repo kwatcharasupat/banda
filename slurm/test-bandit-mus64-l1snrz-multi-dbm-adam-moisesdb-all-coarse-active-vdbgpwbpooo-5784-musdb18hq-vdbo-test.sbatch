@@ -2,7 +2,7 @@
 #SBATCH -Jtest-bandit-mus64-l1snrz-multi-dbm-adam-moisesdb-all-coarse-active-vdbgpwbpooo-5784-musdb18hq-vdbo-test                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
-#SBATCH --gres=gpu:1 --constraint=V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S
+#SBATCH --gres=gpu:1 --constraint=V100-32GB|A40|A100-40GB|A100-80GB|H100|L40S
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/test-bandit-mus64-l1snrz-multi-dbm-adam-moisesdb-all-coarse-active-vdbgpwbpooo-5784-musdb18hq-vdbo-test-%j.out                  # Combined output and error messages file

@@ -9,10 +9,6 @@ defaults:
 cls: VectorDictQueryBandit
 params:
 
-  bandsplit:
-    params:
-      hop_length: ${..spectrogram.hop_length}
-
   tf_model:
     params:
       emb_dim: ${...bandsplit.params.emb_dim}

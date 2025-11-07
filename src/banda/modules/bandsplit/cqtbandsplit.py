@@ -55,6 +55,10 @@ class CQTish(nn.Module):
             sr=fs,
         )
         self.lengths = nextpow2(np.array(lengths)).astype(int)
+
+        # half of fft sizes cannot be smaller than hop length
+        self.lengths = np.maximum(self.lengths, hop_length * 2)
+
         self.unique_lengths = np.sort(np.unique(self.lengths)).astype(int)[::-1]
 
         # for each length, compute the cqt filters
@@ -240,13 +244,16 @@ class CQTBandsplitModule(BaseRegisteredBandsplitModule):
 
         with torch.no_grad():
             audio = batch.mixture["audio"]  # (batch, in_chan, n_time)
-            batch, _, n_time = audio.shape
+            batch, _, _ = audio.shape
             X = self.cqt(audio)  # (batch, in_chan, n_bins, n_frames)
+            _, _, _, n_time = X.shape
             Xc = torch.reshape(
                 X, (batch, self.in_channels, self.n_bands, self.bins_per_band, -1)
             )
+            Xc = torch.permute(Xc, (0, 2, 4, 1, 3)).contiguous()
+            # (batch, n_bands, n_frames, in_chan, bins_per_band)
             Xc = torch.view_as_real(Xc)
-            # (batch, in_chan, n_bands, bins_per_band, n_frames, 2)
+            # print(Xc.shape)
 
         z: torch.Tensor = torch.zeros(
             size=(batch, self.n_bands, n_time, self.emb_dim), device=audio.device
@@ -255,8 +262,8 @@ class CQTBandsplitModule(BaseRegisteredBandsplitModule):
         for i, nfm in enumerate(self.norm_fc_modules):
             with torch.no_grad():
                 xb: torch.Tensor = Xc[:, i, ...]
-                # (batch, in_chan, bw, n_frames, 2)
-                xb = torch.reshape(xb, (batch, n_time, -1))
+                # (batch, n_frames, in_chan, bins_per_band, 2)
+                xb = torch.reshape(xb, (batch, n_time, -1 ))
                 # (batch, n_time, in_chan * bw * 2)
             z[:, i, :, :] = nfm(xb)
             # (batch, n_time, emb_dim)

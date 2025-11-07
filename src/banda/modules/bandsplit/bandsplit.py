@@ -75,7 +75,7 @@ class BaseBandsplitModule(BaseRegisteredBandsplitModule):
     def _make_band_definitions(self,):
         raise NotImplementedError
 
-    def forward(self, x: torch.Tensor, _: SourceSeparationBatch | None = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, batch: SourceSeparationBatch | None = None) -> torch.Tensor:
         """
         Forward pass for BandSplitModule.
 

@@ -3,7 +3,7 @@
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
 #SBATCH --qos=pace-grade
-#SBATCH --gres=gpu:1 --constraint=A100-80GB|H100|H200
+#SBATCH --gres=gpu:1 --constraint=A100-80GB|H100
 #SBATCH --cpus-per-task=24 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/bandit-mus64-narrow-drop5-l1snrz-multi-dbm-adam-musdb18hq-vdbo-%j.out                  # Combined output and error messages file
@@ -18,4 +18,4 @@ mamba activate banda
 
 nvidia-smi
 
-srun python scripts/train.py -cn bandit-mus64-narrow-drop5-l1snrz-multi-dbm-adam-musdb18hq-vdbo ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/bzphztes/checkpoints/last.ckpt
+srun python scripts/train.py -cn bandit-mus64-narrow-drop5-l1snrz-multi-dbm-adam-musdb18hq-vdbo ++ckpt_path=/storage/ice1/4/1/kwatchar3/banda/banda/ui1dmafv/checkpoints/last.ckpt

@@ -2,7 +2,7 @@
 #SBATCH -Jvqbandit-mus64-l1snr-multi-adam-moisesdb-vdbo-test-vdbo                    
 #SBATCH -N1 --ntasks-per-node=1     
 #SBATCH --partition=ice-gpu
-#SBATCH --gres=gpu:1 --constraint=V100-32GB|A40|A100-40GB|A100-80GB|H100|H200|L40S
+#SBATCH --gres=gpu:1 --constraint=V100-32GB|A40|A100-40GB|A100-80GB|H100|L40S
 #SBATCH --cpus-per-task=16 --mem-per-cpu=16G     
 #SBATCH --time=16:00:00                            
 #SBATCH --output=./slurm-out/vqbandit-mus64-l1snr-multi-adam-moisesdb-vdbo-test-vdbo-%j.out                  # Combined output and error messages file
