@@ -1,5 +1,6 @@
-# Banda
+## LICENSE
 
-## Getting Started
+This project is dual-licensed. It is available under the following licenses:
 
-## Training
+GNU Affero General Public License v3.0 for Academic & Non-Commercial Research Use.
+Commercial License for **all** other uses. Contact Karn Watcharasupat (kwatcharasupat@ieee.org) to obtain a commercial license.
